@@ -1,0 +1,96 @@
+# OS / editor noise
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/app/outputs/
+android/local.properties
+android/key.properties
+android/app/key.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+
+# Keep Firebase Android app config tracked for normal FlutterFire builds.
+# Uncomment the next line only if you intentionally do not want to commit it.
+# android/app/google-services.json
+
+# iOS / macOS generated files
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Runner/GeneratedPluginRegistrant.*
+macos/Pods/
+macos/Flutter/ephemeral/
+
+# Web / desktop generated folders
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# Firebase Functions
+functions/node_modules/
+functions/lib/
+functions/.runtimeconfig.json
+functions/firebase-debug.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Standalone FCM relay backend
+backend/fcm-relay/node_modules/
+backend/fcm-relay/firebase-service-account*.json
+backend/fcm-relay/service-account*.json
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+local.properties
+key.properties
+
+/functions/node_modules/
+/functions/package-lock.json

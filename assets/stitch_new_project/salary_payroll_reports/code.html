@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Salary &amp; Payroll Report - WorkSync Pro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700;800&amp;family=Public+Sans:wght@400;600&amp;family=Atkinson+Hyperlegible+Next:wght@700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@100..900&amp;family=Public+Sans:wght@100..900&amp;family=Work+Sans:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Public Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 10px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed": "#410002",
+                        "inverse-surface": "#27313f",
+                        "primary-fixed": "#dde1ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-container": "#a8b8ff",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-tint": "#3755c3",
+                        "surface-container-low": "#eff4ff",
+                        "on-secondary-container": "#007233",
+                        "surface-container-high": "#dee9fc",
+                        "on-surface-variant": "#444653",
+                        "on-secondary-fixed": "#00210a",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed-variant": "#173bab",
+                        "surface-dim": "#d0dbed",
+                        "primary-fixed-dim": "#b8c4ff",
+                        "error": "#ba1a1a",
+                        "background": "#f8f9ff",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-highest": "#d9e3f6",
+                        "inverse-primary": "#b8c4ff",
+                        "primary-container": "#1e40af",
+                        "outline": "#757684",
+                        "surface-bright": "#f8f9ff",
+                        "on-tertiary-container": "#ffa398",
+                        "tertiary-fixed": "#ffdad6",
+                        "surface": "#f8f9ff",
+                        "secondary": "#006d30",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#95f8a7",
+                        "secondary-container": "#92f5a4",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#9b000c",
+                        "tertiary": "#700006",
+                        "surface-container": "#e6eeff",
+                        "surface-variant": "#d9e3f6",
+                        "tertiary-fixed-dim": "#ffb4ab",
+                        "on-surface": "#121c2a",
+                        "on-primary-fixed": "#001453",
+                        "on-tertiary-fixed-variant": "#93000b",
+                        "on-background": "#121c2a",
+                        "secondary-fixed-dim": "#79db8d",
+                        "on-secondary-fixed-variant": "#005323",
+                        "outline-variant": "#c4c5d5",
+                        "primary": "#00288e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter-desktop": "24px",
+                        "gutter-mobile": "16px",
+                        "margin-mobile": "16px",
+                        "touch-target": "48px",
+                        "unit": "8px",
+                        "margin-desktop": "48px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Work Sans"],
+                        "body-lg": ["Public Sans"],
+                        "label-caps": ["Atkinson Hyperlegible Next"],
+                        "data-numeric": ["Public Sans"],
+                        "headline-lg": ["Work Sans"],
+                        "headline-md": ["Work Sans"],
+                        "body-md": ["Public Sans"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "label-caps": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "data-numeric": ["20px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface border-b border-outline-variant flex justify-between items-center h-16 px-gutter-mobile">
+<div class="flex items-center gap-3">
+<button aria-label="Menu" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors duration-200">
+<span class="material-symbols-outlined text-primary">menu</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">WorkSync Pro</h1>
+</div>
+<div class="flex items-center gap-1">
+<button aria-label="Account" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors duration-200">
+<span class="material-symbols-outlined text-primary">account_circle</span>
+</button>
+</div>
+</header>
+<main class="pt-20 px-gutter-mobile max-w-md mx-auto">
+<!-- Dashboard Header & Selector -->
+<div class="flex items-center justify-between mb-6">
+<div class="flex flex-col">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Payroll Report</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">DhinaDTS IT Solutions and Support (OPC) Private Limited.</p>
+</div>
+<div class="relative">
+<select class="appearance-none bg-surface-container border border-outline px-4 py-2 pr-10 rounded-lg font-label-caps text-label-caps text-primary focus:outline-none focus:ring-2 focus:ring-primary">
+<option>October 2023</option>
+<option>September 2023</option>
+<option>August 2023</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-primary">keyboard_arrow_down</span>
+</div>
+</div>
+<!-- Bento Grid Stats Overview -->
+<section class="grid grid-cols-2 gap-3 mb-8">
+<!-- Main Total Card -->
+<div class="col-span-2 bg-primary-container p-5 rounded-xl border border-primary text-white flex flex-col justify-between h-32 relative overflow-hidden shadow-sm">
+<div class="flex justify-between items-start">
+<span class="font-label-caps text-label-caps opacity-90">Total Salary Payout</span>
+<span class="material-symbols-outlined opacity-80" data-icon="payments">payments</span>
+</div>
+<div>
+<span class="font-headline-lg text-headline-lg">₹ 12,45,800</span>
+<p class="font-body-md text-sm opacity-80">142 Employees</p>
+</div>
+<!-- Decorative pattern -->
+<div class="absolute -right-4 -bottom-4 opacity-10">
+<span class="material-symbols-outlined text-9xl">receipt_long</span>
+</div>
+</div>
+<!-- OT Hours -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant flex flex-col gap-2 shadow-sm">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm" data-icon="history">history</span>
+<span class="font-label-caps text-xs">Overtime</span>
+</div>
+<span class="font-data-numeric text-data-numeric text-on-surface">842 Hrs</span>
+<span class="text-secondary text-xs font-semibold">+12% vs last month</span>
+</div>
+<!-- Deductions -->
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant flex flex-col gap-2 shadow-sm">
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="font-label-caps text-xs">Deductions</span>
+</div>
+<span class="font-data-numeric text-data-numeric text-tertiary">₹ 42,300</span>
+<span class="text-on-surface-variant text-xs">Advance Repayments</span>
+</div>
+</section>
+<!-- Actions -->
+<div class="flex gap-3 mb-8">
+<button class="flex-1 h-touch-target bg-primary text-on-primary font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="picture_as_pdf">picture_as_pdf</span>
+                Export PDF
+            </button>
+<button class="w-12 h-touch-target border border-outline-variant rounded-xl flex items-center justify-center text-on-surface-variant active:bg-surface-container transition-colors">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+</button>
+</div>
+<!-- Staff List Section -->
+<div class="mb-4 flex items-center justify-between px-1">
+<h3 class="font-headline-md text-headline-md text-on-surface">Staff Breakdown</h3>
+<span class="text-on-surface-variant font-body-md text-sm">Sort by: Status</span>
+</div>
+<div class="space-y-3">
+<!-- Staff Card 1 (Paid) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex items-center justify-between active:bg-surface-container transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full border border-outline-variant bg-surface-container flex items-center justify-center overflow-hidden">
+<img alt="Avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a mature factory supervisor with a warm expression. He is wearing a clean blue collared work shirt. The lighting is soft and industrial-professional, matching a clean modern UI aesthetic with light blue and white tones in the background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9hg0ZcnUk9QxnN64nurfbnH6WYdVGYk-eYkXS6Uy5b7mz8q6_hVj5en38LB04lnbkp5H2FGFStC9syq0bRQlQniI7fmrzH_tpUpIWQfKWc4ApmH9HadqD36rsvZkMFK1g1W3sTGvrFmL_XNGmhuulgyMbcnCN-ElwtNhvd6lJev-WvuUZ5kHxtBazZTGqQUCeWAIOr0QKqEy7Fvi39tVDePgG03zlmCMTuJqfDoKVSC5fuHHxz2mbbXevyKnKbkx8SVLT9BzjLeU"/>
+</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">Arjun Sharma</p>
+<p class="font-body-md text-sm text-on-surface-variant">Loom Operator • ID: 482</p>
+</div>
+</div>
+<div class="text-right flex flex-col items-end gap-1">
+<p class="font-data-numeric text-on-surface">₹ 24,500</p>
+<span class="px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] uppercase">Paid</span>
+</div>
+</div>
+<!-- Staff Card 2 (Pending) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex items-center justify-between active:bg-surface-container transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full border border-outline-variant bg-surface-container flex items-center justify-center overflow-hidden">
+<img alt="Avatar" class="w-full h-full object-cover" data-alt="A portrait of a young female office administrator in a bright, modern office setting. She has a confident smile and is wearing a professional beige blazer. The background is a minimalist office with soft lighting and cool blue-gray tones that complement a high-utility industrial professional design system." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDIDB-RiWsGsTS3UUKzDPmguQx0AoZPmP3W2qdXTX77elAdgGGA1AKHa-P35A3pcbLoDF-K9AAcvJCOy365qHi2fPe1kK-Om4xapxsh4X3NJMFkdI5v1dOZ68nQVMTHCQI7SN-mQzRp75XmfukgciyxixXHWg3XAL4fwkqWogXJF94-n2Woj22wuoxXBdRRUvMNUys776mAGNrGmdgImHuBFTyJutOdWodrqgrdcNAUTPOJImTM8Z52lZ0wmxrY9sbiPEaZ_bXvHrM"/>
+</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">Priya Verma</p>
+<p class="font-body-md text-sm text-on-surface-variant">Inventory Lead • ID: 105</p>
+</div>
+</div>
+<div class="text-right flex flex-col items-end gap-1">
+<p class="font-data-numeric text-on-surface">₹ 31,200</p>
+<span class="px-3 py-1 rounded-full bg-tertiary-container text-on-tertiary-container font-label-caps text-[10px] uppercase">Pending</span>
+</div>
+</div>
+<!-- Staff Card 3 (Paid) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex items-center justify-between active:bg-surface-container transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full border border-outline-variant bg-surface-container flex items-center justify-center overflow-hidden">
+<img alt="Avatar" class="w-full h-full object-cover" data-alt="A portrait of a male textile worker in a professional environment. He has short hair and a focused expression, wearing a gray workshop uniform. The style is crisp and high-contrast, with clean lighting that emphasizes reliability and precision, fitting a modern industrial software aesthetic with a primary palette of navy and white." src="https://lh3.googleusercontent.com/aida-public/AB6AXuABWe5gNZfSqAccPFCu8H6yAYPVbtawQiElFCzUlv_lQPuZ3c-NvgqwvZR21SMIwA9RWWlYTtKmFqx1dMex1xBn4IFaR4-WR-FrZ0B36e-bPgmKLRqEvO-igBc1wgFDpnJ7jCBO3SGp6vphX6ChBmM61Sn7qQ4c_wxaDGRXmwke5i2vi7FmusaUg9-b0OHriVSU1HHQJlbgpAfhiGEMKOO1_ICKWPyoON9K8RAs2xqsm7BxTjHwVWVUm0XB5INTDniHqOzUWfn4wTc"/>
+</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">Rohan Das</p>
+<p class="font-body-md text-sm text-on-surface-variant">Maintenance • ID: 772</p>
+</div>
+</div>
+<div class="text-right flex flex-col items-end gap-1">
+<p class="font-data-numeric text-on-surface">₹ 18,900</p>
+<span class="px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] uppercase">Paid</span>
+</div>
+</div>
+<!-- Staff Card 4 (Paid) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex items-center justify-between active:bg-surface-container transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full border border-outline-variant bg-surface-container flex items-center justify-center overflow-hidden">
+<img alt="Avatar" class="w-full h-full object-cover" data-alt="A portrait of an experienced female garment designer with a creative yet professional look. She is wearing spectacles and a stylish dark green cotton tunic. The lighting is bright and airy, representing a trust-through-clarity brand personality in a modern industrial setting with vibrant professional accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDLbhgibh5kg70zjx2b9GxdGa8e1u5rI7gTTWXNlw-K63k2c4sF67KiZcuZomXZPX1gVg8ewd_WihmCcQk6XJ1Wxm1FhKUL-Z3E8JUa_k47m3U-lZUBbarVbsp2fCd39owWxCBnbIXb6SilpXpAi5YP4VDy4SHoLXlNfJe5D_Wj-lKZRxCXpmNLOtX5pp5zGjHMyYM5v2vfB05t6Mv09dr8JnaR2leIzQpMHktyvEqesDppSd87CzvSoEbMTBJr34fUO5SWfX_vroU"/>
+</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">Sanya Mehta</p>
+<p class="font-body-md text-sm text-on-surface-variant">Quality Checker • ID: 221</p>
+</div>
+</div>
+<div class="text-right flex flex-col items-end gap-1">
+<p class="font-data-numeric text-on-surface">₹ 22,000</p>
+<span class="px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-caps text-[10px] uppercase">Paid</span>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface border-t border-outline-variant flex justify-around items-center h-20 pb-2">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-caps text-label-caps">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="location_on">location_on</span>
+<span class="font-label-caps text-label-caps">Attendance</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="payments" data-weight="fill" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-label-caps text-label-caps">Salary</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+</nav>
+<script>
+        // Simple micro-interaction for the list items
+        document.querySelectorAll('.staff-card').forEach(card => {
+            card.addEventListener('touchstart', () => {
+                card.classList.add('bg-surface-container');
+            });
+            card.addEventListener('touchend', () => {
+                card.classList.remove('bg-surface-container');
+            });
+        });
+
+        // Update greeting based on time of day? (Not requested, but nice polish)
+        console.log('Payroll Dashboard Loaded - V1.2.0');
+    </script>
+</body></html>

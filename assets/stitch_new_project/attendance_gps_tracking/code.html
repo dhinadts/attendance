@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&amp;family=Public+Sans:wght@400;600&amp;family=Atkinson+Hyperlegible+Next:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+                  "on-tertiary-fixed": "#410002",
+                  "inverse-surface": "#27313f",
+                  "primary-fixed": "#dde1ff",
+                  "inverse-on-surface": "#eaf1ff",
+                  "on-primary-container": "#a8b8ff",
+                  "on-tertiary": "#ffffff",
+                  "on-secondary": "#ffffff",
+                  "surface-tint": "#3755c3",
+                  "surface-container-low": "#eff4ff",
+                  "on-secondary-container": "#007233",
+                  "surface-container-high": "#dee9fc",
+                  "on-surface-variant": "#444653",
+                  "on-secondary-fixed": "#00210a",
+                  "on-primary": "#ffffff",
+                  "on-primary-fixed-variant": "#173bab",
+                  "surface-dim": "#d0dbed",
+                  "primary-fixed-dim": "#b8c4ff",
+                  "error": "#ba1a1a",
+                  "background": "#f8f9ff",
+                  "error-container": "#ffdad6",
+                  "surface-container-lowest": "#ffffff",
+                  "surface-container-highest": "#d9e3f6",
+                  "inverse-primary": "#b8c4ff",
+                  "primary-container": "#1e40af",
+                  "outline": "#757684",
+                  "surface-bright": "#f8f9ff",
+                  "on-tertiary-container": "#ffa398",
+                  "tertiary-fixed": "#ffdad6",
+                  "surface": "#f8f9ff",
+                  "secondary": "#006d30",
+                  "on-error": "#ffffff",
+                  "secondary-fixed": "#95f8a7",
+                  "secondary-container": "#92f5a4",
+                  "on-error-container": "#93000a",
+                  "tertiary-container": "#9b000c",
+                  "tertiary": "#700006",
+                  "surface-container": "#e6eeff",
+                  "surface-variant": "#d9e3f6",
+                  "tertiary-fixed-dim": "#ffb4ab",
+                  "on-surface": "#121c2a",
+                  "on-primary-fixed": "#001453",
+                  "on-tertiary-fixed-variant": "#93000b",
+                  "on-background": "#121c2a",
+                  "secondary-fixed-dim": "#79db8d",
+                  "on-secondary-fixed-variant": "#005323",
+                  "outline-variant": "#c4c5d5",
+                  "primary": "#00288e"
+          },
+          "borderRadius": {
+                  "DEFAULT": "0.25rem",
+                  "lg": "0.5rem",
+                  "xl": "0.75rem",
+                  "full": "9999px"
+          },
+          "spacing": {
+                  "gutter-desktop": "24px",
+                  "gutter-mobile": "16px",
+                  "margin-mobile": "16px",
+                  "touch-target": "48px",
+                  "unit": "8px",
+                  "margin-desktop": "48px"
+          },
+          "fontFamily": {
+                  "headline-lg-mobile": ["Work Sans"],
+                  "body-lg": ["Public Sans"],
+                  "label-caps": ["Atkinson Hyperlegible Next"],
+                  "data-numeric": ["Public Sans"],
+                  "headline-lg": ["Work Sans"],
+                  "headline-md": ["Work Sans"],
+                  "body-md": ["Public Sans"]
+          },
+          "fontSize": {
+                  "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                  "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                  "label-caps": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                  "data-numeric": ["20px", {"lineHeight": "24px", "fontWeight": "600"}],
+                  "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                  "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                  "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    body {
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface border-b border-outline-variant flex justify-between items-center h-16 px-gutter-mobile">
+<button class="w-touch-target h-touch-target flex items-center justify-center text-primary transition-colors duration-200 active:bg-surface-container-high rounded-full">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">WorkSync Pro</h1>
+<button class="w-touch-target h-touch-target flex items-center justify-center text-primary transition-colors duration-200 active:bg-surface-container-high rounded-full">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</header>
+<main class="flex-1 mt-16 mb-20 px-margin-mobile pt-6 pb-4 overflow-y-auto">
+<!-- Live Clock & Date Section -->
+<div class="text-center mb-8">
+<h2 class="font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase" id="current-date">MONDAY, OCT 23, 2023</h2>
+<div class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mt-1 tabular-nums" id="live-clock">08:00:00 AM</div>
+</div>
+<!-- Map & GPS Verification Widget -->
+<div class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden mb-6 relative">
+<div class="h-40 w-full bg-surface-dim relative">
+<!-- Location Image Representation -->
+<img alt="Map Location" class="w-full h-full object-cover opacity-60 grayscale" data-alt="A clean, high-contrast overhead map of an industrial district with geometric building outlines and clear road markings. The style is professional and minimalist, utilizing a color palette of soft grays and blues. A subtle radial gradient suggests a GPS radar sweep, maintaining a technical and precise atmosphere for a logistics or factory management application." data-location="Industrial Zone" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBJkyGG0rIuPKvAsNkcAk5ahsq4l_1SjQtDul94bke7d_vBkl6kWzSYjjmzXCR4u_1JtYadncdQ1CFlHUU0qNGiIlYqeI70LsOOyKI7_aG6oowL7ZffIz0pWBBk44eO94qrzW4No1WEKi86Xtkp3VZ1v_jmLqcwYYmxzwQ5A2htK0o8Et682x3a3JGZzkKIjsLpN0fmxKxS7hTZBSkg7IGQAspSSlfiulc3yG92W--raaWzB5Tsn6MW7jbmvpJbVL3jX6UoInR47sE"/>
+<!-- Pulse Effect for Location -->
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="relative">
+<div class="absolute -inset-4 bg-primary/20 rounded-full animate-ping"></div>
+<div class="w-4 h-4 bg-primary rounded-full border-2 border-white relative z-10 shadow-md"></div>
+</div>
+</div>
+</div>
+<div class="p-4 flex items-center justify-between bg-surface-container-lowest">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">location_on</span>
+<div>
+<p class="font-label-caps text-label-caps text-on-surface">Precision Textiles Hub</p>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">Industrial Sector 4, Wing B</p>
+</div>
+</div>
+<div class="flex items-center gap-1 bg-secondary-container px-3 py-1.5 rounded-full border border-secondary/20">
+<span class="material-symbols-outlined text-on-secondary-container text-lg" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-caps text-label-caps text-on-secondary-container text-xs">VERIFIED</span>
+</div>
+</div>
+</div>
+<!-- Attendance Actions -->
+<div class="grid grid-cols-1 gap-4 mb-8">
+<!-- Check In Button -->
+<button class="h-16 bg-secondary text-on-secondary rounded-xl font-headline-md text-headline-md flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-md border-b-4 border-on-secondary-fixed-variant">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">login</span>
+        CHECK IN
+      </button>
+<!-- Check Out Button -->
+<button class="h-16 bg-surface-container-high text-on-surface border-2 border-outline rounded-xl font-headline-md text-headline-md flex items-center justify-center gap-3 active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined">logout</span>
+        CHECK OUT
+      </button>
+</div>
+<!-- Performance Summary -->
+<div class="bg-surface-container rounded-xl border border-outline-variant p-4">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary">assessment</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">Shift Summary</h3>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant flex flex-col justify-center">
+<p class="font-label-caps text-label-caps text-on-surface-variant text-xs mb-1">HOURS WORKED</p>
+<p class="font-data-numeric text-data-numeric text-primary">06:42 <span class="text-sm font-normal">HRS</span></p>
+</div>
+<div class="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant flex flex-col justify-center">
+<p class="font-label-caps text-label-caps text-on-surface-variant text-xs mb-1">EST. OVERTIME</p>
+<p class="font-data-numeric text-data-numeric text-secondary">+01:12 <span class="text-sm font-normal">HRS</span></p>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-outline-variant flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-secondary animate-pulse"></div>
+<p class="font-body-md text-body-md text-on-surface-variant">Shift Status: <span class="text-on-surface font-semibold">Active</span></p>
+</div>
+<span class="font-data-numeric text-data-numeric text-sm text-primary">Target: 08:00</span>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface border-t border-outline-variant flex justify-around items-center h-20 pb-2">
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-caps text-label-caps text-[10px] mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">location_on</span>
+<span class="font-label-caps text-label-caps text-[10px] mt-1">Attendance</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-caps text-label-caps text-[10px] mt-1">Salary</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-caps text-label-caps text-[10px] mt-1">Settings</span>
+</a>
+</nav>
+<script>
+    function updateClock() {
+      const now = new Date();
+      
+      // Update Time
+      const timeString = now.toLocaleTimeString('en-US', { 
+        hour12: true, 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      });
+      document.getElementById('live-clock').textContent = timeString;
+      
+      // Update Date
+      const dateOptions = { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' };
+      document.getElementById('current-date').textContent = now.toLocaleDateString('en-US', dateOptions).toUpperCase();
+    }
+
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Haptic interaction simulation for industrial feel
+    document.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('touchstart', () => {
+        if (window.navigator.vibrate) window.navigator.vibrate(10);
+      });
+    });
+  </script>
+</body></html>

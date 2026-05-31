@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>WorkSync Pro - Owner's Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&amp;family=Public+Sans:wght@400;600&amp;family=Atkinson+Hyperlegible+Next:wght@700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed": "#410002",
+                        "inverse-surface": "#27313f",
+                        "primary-fixed": "#dde1ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "on-primary-container": "#a8b8ff",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-tint": "#3755c3",
+                        "surface-container-low": "#eff4ff",
+                        "on-secondary-container": "#007233",
+                        "surface-container-high": "#dee9fc",
+                        "on-surface-variant": "#444653",
+                        "on-secondary-fixed": "#00210a",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed-variant": "#173bab",
+                        "surface-dim": "#d0dbed",
+                        "primary-fixed-dim": "#b8c4ff",
+                        "error": "#ba1a1a",
+                        "background": "#f8f9ff",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-highest": "#d9e3f6",
+                        "inverse-primary": "#b8c4ff",
+                        "primary-container": "#1e40af",
+                        "outline": "#757684",
+                        "surface-bright": "#f8f9ff",
+                        "on-tertiary-container": "#ffa398",
+                        "tertiary-fixed": "#ffdad6",
+                        "surface": "#f8f9ff",
+                        "secondary": "#006d30",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#95f8a7",
+                        "secondary-container": "#92f5a4",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#9b000c",
+                        "tertiary": "#700006",
+                        "surface-container": "#e6eeff",
+                        "surface-variant": "#d9e3f6",
+                        "tertiary-fixed-dim": "#ffb4ab",
+                        "on-surface": "#121c2a",
+                        "on-primary-fixed": "#001453",
+                        "on-tertiary-fixed-variant": "#93000b",
+                        "on-background": "#121c2a",
+                        "secondary-fixed-dim": "#79db8d",
+                        "on-secondary-fixed-variant": "#005323",
+                        "outline-variant": "#c4c5d5",
+                        "primary": "#00288e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter-desktop": "24px",
+                        "gutter-mobile": "16px",
+                        "margin-mobile": "16px",
+                        "touch-target": "48px",
+                        "unit": "8px",
+                        "margin-desktop": "48px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Work Sans"],
+                        "body-lg": ["Public Sans"],
+                        "label-caps": ["Atkinson Hyperlegible Next"],
+                        "data-numeric": ["Public Sans"],
+                        "headline-lg": ["Work Sans"],
+                        "headline-md": ["Work Sans"],
+                        "body-md": ["Public Sans"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "label-caps": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "data-numeric": ["20px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #f8f9ff;
+            color: #121c2a;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-body-md">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface border-b border-outline-variant flex justify-between items-center h-16 px-gutter-mobile">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer" data-icon="menu">menu</span>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">WorkSync Pro</h1>
+</div>
+<div class="flex items-center">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="account_circle">account_circle</span>
+</div>
+</header>
+<main class="pt-20 pb-24 px-gutter-mobile max-w-md mx-auto">
+<!-- Welcome Section -->
+<section class="mb-6">
+<p class="font-label-caps text-label-caps text-on-surface-variant">MONDAY, OCT 23</p>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Admin Portal</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">DhinaDTS IT Solutions and Support (OPC) Private Limited.</p>
+</section>
+<!-- Today's Summary Card -->
+<section class="mb-8">
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-5">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-headline-md text-headline-md">Today's Summary</h3>
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="info">info</span>
+</div>
+<div class="grid grid-cols-3 gap-4">
+<div class="flex flex-col items-center p-3 bg-surface-container rounded-lg border border-outline-variant">
+<span class="text-secondary font-bold text-xl font-data-numeric">18/22</span>
+<span class="font-label-caps text-xs text-on-surface-variant mt-1">PRESENT</span>
+</div>
+<div class="flex flex-col items-center p-3 bg-surface-container rounded-lg border border-outline-variant">
+<span class="text-tertiary font-bold text-xl font-data-numeric">2</span>
+<span class="font-label-caps text-xs text-on-surface-variant mt-1">LEAVE</span>
+</div>
+<div class="flex flex-col items-center p-3 bg-surface-container rounded-lg border border-outline-variant">
+<span class="text-error font-bold text-xl font-data-numeric">2</span>
+<span class="font-label-caps text-xs text-on-surface-variant mt-1">LATE</span>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-outline-variant">
+<div class="flex justify-between items-center">
+<span class="font-body-md text-body-md">Overall Productivity</span>
+<span class="font-data-numeric text-secondary">82%</span>
+</div>
+<div class="w-full bg-surface-variant h-2 rounded-full mt-2">
+<div class="bg-secondary h-2 rounded-full w-[82%]"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Quick Actions Grid -->
+<section class="mb-8">
+<h3 class="font-headline-md text-headline-md mb-4 px-1">Quick Actions</h3>
+<div class="grid grid-cols-2 gap-4">
+<button class="flex flex-col items-center justify-center gap-2 p-6 bg-primary-container text-on-primary border border-primary rounded-xl active:scale-95 transition-transform h-32">
+<span class="material-symbols-outlined text-3xl" data-icon="how_to_reg">how_to_reg</span>
+<span class="font-label-caps text-center leading-tight">Mark Attendance</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-6 bg-surface-container-high border border-outline-variant rounded-xl active:scale-95 transition-transform h-32">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="payments">payments</span>
+<span class="font-label-caps text-center leading-tight">View Payroll</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-6 bg-surface-container-high border border-outline-variant rounded-xl active:scale-95 transition-transform h-32">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="event_available">event_available</span>
+<span class="font-label-caps text-center leading-tight">Approve Leaves</span>
+</button>
+<button class="flex flex-col items-center justify-center gap-2 p-6 bg-surface-container-high border border-outline-variant rounded-xl active:scale-95 transition-transform h-32">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="ios_share">ios_share</span>
+<span class="font-label-caps text-center leading-tight">Export Reports</span>
+</button>
+</div>
+</section>
+<!-- Recent Activity List -->
+<section class="mb-12">
+<div class="flex justify-between items-center mb-4 px-1">
+<h3 class="font-headline-md text-headline-md">Recent Activity</h3>
+<button class="text-primary font-label-caps">VIEW ALL</button>
+</div>
+<div class="space-y-3">
+<!-- Activity Item 1 -->
+<div class="flex items-center gap-4 p-4 bg-surface rounded-xl border border-outline-variant">
+<div class="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border border-outline-variant">
+<img alt="Staff Avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a middle-aged male factory supervisor with a friendly expression. He is wearing a clean blue industrial uniform. The lighting is bright and clear, matching a professional and industrial workplace aesthetic with a soft-focus workshop background. The overall tone is trustworthy and reliable." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCGVuDwA9_dFP9nAfGN0nzyzVKat9sQk5KkZ76QFqZXY_xIrXvzgC3JQMPXel6VKz4S8E8md12OLA7wImgScjm9Oh6TarwvaytcBAVpIpl3d0RVE1TjB0dsjoY0obM0XIaYnw_IUvyuGaG9yG00zB-UaLCbrgNKkYXHReQ_fSRD8g562puiOTXNIEQ9XnUcCQZhE-xvXXIDpPN7eE7aVATfDlCHgqEZcJavj0kTOHn-H9GLt8FO7XatPDz8sWxCshOZhZd1ZXlCLsU"/>
+</div>
+<div class="flex-grow">
+<p class="font-bold text-on-surface">Rajesh Kumar</p>
+<p class="text-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span>
+                            Checked in at 08:45 AM
+                        </p>
+</div>
+<div class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-xs font-label-caps">
+                        ON TIME
+                    </div>
+</div>
+<!-- Activity Item 2 -->
+<div class="flex items-center gap-4 p-4 bg-surface rounded-xl border border-outline-variant">
+<div class="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border border-outline-variant">
+<img alt="Staff Avatar" class="w-full h-full object-cover" data-alt="A professional portrait of a young woman working in textile design, wearing a neutral-colored blouse. She has a confident, professional look. The background is a brightly lit, clean studio with soft textures and muted colors. The visual style is modern, sharp, and focused, emphasizing clarity and professionalism." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCEvoAcs28zh4Bc9307YBnDn8ZK7zz744S2BTqpLfigU-yzdvjiZ3u2pDqlrH7Jei-62yirVnRi-yjA2G1HXo2Z9bItgFlxiUXjNWSEv5Kl7UYLe_pIefQFz4_fMjLBytc6wlZVTE8bMN7DRCC-BSTgkKjpaWl59sce9SKlbB3c6d3LAW9xpKyqnH3-sU7WGeZYnwqVvmHY118bh2_orCMnmzJyEf-XtC8exAcSRYkpza51_hUUAylhebcIWXuIO5CS5It-i9dkBTA"/>
+</div>
+<div class="flex-grow">
+<p class="font-bold text-on-surface">Priya Singh</p>
+<p class="text-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span>
+                            Checked in at 09:12 AM
+                        </p>
+</div>
+<div class="bg-tertiary-fixed text-on-tertiary-fixed-variant px-3 py-1 rounded-full text-xs font-label-caps">
+                        LATE
+                    </div>
+</div>
+<!-- Activity Item 3 -->
+<div class="flex items-center gap-4 p-4 bg-surface rounded-xl border border-outline-variant">
+<div class="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border border-outline-variant">
+<img alt="Staff Avatar" class="w-full h-full object-cover" data-alt="A high-quality close-up of a smiling male employee in his early thirties, dressed in professional business casual attire. The setting is a bright, modern office space with natural light streaming through large windows. The overall aesthetic is clean, professional, and optimistic, utilizing a bright color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUKKTfFBKyKdbMnv-wW1utPd5cZgdrxQRDO6pDkQ-ojlZknERwm0IVt3bQf-sxw2yH3LfRDHjjXnlCJjoTyLDLdD9sxutiiFWlhWJHqa4Zkfv5ZXHjqf47pBBu0eDCWsby1fOY325b8MTkHVeNW9drWuxjPUbp2NwEB7bvZn8O4xDGip-ezP00kz9NAkp6VjOLdNVkQiL_3Pw3Z9dULKmYi56XuITNtZOds4UxWmNDtXetCt3NulokhGJ5vWe7y3M3tWDUAktA6DQ"/>
+</div>
+<div class="flex-grow">
+<p class="font-bold text-on-surface">Anil Verma</p>
+<p class="text-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span>
+                            Checked in at 08:58 AM
+                        </p>
+</div>
+<div class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-xs font-label-caps">
+                        ON TIME
+                    </div>
+</div>
+</div>
+</section>
+</main>
+<!-- FAB for Quick Punch -->
+<div class="fixed bottom-24 right-6 z-40">
+<button class="w-14 h-14 bg-primary text-on-primary rounded-2xl shadow-lg flex items-center justify-center active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-3xl" data-icon="add" style="font-variation-settings: 'FILL' 1;">add</span>
+</button>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface border-t border-outline-variant flex justify-around items-center h-20 pb-2">
+<!-- Home (Active) -->
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-label-caps text-label-caps">Home</span>
+</a>
+<!-- Attendance -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="location_on">location_on</span>
+<span class="font-label-caps text-label-caps">Attendance</span>
+</a>
+<!-- Salary -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-caps text-label-caps">Salary</span>
+</a>
+<!-- Settings -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-4 py-1 active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+</nav>
+<script>
+        // Micro-interactions for buttons
+        document.querySelectorAll('button, a').forEach(el => {
+            el.addEventListener('click', function(e) {
+                // Haptic feedback simulation or simple logging
+                console.log('Action triggered:', this.innerText || this.querySelector('span:last-child').innerText);
+            });
+        });
+
+        // Simple animation for the productivity bar on load
+        window.addEventListener('load', () => {
+            const bar = document.querySelector('.bg-secondary.h-2');
+            bar.style.width = '0%';
+            setTimeout(() => {
+                bar.style.transition = 'width 1s ease-out';
+                bar.style.width = '82%';
+            }, 300);
+        });
+    </script>
+</body></html>
