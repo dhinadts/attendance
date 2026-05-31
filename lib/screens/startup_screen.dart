@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../services/auth_role_service.dart';
+import '../services/fcm_notification_service.dart';
 
 class StartupScreen extends StatefulWidget {
   const StartupScreen({super.key});
@@ -30,9 +31,15 @@ class _StartupScreenState extends State<StartupScreen> {
       return;
     }
 
-    final role = await _authRoleService.currentRole();
+    final role = await _authRoleService.currentRole() ?? AppUserRole.employee;
     if (!mounted) return;
-    context.go(role == AppUserRole.admin ? '/admin-dashboard' : '/dashboard');
+    final pendingRoute = FcmNotificationService.instance.consumePendingRouteFor(
+      role,
+    );
+    context.go(
+      pendingRoute ??
+          (role == AppUserRole.admin ? '/admin-dashboard' : '/dashboard'),
+    );
   }
 
   @override

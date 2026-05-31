@@ -121,25 +121,21 @@ class FcmNotificationService {
 
   Future<void> _handleLocalNotificationTap(String? payload) async {
     if (payload == null || payload.isEmpty) return;
-    final context = navigatorKey.currentContext;
-    if (context == null || !context.mounted) return;
 
     try {
       final decoded = Map<String, dynamic>.from(jsonDecode(payload));
       final notificationRoute = await routeForNotificationData(decoded);
-      if (!context.mounted) return;
       if (notificationRoute != null) {
-        context.go(notificationRoute);
+        _openRouteOrStore(notificationRoute);
         return;
       }
 
       final messageId = decoded['messageId'] as String?;
       final role = await _authRoleService.currentRole();
-      if (!context.mounted) return;
       final messageRoute = role == AppUserRole.admin
           ? '/admin-messages'
           : '/messages';
-      context.go(
+      _openRouteOrStore(
         messageId == null || messageId.isEmpty
             ? messageRoute
             : '$messageRoute?messageId=$messageId',
@@ -147,30 +143,26 @@ class FcmNotificationService {
     } catch (_) {
       // fallback
       final role = await _authRoleService.currentRole();
-      if (!context.mounted) return;
       final route = role == AppUserRole.admin ? '/admin-messages' : '/messages';
-      context.go(payload.contains('/') ? payload : '$route?messageId=$payload');
+      _openRouteOrStore(
+        payload.contains('/') ? payload : '$route?messageId=$payload',
+      );
     }
   }
 
   Future<void> _handleRemoteMessageTap(RemoteMessage message) async {
-    final context = navigatorKey.currentContext;
-    if (context == null || !context.mounted) return;
-
     final notificationRoute = await routeForNotificationData(message.data);
-    if (!context.mounted) return;
     if (notificationRoute != null) {
-      context.go(notificationRoute);
+      _openRouteOrStore(notificationRoute);
       return;
     }
 
     final role = await _authRoleService.currentRole();
-    if (!context.mounted) return;
     final messageRoute = role == AppUserRole.admin
         ? '/admin-messages'
         : '/messages';
     final messageId = message.data['messageId'] as String?;
-    context.go(
+    _openRouteOrStore(
       messageId == null ? messageRoute : '$messageRoute?messageId=$messageId',
     );
   }
@@ -477,6 +469,30 @@ class FcmNotificationService {
     }
     _pendingRouteAfterLogin = null;
     return route;
+  }
+
+  void _openRouteOrStore(String route) {
+    final context = navigatorKey.currentContext;
+    if (context == null || !context.mounted) {
+      _pendingRouteAfterLogin = route;
+      return;
+    }
+
+    final currentPath = _currentPath(context);
+    if (currentPath == '/startup' || currentPath == '/login') {
+      _pendingRouteAfterLogin = route;
+      return;
+    }
+
+    context.go(route);
+  }
+
+  String? _currentPath(BuildContext context) {
+    try {
+      return GoRouterState.of(context).uri.path;
+    } catch (_) {
+      return null;
+    }
   }
 
   String _routeWithQuery(String path, Map<String, String> query) {
