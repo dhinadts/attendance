@@ -31,6 +31,30 @@ async function tokensForRecipientUids(recipientUids) {
   return [...new Set(tokens)];
 }
 
+async function adminRecipientUids() {
+  const snapshot = await admin
+    .firestore()
+    .collection("users")
+    .where("role", "==", "admin")
+    .get();
+  return snapshot.docs.map((doc) => doc.id).filter(Boolean);
+}
+
+async function tokensForMessage(data) {
+  const recipientUids = Array.isArray(data.recipientUids)
+    ? data.recipientUids
+    : data.recipientUid
+      ? [data.recipientUid]
+      : [];
+  const targetType = String(data.targetType || "");
+  const adminUids =
+    targetType === "admin" || targetType === "admins"
+      ? await adminRecipientUids()
+      : [];
+
+  return tokensForRecipientUids([...recipientUids, ...adminUids]);
+}
+
 exports.sendTeamMessagePush = onDocumentCreated(
   "fcm_outbox/{messageId}",
   async (event) => {
@@ -42,12 +66,7 @@ exports.sendTeamMessagePush = onDocumentCreated(
     const body = data.body || "New team message";
     const topics = Array.isArray(data.topics) ? data.topics : [];
     const uniqueTopics = [...new Set(topics.filter(Boolean))];
-    const recipientUids = Array.isArray(data.recipientUids)
-      ? data.recipientUids
-      : data.recipientUid
-        ? [data.recipientUid]
-        : [];
-    const tokens = await tokensForRecipientUids(recipientUids);
+    const tokens = await tokensForMessage(data);
     const messageData = {
       messageId: String(data.messageId || event.params.messageId || ""),
       type: String(data.type || ""),

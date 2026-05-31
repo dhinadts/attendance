@@ -83,6 +83,29 @@ async function tokensForRecipientUids(firestore, recipientUids) {
   return [...new Set(tokens)];
 }
 
+async function adminRecipientUids(firestore) {
+  const snapshot = await firestore
+    .collection("users")
+    .where("role", "==", "admin")
+    .get();
+  return snapshot.docs.map((doc) => doc.id).filter(Boolean);
+}
+
+async function tokensForMessage(firestore, data) {
+  const recipientUids = Array.isArray(data.recipientUids)
+    ? data.recipientUids
+    : data.recipientUid
+      ? [data.recipientUid]
+      : [];
+  const targetType = String(data.targetType || "");
+  const adminUids =
+    targetType === "admin" || targetType === "admins"
+      ? await adminRecipientUids(firestore)
+      : [];
+
+  return tokensForRecipientUids(firestore, [...recipientUids, ...adminUids]);
+}
+
 function messageDataFor(data, messageId) {
   const title = String(data.title || "attendance");
   const body = String(data.body || "New team message");
@@ -143,12 +166,7 @@ async function processOutboxDocument(firestore, docRef) {
   const messaging = admin.messaging();
   const topics = Array.isArray(data.topics) ? data.topics : [];
   const uniqueTopics = [...new Set(topics.filter(Boolean))];
-  const recipientUids = Array.isArray(data.recipientUids)
-    ? data.recipientUids
-    : data.recipientUid
-      ? [data.recipientUid]
-      : [];
-  const tokens = await tokensForRecipientUids(firestore, recipientUids);
+  const tokens = await tokensForMessage(firestore, data);
   const payload = messageDataFor(data, docRef.id);
 
   if (uniqueTopics.length === 0 && tokens.length === 0) {
