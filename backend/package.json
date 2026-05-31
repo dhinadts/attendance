@@ -1,0 +1,14 @@
+{
+  "name": "attendance-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend wrapper for deploying the attendance FCM relay from the backend directory.",
+  "scripts": {
+    "build": "npm --prefix fcm-relay install",
+    "start": "npm --prefix fcm-relay start",
+    "check": "npm --prefix fcm-relay run check"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

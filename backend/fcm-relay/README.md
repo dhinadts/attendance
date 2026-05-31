@@ -54,10 +54,17 @@ npm start
 
 ## Render Setup
 
-Create a new Web Service:
+Create a new Web Service. Recommended setup:
 
 - Root Directory: `backend/fcm-relay`
 - Build Command: `npm install`
+- Start Command: `npm start`
+- Health Check Path: `/health`
+
+If you already set Root Directory as `backend`, use this setup instead:
+
+- Root Directory: `backend`
+- Build Command: `npm run build`
 - Start Command: `npm start`
 - Health Check Path: `/health`
 

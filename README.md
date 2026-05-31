@@ -229,6 +229,13 @@ Deploy on Render/Railway:
 - Start command: `npm start`
 - Health check path: `/health`
 
+If Render root directory is set to `backend`, use:
+
+- Root directory: `backend`
+- Build command: `npm run build`
+- Start command: `npm start`
+- Health check path: `/health`
+
 Required environment variables:
 
 ```text
