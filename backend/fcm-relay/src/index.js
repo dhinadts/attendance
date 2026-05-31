@@ -6,23 +6,33 @@ const DRY_RUN = process.env.FCM_RELAY_DRY_RUN === "true";
 const OUTBOX_LIMIT = Number(process.env.FCM_OUTBOX_LIMIT || 25);
 
 function parseServiceAccount() {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
-    const decoded = Buffer.from(
-      process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
-      "base64",
-    ).toString("utf8");
-    return JSON.parse(decoded);
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
+    ? Buffer.from(
+        process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
+        "base64",
+      ).toString("utf8")
+    : process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+  if (!raw) return null;
+
+  const account = JSON.parse(raw);
+  if (typeof account.private_key === "string") {
+    account.private_key = account.private_key.replace(/\\n/g, "\n");
   }
 
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    const account = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-    if (typeof account.private_key === "string") {
-      account.private_key = account.private_key.replace(/\\n/g, "\n");
-    }
-    return account;
+  const requiredFields = ["project_id", "client_email", "private_key"];
+  const missing = requiredFields.filter(
+    (field) =>
+      typeof account[field] !== "string" || account[field].trim().length === 0,
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `Firebase service account is missing: ${missing.join(", ")}. ` +
+        "Use the full JSON downloaded from Firebase Console > Project settings > Service accounts > Generate new private key.",
+    );
   }
 
-  return null;
+  return account;
 }
 
 function initializeFirebase() {

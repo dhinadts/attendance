@@ -240,8 +240,14 @@ Required environment variables:
 
 ```text
 FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_SERVICE_ACCOUNT_JSON={...full Firebase service account JSON...}
+FIREBASE_SERVICE_ACCOUNT_BASE64=base64-encoded-full-service-account-json
 FCM_RELAY_DRY_RUN=false
+```
+
+Create the base64 value in PowerShell from the downloaded Firebase service account JSON:
+
+```powershell
+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-Content .\firebase-service-account.json -Raw)))
 ```
 
 The relay watches `fcm_outbox` documents with `status: pending` or `status: retry`, sends the push through Firebase Admin SDK, and updates the document to `sent`, `failed`, or `retry`.

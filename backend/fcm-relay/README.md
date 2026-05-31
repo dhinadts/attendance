@@ -68,13 +68,25 @@ If you already set Root Directory as `backend`, use this setup instead:
 - Start Command: `npm start`
 - Health Check Path: `/health`
 
-Environment variables:
+Environment variables. The base64 option is recommended on Render because it avoids private-key newline issues:
 
 ```text
 FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_SERVICE_ACCOUNT_JSON={...full service account json...}
+FIREBASE_SERVICE_ACCOUNT_BASE64=base64-encoded-full-service-account-json
 FCM_RELAY_DRY_RUN=false
 ```
+
+PowerShell command to create the base64 value from a downloaded key file:
+
+```powershell
+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-Content .\firebase-service-account.json -Raw)))
+```
+
+If you use `FIREBASE_SERVICE_ACCOUNT_JSON` instead, it must be the full downloaded JSON and must include:
+
+- `project_id`
+- `client_email`
+- `private_key`
 
 ## Railway Setup
 
