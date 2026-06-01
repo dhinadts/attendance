@@ -25,6 +25,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   AttendanceSession? _session;
   String? _todayFirstLoginAtIst;
   bool _outsideOfficeSession = false;
+  bool _isLoading = true;
+  String? _loadError;
 
   @override
   void initState() {
@@ -33,20 +35,34 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   }
 
   Future<void> _load() async {
-    final profile = await _service.loadEmployeeProfile();
-    final session = await _service.loadActiveSession();
-    final outsideOffice = await _service.hasOutsideOfficeSession();
-    final todayFirstLoginAtIst = await _loadTodayFirstLoginAtIst(profile);
-    await FcmNotificationService.instance.registerCurrentUser(
-      department: profile.department,
-    );
-    if (!mounted) return;
     setState(() {
-      _profile = profile;
-      _session = session;
-      _todayFirstLoginAtIst = todayFirstLoginAtIst;
-      _outsideOfficeSession = outsideOffice;
+      _isLoading = true;
+      _loadError = null;
     });
+
+    try {
+      final profile = await _service.loadEmployeeProfile();
+      final session = await _service.loadActiveSession();
+      final outsideOffice = await _service.hasOutsideOfficeSession();
+      final todayFirstLoginAtIst = await _loadTodayFirstLoginAtIst(profile);
+      await FcmNotificationService.instance.registerCurrentUser(
+        department: profile.department,
+      );
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _session = session;
+        _todayFirstLoginAtIst = todayFirstLoginAtIst;
+        _outsideOfficeSession = outsideOffice;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = error.toString();
+        _isLoading = false;
+      });
+    }
   }
 
   Future<String?> _loadTodayFirstLoginAtIst(EmployeeProfile profile) async {
@@ -90,6 +106,19 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     return '$date $time IST';
   }
 
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _todayAttendanceStream() {
+    final profile = _profile;
+    if (profile == null) return null;
+    final docId = _service.attendanceDocumentId(
+      profile.employeeId,
+      _service.todayIst,
+    );
+    return FirebaseFirestore.instance
+        .collection('attendance')
+        .doc(docId)
+        .snapshots();
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = _profile;
@@ -117,41 +146,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            StatusChip(
-              label: _session == null
-                  ? 'Face login required today'
-                  : 'Checked in',
-              type: _session == null
-                  ? StatusChipType.pending
-                  : StatusChipType.success,
-              icon: _session == null ? Icons.face : Icons.check_circle,
-            ),
+            _buildSessionStatusChip(),
             const SizedBox(height: 20),
-            IndustrialCard(
-              highlighted: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Today Attendance',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text('Login: ${_formatLoginTime(_todayFirstLoginAtIst)}'),
-                  const SizedBox(height: 6),
-                  const Text('Eligibility: 7 office hours required'),
-                  const SizedBox(height: 18),
-                  PrimaryActionButton(
-                    label: 'FACE ATTENDANCE',
-                    icon: Icons.face,
-                    onPressed: () => context.go('/face-attendance'),
-                  ),
-                ],
-              ),
-            ),
+            _buildTodayAttendanceCard(context),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -198,6 +195,131 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSessionStatusChip() {
+    if (_isLoading) {
+      return const StatusChip(
+        label: 'Loading today attendance...',
+        type: StatusChipType.pending,
+        icon: Icons.sync,
+      );
+    }
+    if (_loadError != null) {
+      return StatusChip(
+        label: _loadError!,
+        type: StatusChipType.alert,
+        icon: Icons.error_outline,
+      );
+    }
+    return StatusChip(
+      label: _session == null ? 'Face login required today' : 'Checked in',
+      type: _session == null ? StatusChipType.pending : StatusChipType.success,
+      icon: _session == null ? Icons.face : Icons.check_circle,
+    );
+  }
+
+  Widget _buildTodayAttendanceCard(BuildContext context) {
+    final stream = _todayAttendanceStream();
+    if (_isLoading || stream == null) {
+      return _todayAttendanceShell(
+        context,
+        children: const [
+          LinearProgressIndicator(),
+          SizedBox(height: 12),
+          Text('Fetching today attendance...'),
+        ],
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data();
+        final loginAtIst = _firstLoginAtIst(data) ?? _todayFirstLoginAtIst;
+        final sessionStatus = data?['sessionStatus'] as String?;
+        final logoutAtIst = data?['logoutAtIst'] as String?;
+        final hasLoggedInToday = loginAtIst != null && loginAtIst.isNotEmpty;
+
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !hasLoggedInToday) {
+          return _todayAttendanceShell(
+            context,
+            children: const [
+              LinearProgressIndicator(),
+              SizedBox(height: 12),
+              Text('Fetching today attendance...'),
+            ],
+          );
+        }
+
+        return _todayAttendanceShell(
+          context,
+          children: [
+            Text('Login: ${_formatLoginTime(loginAtIst)}'),
+            const SizedBox(height: 6),
+            Text(
+              logoutAtIst == null || logoutAtIst.isEmpty
+                  ? 'Final logout: 6:00 PM IST automatic'
+                  : 'Logout: ${_formatLoginTime(logoutAtIst)}',
+            ),
+            const SizedBox(height: 6),
+            const Text('Eligibility: 7 office hours required'),
+            const SizedBox(height: 6),
+            Text(
+              hasLoggedInToday
+                  ? 'Daily face authentication completed'
+                  : 'Daily face authentication pending',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: IndustrialColors.onSurfaceVariant,
+              ),
+            ),
+            if (sessionStatus != null) ...[
+              const SizedBox(height: 10),
+              StatusChip(
+                label: sessionStatus.replaceAll('_', ' ').toUpperCase(),
+                type: sessionStatus == 'active'
+                    ? StatusChipType.success
+                    : StatusChipType.neutral,
+              ),
+            ],
+            const SizedBox(height: 18),
+            PrimaryActionButton(
+              label: hasLoggedInToday
+                  ? 'FACE LOGIN DONE TODAY'
+                  : 'FACE ATTENDANCE',
+              icon: Icons.face,
+              onPressed: hasLoggedInToday
+                  ? null
+                  : () => context.go('/face-attendance'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _todayAttendanceShell(
+    BuildContext context, {
+    required List<Widget> children,
+  }) {
+    return IndustrialCard(
+      highlighted: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Today Attendance',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
       ),
     );
   }

@@ -148,7 +148,9 @@ class AttendanceSessionService {
   static const double defaultOfficeLongitude = 77.8881173;
   static const double defaultRadiusMeters = 50;
   static const Duration officeArrivalGrace = Duration(minutes: 30);
-  static const Duration autoLogoutAfter = Duration(hours: 9);
+  static const int finalLogoutHourIst = 18;
+  static const int finalLogoutMinuteIst = 0;
+  static const Duration maxOfficeSession = Duration(hours: 9);
   static const int eligibleMinutes = 420;
   static const int monthlyBaseSalary = 24500;
   static const int monthlyWorkingDays = 26;
@@ -328,6 +330,10 @@ class AttendanceSessionService {
             await closeSession(session: session, reason: 'day_changed');
             return null;
           }
+          if (shouldAutoLogout(session)) {
+            await closeSession(session: session, reason: 'auto_logout_6pm');
+            return null;
+          }
           return session;
         }
       }
@@ -335,6 +341,13 @@ class AttendanceSessionService {
 
     final firestoreSession = await _loadActiveSessionFromFirestore();
     if (firestoreSession != null) {
+      if (shouldAutoLogout(firestoreSession)) {
+        await closeSession(
+          session: firestoreSession,
+          reason: 'auto_logout_6pm',
+        );
+        return null;
+      }
       await _saveSession(firestoreSession);
     }
     return firestoreSession;
@@ -422,11 +435,15 @@ class AttendanceSessionService {
     required Position loginPosition,
     required String faceImageBase64,
     required int faceCount,
+    Map<String, dynamic>? faceRecognition,
   }) async {
     await ensureSignedIn();
     final employee = await loadEmployeeProfile();
     final device = await loadDeviceIdentity();
     final loginAt = nowIst;
+    if (!loginAt.isBefore(_finalLogoutAtFor(loginAt))) {
+      throw StateError('Face login is closed after 6 PM for today');
+    }
     final loginAtIso = loginAt.toIso8601String();
     final loginDate = _dateKey(loginAt);
     final docId = attendanceDocumentId(employee.employeeId, loginDate);
@@ -447,6 +464,9 @@ class AttendanceSessionService {
       if (currentStatus == 'active') {
         throw StateError('Attendance already active for today');
       }
+      if (currentData?['loginAtIst'] != null) {
+        throw StateError('Face login already completed for today');
+      }
 
       final segment = {
         'inAtIst': loginAtIso,
@@ -459,30 +479,6 @@ class AttendanceSessionService {
         'outAtIst': null,
         'outReason': null,
       };
-
-      if (snapshot.exists) {
-        final segments = _readSegments(currentData)..add(segment);
-        transaction.update(docRef, {
-          'employeeId': employee.employeeId,
-          'employeeName': employee.employeeName,
-          'employee': employee.toMap(),
-          'device': device.toMap(),
-          'status': 'present',
-          'sessionStatus': 'active',
-          'attendanceStatus': 'pending',
-          'updatedAt': FieldValue.serverTimestamp(),
-          'updatedAtIst': loginAtIso,
-          'segments': segments,
-          'logs': FieldValue.arrayUnion([
-            {
-              'event': 'login',
-              'atIst': loginAtIso,
-              'message': 'Face authentication resumed for the same day',
-            },
-          ]),
-        });
-        return;
-      }
 
       transaction.set(docRef, {
         'employeeId': employee.employeeId,
@@ -501,6 +497,7 @@ class AttendanceSessionService {
         'faceImageBase64': faceImageBase64,
         'faceImageContentType': 'image/jpeg',
         'faceCount': faceCount,
+        if (faceRecognition != null) 'faceRecognition': faceRecognition,
         'loginAt': FieldValue.serverTimestamp(),
         'loginAtIst': loginAtIso,
         'loginDateIst': loginDate,
@@ -542,7 +539,35 @@ class AttendanceSessionService {
     );
 
     await _saveSession(session);
+    await purgeOldDailyFaceImages(employee.employeeId, keepDateKey: loginDate);
     return session;
+  }
+
+  Future<void> purgeOldDailyFaceImages(
+    String employeeId, {
+    required String keepDateKey,
+  }) async {
+    final snapshot = await _firestore
+        .collection('attendance')
+        .where('employeeId', isEqualTo: employeeId)
+        .get();
+    final batch = _firestore.batch();
+    var hasUpdates = false;
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      if (data['loginDateIst'] == keepDateKey) continue;
+      if (!data.containsKey('faceImageBase64')) continue;
+      batch.set(doc.reference, {
+        'faceImageBase64': FieldValue.delete(),
+        'faceImageContentType': FieldValue.delete(),
+        'faceImagePurgedAt': FieldValue.serverTimestamp(),
+        'faceImagePurgedAtIst': nowIst.toIso8601String(),
+      }, SetOptions(merge: true));
+      hasUpdates = true;
+    }
+    if (hasUpdates) {
+      await batch.commit();
+    }
   }
 
   Future<void> closeSession({
@@ -551,10 +576,17 @@ class AttendanceSessionService {
     Position? logoutPosition,
     double? distanceMeters,
   }) async {
-    final logoutAt = nowIst;
+    final requestedLogoutAt = nowIst;
     final docRef = _firestore.collection('attendance').doc(session.documentId);
     final snapshot = await docRef.get();
     final data = snapshot.data();
+    final loginAt = DateTime.tryParse(
+      (data?['loginAtIst'] as String?) ?? session.loginAtIst,
+    );
+    final logoutAt = _effectiveLogoutAt(
+      loginAt: loginAt,
+      requestedLogoutAt: requestedLogoutAt,
+    );
     final segments = _readSegments(data);
     if (segments.isNotEmpty) {
       final lastIndex = segments.length - 1;
@@ -575,19 +607,16 @@ class AttendanceSessionService {
       }
     }
 
-    final loginAt = DateTime.tryParse(
-      (data?['loginAtIst'] as String?) ?? session.loginAtIst,
-    );
     final totalMinutes = loginAt == null
         ? null
         : logoutAt
               .difference(loginAt)
               .inMinutes
-              .clamp(0, autoLogoutAfter.inMinutes);
+              .clamp(0, maxOfficeSession.inMinutes);
     final officeMinutes = _officeMinutesFromSegments(
       segments,
       logoutAt,
-    ).clamp(0, autoLogoutAfter.inMinutes);
+    ).clamp(0, maxOfficeSession.inMinutes);
     final attendanceStatus = officeMinutes >= eligibleMinutes
         ? 'attendance_considered'
         : 'not_considered_attendance';
@@ -627,6 +656,106 @@ class AttendanceSessionService {
     });
 
     await clearActiveSession();
+  }
+
+  Future<void> recordOfficeExit({
+    required AttendanceSession session,
+    required Position position,
+    required double distanceMeters,
+  }) async {
+    final at = nowIst;
+    final docRef = _firestore.collection('attendance').doc(session.documentId);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
+      final data = snapshot.data();
+      if (data == null || data['sessionStatus'] != 'active') return;
+
+      final segments = _readSegments(data);
+      if (segments.isEmpty) return;
+
+      final lastIndex = segments.length - 1;
+      final lastSegment = Map<String, dynamic>.from(segments[lastIndex]);
+      if (lastSegment['outAtIst'] != null) return;
+
+      lastSegment['outAtIst'] = at.toIso8601String();
+      lastSegment['outAt'] = Timestamp.fromDate(at.toUtc());
+      lastSegment['outReason'] = 'left_geofence_break';
+      lastSegment['outLocation'] = {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'accuracy': position.accuracy,
+        'distanceMeters': distanceMeters,
+      };
+      segments[lastIndex] = lastSegment;
+
+      transaction.set(docRef, {
+        'attendanceStatus': 'outside_office_break',
+        'lastOfficeExitAtIst': at.toIso8601String(),
+        'lastOfficeDistanceMeters': distanceMeters,
+        'segments': segments,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAtIst': at.toIso8601String(),
+        'logs': FieldValue.arrayUnion([
+          {
+            'event': 'office_exit',
+            'reason': 'left_geofence_break',
+            'atIst': at.toIso8601String(),
+            'distanceMeters': distanceMeters,
+          },
+        ]),
+      }, SetOptions(merge: true));
+    });
+  }
+
+  Future<void> recordOfficeEntry({
+    required AttendanceSession session,
+    required Position position,
+    required double distanceMeters,
+  }) async {
+    final at = nowIst;
+    final docRef = _firestore.collection('attendance').doc(session.documentId);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
+      final data = snapshot.data();
+      if (data == null || data['sessionStatus'] != 'active') return;
+
+      final segments = _readSegments(data);
+      if (segments.isNotEmpty) {
+        final lastSegment = segments.last;
+        if (lastSegment['outAtIst'] == null) return;
+      }
+
+      segments.add({
+        'inAtIst': at.toIso8601String(),
+        'inAt': Timestamp.fromDate(at.toUtc()),
+        'inLocation': {
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'accuracy': position.accuracy,
+          'distanceMeters': distanceMeters,
+        },
+        'outAtIst': null,
+        'outReason': null,
+      });
+
+      transaction.set(docRef, {
+        'attendanceStatus': 'pending',
+        'lastOfficeEntryAtIst': at.toIso8601String(),
+        'lastOfficeDistanceMeters': distanceMeters,
+        'segments': segments,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAtIst': at.toIso8601String(),
+        'logs': FieldValue.arrayUnion([
+          {
+            'event': 'office_entry',
+            'atIst': at.toIso8601String(),
+            'distanceMeters': distanceMeters,
+          },
+        ]),
+      }, SetOptions(merge: true));
+    });
   }
 
   Future<void> recordLeave({
@@ -894,7 +1023,8 @@ class AttendanceSessionService {
   bool shouldAutoLogout(AttendanceSession session) {
     final loginAt = DateTime.tryParse(session.loginAtIst);
     if (loginAt == null) return false;
-    return nowIst.difference(loginAt) >= autoLogoutAfter;
+    if (session.loginDateIst != todayIst) return true;
+    return !nowIst.isBefore(_finalLogoutAtFor(loginAt));
   }
 
   double distanceFromZone(Position position, AttendanceSession session) {
@@ -920,6 +1050,27 @@ class AttendanceSessionService {
     return '${value.year.toString().padLeft(4, '0')}-'
         '${value.month.toString().padLeft(2, '0')}-'
         '${value.day.toString().padLeft(2, '0')}';
+  }
+
+  DateTime _finalLogoutAtFor(DateTime loginAt) {
+    return DateTime(
+      loginAt.year,
+      loginAt.month,
+      loginAt.day,
+      finalLogoutHourIst,
+      finalLogoutMinuteIst,
+    );
+  }
+
+  DateTime _effectiveLogoutAt({
+    required DateTime? loginAt,
+    required DateTime requestedLogoutAt,
+  }) {
+    if (loginAt == null) return requestedLogoutAt;
+    final finalLogoutAt = _finalLogoutAtFor(loginAt);
+    return requestedLogoutAt.isAfter(finalLogoutAt)
+        ? finalLogoutAt
+        : requestedLogoutAt;
   }
 
   List<Map<String, dynamic>> _readSegments(Map<String, dynamic>? data) {

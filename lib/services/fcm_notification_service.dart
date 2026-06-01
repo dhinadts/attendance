@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     as fln;
@@ -38,19 +39,21 @@ class FcmNotificationService {
 
   Future<void> initialize() async {
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
-    await _localNotifications.initialize(
-      settings: const fln.InitializationSettings(
-        android: fln.AndroidInitializationSettings('@mipmap/ic_launcher'),
-      ),
-      onDidReceiveNotificationResponse: (response) {
-        _handleLocalNotificationTap(response.payload);
-      },
-    );
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-          fln.AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(_channel);
+    if (!kIsWeb) {
+      await _localNotifications.initialize(
+        settings: const fln.InitializationSettings(
+          android: fln.AndroidInitializationSettings('@mipmap/ic_launcher'),
+        ),
+        onDidReceiveNotificationResponse: (response) {
+          _handleLocalNotificationTap(response.payload);
+        },
+      );
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            fln.AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(_channel);
+    }
 
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleOpenedFromBackground);
@@ -82,25 +85,46 @@ class FcmNotificationService {
   Future<void> registerCurrentUser({String? department}) async {
     final user = _auth.currentUser;
     if (user == null) return;
-    final token = await _messaging.getToken();
-    if (token == null || token.isEmpty) return;
 
-    await _messaging.subscribeToTopic('team_all');
     final role = await _authRoleService.currentRole();
     if (role == AppUserRole.admin) {
-      await _messaging.subscribeToTopic('admin_all');
       _startAdminRequestForegroundListener();
+    }
+
+    String? token;
+    try {
+      const webVapidKey = String.fromEnvironment(
+        'FIREBASE_WEB_VAPID_KEY',
+        defaultValue: '',
+      );
+      token = kIsWeb
+          ? await _messaging.getToken(
+              vapidKey: webVapidKey.isEmpty ? null : webVapidKey,
+            )
+          : await _messaging.getToken();
+    } catch (_) {
+      token = null;
+    }
+    if (token == null || token.isEmpty) return;
+
+    if (!kIsWeb) {
+      await _messaging.subscribeToTopic('team_all');
+      if (role == AppUserRole.admin) {
+        await _messaging.subscribeToTopic('admin_all');
+      }
     }
     final normalizedDepartment = department?.trim();
     if (normalizedDepartment != null && normalizedDepartment.isNotEmpty) {
-      await _messaging.subscribeToTopic(_topicForTeam(normalizedDepartment));
+      if (!kIsWeb) {
+        await _messaging.subscribeToTopic(_topicForTeam(normalizedDepartment));
+      }
     }
 
     final data = {
       'uid': user.uid,
       'email': user.email,
       'token': token,
-      'platform': 'android',
+      'platform': kIsWeb ? 'web' : 'android',
       'department': normalizedDepartment,
       'updatedAt': FieldValue.serverTimestamp(),
     };
@@ -115,7 +139,7 @@ class FcmNotificationService {
     }
     await _firestore
         .collection('fcm_tokens')
-        .doc('${user.uid}_android')
+        .doc('${user.uid}_${kIsWeb ? 'web' : 'android'}')
         .set(data, SetOptions(merge: true));
   }
 
@@ -203,27 +227,29 @@ class FcmNotificationService {
     required Map<String, dynamic> data,
     required VoidCallback onOpen,
   }) async {
-    await _localNotifications.show(
-      id: notificationId,
-      title: title,
-      body: body,
-      payload: jsonEncode({
-        'messageId': data['messageId'] ?? '',
-        'type': data['type'] ?? '',
-        'employeeId': data['employeeId'] ?? '',
-        'date': data['date'] ?? '',
-        'requestId': data['requestId'] ?? '',
-      }),
-      notificationDetails: fln.NotificationDetails(
-        android: fln.AndroidNotificationDetails(
-          _channel.id,
-          _channel.name,
-          channelDescription: _channel.description,
-          importance: fln.Importance.high,
-          priority: fln.Priority.high,
+    if (!kIsWeb) {
+      await _localNotifications.show(
+        id: notificationId,
+        title: title,
+        body: body,
+        payload: jsonEncode({
+          'messageId': data['messageId'] ?? '',
+          'type': data['type'] ?? '',
+          'employeeId': data['employeeId'] ?? '',
+          'date': data['date'] ?? '',
+          'requestId': data['requestId'] ?? '',
+        }),
+        notificationDetails: fln.NotificationDetails(
+          android: fln.AndroidNotificationDetails(
+            _channel.id,
+            _channel.name,
+            channelDescription: _channel.description,
+            importance: fln.Importance.high,
+            priority: fln.Priority.high,
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     final context = navigatorKey.currentContext;
     if (context == null || !context.mounted) return;
@@ -237,7 +263,9 @@ class FcmNotificationService {
         actions: [
           TextButton(
             onPressed: () {
-              _localNotifications.cancel(id: notificationId);
+              if (!kIsWeb) {
+                _localNotifications.cancel(id: notificationId);
+              }
               Navigator.of(context).pop();
             },
             child: const Text('CLEAR'),

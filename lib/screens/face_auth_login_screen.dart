@@ -10,6 +10,7 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import '../theme/industrial_theme.dart';
 import '../services/attendance_session_service.dart';
+import '../services/face_recognition_service.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
@@ -28,6 +29,7 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
   late final Animation<double> _pulseAnimation;
   late final FaceDetector _faceDetector;
   late final AttendanceSessionService _attendanceService;
+  late final FaceRecognitionService _faceRecognitionService;
 
   CameraController? _cameraController;
   Future<void>? _cameraInitFuture;
@@ -38,6 +40,8 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
   StatusChipType _statusType = StatusChipType.alert;
   Position? _lastPosition;
   double? _lastDistanceMeters;
+  bool? _wasInsideOffice;
+  bool _isRecordingZoneTransition = false;
 
   @override
   void initState() {
@@ -60,10 +64,15 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
     _faceDetector = FaceDetector(
       options: FaceDetectorOptions(
         enableClassification: true,
+        enableLandmarks: true,
+        enableContours: true,
         performanceMode: FaceDetectorMode.accurate,
       ),
     );
     _attendanceService = AttendanceSessionService();
+    _faceRecognitionService = FaceRecognitionService(
+      attendanceService: _attendanceService,
+    );
 
     _cameraInitFuture = _initializeCamera();
     _restoreActiveSession();
@@ -159,6 +168,36 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
         await _markLeave(reason: 'No face detected', imagePath: image.path);
         return;
       }
+      if (faces.length > 1) {
+        await _markLeave(
+          reason: 'Multiple faces detected',
+          imagePath: image.path,
+        );
+        return;
+      }
+      final face = faces.first;
+
+      _setStatus('Checking employee face...', StatusChipType.success);
+      final enrollmentCount = await _faceRecognitionService.templateCount();
+      if (enrollmentCount < FaceRecognitionService.requiredTemplateCount) {
+        _setStatus(
+          'Enrolling employee face samples...',
+          StatusChipType.pending,
+        );
+        final enrollmentFaces = await _captureEnrollmentFaces(face);
+        await _faceRecognitionService.enrollTemplates(enrollmentFaces);
+        _setStatus('Face enrollment completed', StatusChipType.success);
+      }
+
+      final recognition = await _faceRecognitionService.verify(face);
+      if (!recognition.matched) {
+        await _markLeave(
+          reason:
+              'Face recognition failed. Score ${recognition.score.toStringAsFixed(3)}',
+          imagePath: image.path,
+        );
+        return;
+      }
 
       _setStatus('Checking location...', StatusChipType.success);
       final position = await _getCurrentPosition();
@@ -172,6 +211,13 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
         loginPosition: position,
         faceImageBase64: faceImageBase64,
         faceCount: faces.length,
+        faceRecognition: {
+          'matched': recognition.matched,
+          'score': recognition.score,
+          'templateCount': recognition.templateCount,
+          'model': 'mlkit_landmark_v1',
+          'dailyImageRetention': 'today_only',
+        },
       );
       _activeSession = session;
       _startLocationMonitoring(session);
@@ -192,6 +238,39 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
         setState(() => _isProcessing = false);
       }
     }
+  }
+
+  Future<List<Face>> _captureEnrollmentFaces(Face firstFace) async {
+    final controller = _cameraController;
+    if (controller == null || !controller.value.isInitialized) {
+      throw StateError('Camera is not ready for face enrollment');
+    }
+
+    final faces = <Face>[firstFace];
+    while (faces.length < FaceRecognitionService.requiredTemplateCount) {
+      _setStatus(
+        'Enrolling face sample ${faces.length + 1}/${FaceRecognitionService.requiredTemplateCount}',
+        StatusChipType.pending,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      final sample = await controller.takePicture();
+      try {
+        final sampleFaces = await _faceDetector.processImage(
+          InputImage.fromFilePath(sample.path),
+        );
+        if (sampleFaces.length != 1) {
+          throw StateError('Keep only your face inside the scanner');
+        }
+        faces.add(sampleFaces.first);
+      } finally {
+        try {
+          await File(sample.path).delete();
+        } catch (_) {
+          // Enrollment samples are temporary; cleanup is best effort.
+        }
+      }
+    }
+    return faces;
   }
 
   Future<void> _markLeave({
@@ -258,10 +337,10 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
     if (_attendanceService.shouldAutoLogout(session)) {
       await _attendanceService.closeSession(
         session: session,
-        reason: 'auto_logout_after_9_hours',
+        reason: 'auto_logout_6pm',
       );
       _activeSession = null;
-      _setStatus('Auto logged out after 9 hours', StatusChipType.alert);
+      _setStatus('Auto logged out at 6 PM', StatusChipType.alert);
       return;
     }
 
@@ -292,19 +371,39 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
 
             if (_attendanceService.shouldAutoLogout(session)) {
               await _closeActiveSession(
-                reason: 'auto_logout_after_9_hours',
+                reason: 'auto_logout_6pm',
                 position: position,
                 distanceMeters: distance,
               );
               return;
             }
 
-            if (distance > session.allowedRadiusMeters) {
-              await _closeActiveSession(
-                reason: 'left_geofence',
-                position: position,
-                distanceMeters: distance,
-              );
+            final insideOffice = distance <= session.allowedRadiusMeters;
+            if (_wasInsideOffice == insideOffice ||
+                _isRecordingZoneTransition) {
+              return;
+            }
+
+            _isRecordingZoneTransition = true;
+            try {
+              if (insideOffice) {
+                await _attendanceService.recordOfficeEntry(
+                  session: session,
+                  position: position,
+                  distanceMeters: distance,
+                );
+                _setStatus('Back inside office zone', StatusChipType.success);
+              } else {
+                await _attendanceService.recordOfficeExit(
+                  session: session,
+                  position: position,
+                  distanceMeters: distance,
+                );
+                _setStatus('Out of office break started', StatusChipType.alert);
+              }
+              _wasInsideOffice = insideOffice;
+            } finally {
+              _isRecordingZoneTransition = false;
             }
           },
           onError: (Object error) {
