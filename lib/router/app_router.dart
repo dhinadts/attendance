@@ -121,6 +121,7 @@ final appRouter = GoRouter(
       name: 'adminEmployeeDetail',
       builder: (context, state) => AdminEmployeeDetailScreen(
         employeeId: state.uri.queryParameters['employeeId'] ?? '',
+        initialTab: state.uri.queryParameters['initialTab'],
       ),
     ),
     GoRoute(

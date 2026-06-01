@@ -48,17 +48,13 @@ class _AdminEmployeesScreenState extends State<AdminEmployeesScreen> {
             grouped[team.toUpperCase()] = [];
           }
 
-          // Group employees by department
           for (final doc in docs) {
             final data = doc.data();
-            final dept = (data['department'] as String? ?? 'TECH').toUpperCase().trim();
+            final dept = _departmentFor(data);
             if (!grouped.containsKey(dept)) {
               grouped[dept] = [];
             }
-            grouped[dept]!.add({
-              'id': doc.id,
-              ...data,
-            });
+            grouped[dept]!.add({'id': doc.id, ...data});
           }
 
           // Filter out empty teams or show them? Show them but with a "No employees" placeholder, which is super helpful for managers!
@@ -85,12 +81,13 @@ class _AdminEmployeesScreenState extends State<AdminEmployeesScreen> {
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: Theme(
-                    data: Theme.of(context).copyWith(
-                      dividerColor: Colors.transparent,
-                    ),
+                    data: Theme.of(
+                      context,
+                    ).copyWith(dividerColor: Colors.transparent),
                     child: ExpansionTile(
                       backgroundColor: IndustrialColors.surfaceContainerLow,
-                      collapsedBackgroundColor: IndustrialColors.surfaceContainerLowest,
+                      collapsedBackgroundColor:
+                          IndustrialColors.surfaceContainerLowest,
                       leading: const CircleAvatar(
                         backgroundColor: IndustrialColors.primary,
                         foregroundColor: IndustrialColors.onPrimary,
@@ -98,7 +95,8 @@ class _AdminEmployeesScreenState extends State<AdminEmployeesScreen> {
                       ),
                       title: Text(
                         dept,
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
@@ -124,31 +122,50 @@ class _AdminEmployeesScreenState extends State<AdminEmployeesScreen> {
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: employees.length,
-                            separatorBuilder: (context, idx) => const SizedBox(height: 8),
+                            separatorBuilder: (context, idx) =>
+                                const SizedBox(height: 8),
                             itemBuilder: (context, idx) {
                               final emp = employees[idx];
-                              final empId = emp['employeeId'] as String? ?? emp['id'] as String;
-                              final name = emp['employeeName'] as String? ?? 'Employee';
-                              final role = emp['role'] as String? ?? emp['employeeRole'] as String? ?? 'Developer';
-                              final initials = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'E';
+                              final empId =
+                                  emp['employeeId'] as String? ??
+                                  emp['id'] as String;
+                              final name =
+                                  emp['employeeName'] as String? ?? 'Employee';
+                              final role =
+                                  emp['employeeRole'] as String? ??
+                                  emp['role'] as String? ??
+                                  'EMPLOYEE';
+                              final initials = name.isNotEmpty
+                                  ? name.substring(0, 1).toUpperCase()
+                                  : 'E';
 
                               return IndustrialCard(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                onTap: () => context.go('/admin-employee-detail?employeeId=$empId'),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                onTap: () => context.go(
+                                  '/admin-employee-detail?employeeId=$empId',
+                                ),
                                 child: Row(
                                   children: [
                                     CircleAvatar(
-                                      backgroundColor: IndustrialColors.primaryContainer,
-                                      foregroundColor: IndustrialColors.onPrimary,
+                                      backgroundColor:
+                                          IndustrialColors.primaryContainer,
+                                      foregroundColor:
+                                          IndustrialColors.onPrimary,
                                       child: Text(
                                         initials,
-                                        style: const TextStyle(fontWeight: FontWeight.w700),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             name,
@@ -159,9 +176,10 @@ class _AdminEmployeesScreenState extends State<AdminEmployeesScreen> {
                                           ),
                                           Text(
                                             'ID: $empId | $role',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                  fontSize: 12,
-                                                ),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(fontSize: 12),
                                           ),
                                         ],
                                       ),
@@ -197,5 +215,18 @@ class _AdminEmployeesScreenState extends State<AdminEmployeesScreen> {
         },
       ),
     );
+  }
+
+  String _departmentFor(Map<String, dynamic> data) {
+    final rawDepartment = (data['department'] as String?)?.trim();
+    final role =
+        ((data['employeeRole'] as String?) ?? (data['role'] as String?) ?? '')
+            .trim()
+            .toUpperCase();
+    if (rawDepartment != null && rawDepartment.isNotEmpty) {
+      return rawDepartment.toUpperCase();
+    }
+    if (role == 'DIRECTOR' || role == 'CEO') return role;
+    return 'TECH';
   }
 }

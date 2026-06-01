@@ -53,6 +53,19 @@ class IndustrialTheme {
   static ThemeData lightTheme() {
     return ThemeData(
       useMaterial3: true,
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      hoverColor: Colors.transparent,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _NoPageTransitionsBuilder(),
+          TargetPlatform.iOS: _NoPageTransitionsBuilder(),
+          TargetPlatform.macOS: _NoPageTransitionsBuilder(),
+          TargetPlatform.windows: _NoPageTransitionsBuilder(),
+          TargetPlatform.linux: _NoPageTransitionsBuilder(),
+        },
+      ),
       brightness: Brightness.light,
       colorScheme: ColorScheme.light(
         primary: IndustrialColors.primary,
@@ -224,6 +237,24 @@ class IndustrialTheme {
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
+      expansionTileTheme: const ExpansionTileThemeData(
+        expansionAnimationStyle: AnimationStyle.noAnimation,
+      ),
     );
+  }
+}
+
+class _NoPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
   }
 }
