@@ -136,6 +136,48 @@ The relay updates `fcm_outbox/{messageId}`:
 
 If sending fails, the document becomes `retry` and the listener will attempt it again.
 
+## Payroll API
+
+Admin web payroll upload can call:
+
+```http
+POST /api/payroll/upload
+```
+
+JSON body:
+
+```json
+{
+  "employeeId": "EMP001",
+  "employeeName": "Employee Name",
+  "department": "TECH",
+  "role": "DEVELOPER",
+  "year": 2026,
+  "month": 6,
+  "baseSalary": 24500,
+  "grossSalary": 24500,
+  "deductions": 0,
+  "netSalary": 24500,
+  "payableDays": 26,
+  "officeMinutes": 10920,
+  "leaveDays": 0,
+  "notConsideredDays": 0,
+  "notes": "June salary"
+}
+```
+
+Optional environment variable:
+
+```text
+BACKEND_API_KEY=your-private-api-key
+```
+
+If `BACKEND_API_KEY` is set, requests must include:
+
+```text
+x-api-key: your-private-api-key
+```
+
 ## Notes
 
 - Never place Firebase service account JSON inside the Flutter app.

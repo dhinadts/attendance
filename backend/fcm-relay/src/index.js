@@ -256,6 +256,7 @@ function startOutboxListener(firestore) {
 
 function startHttpServer() {
   const app = express();
+  app.use(express.json({ limit: "1mb" }));
   app.get("/", (_request, response) => {
     response.json({
       ok: true,
@@ -266,9 +267,102 @@ function startHttpServer() {
   app.get("/health", (_request, response) => {
     response.status(200).send("ok");
   });
+  app.post("/api/payroll/upload", async (request, response) => {
+    try {
+      requireApiKey(request);
+      const record = buildSalaryRecord(request.body || {});
+      const recordId = salaryRecordDocumentId(record.employeeId, record.monthKey);
+      await firestore.collection("salary_records").doc(recordId).set(
+        {
+          ...record,
+          source: "external_payroll_api",
+          uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      response.status(201).json({ ok: true, recordId, record });
+    } catch (error) {
+      response.status(400).json({ ok: false, error: error.message });
+    }
+  });
+  app.get("/api/payroll/:employeeId/:monthKey", async (request, response) => {
+    try {
+      requireApiKey(request);
+      const { employeeId, monthKey } = request.params;
+      const recordId = salaryRecordDocumentId(employeeId, monthKey);
+      const snapshot = await firestore
+        .collection("salary_records")
+        .doc(recordId)
+        .get();
+      if (!snapshot.exists) {
+        response.status(404).json({ ok: false, error: "Salary record not found" });
+        return;
+      }
+      response.json({ ok: true, recordId, record: snapshot.data() });
+    } catch (error) {
+      response.status(400).json({ ok: false, error: error.message });
+    }
+  });
   return app.listen(PORT, () => {
     console.log(`attendance-fcm-relay listening on ${PORT}`);
   });
+}
+
+function requireApiKey(request) {
+  const expected = process.env.BACKEND_API_KEY;
+  if (!expected) return;
+  const actual = request.header("x-api-key");
+  if (actual !== expected) {
+    const error = new Error("Invalid API key");
+    error.statusCode = 401;
+    throw error;
+  }
+}
+
+function buildSalaryRecord(body) {
+  const employeeId = String(body.employeeId || "").trim();
+  const year = Number(body.year);
+  const month = Number(body.month);
+  if (!employeeId) throw new Error("employeeId is required");
+  if (!Number.isInteger(year) || year < 2000) throw new Error("Valid year is required");
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error("Valid month is required");
+  }
+
+  const monthKey = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+  return {
+    employeeId,
+    employeeName: String(body.employeeName || "").trim(),
+    department: String(body.department || "").trim(),
+    role: String(body.role || "").trim(),
+    year,
+    month,
+    monthKey,
+    baseSalary: numberField(body.baseSalary),
+    grossSalary: numberField(body.grossSalary),
+    deductions: numberField(body.deductions),
+    netSalary: numberField(body.netSalary),
+    payableDays: numberField(body.payableDays),
+    officeMinutes: numberField(body.officeMinutes),
+    leaveDays: numberField(body.leaveDays),
+    notConsideredDays: numberField(body.notConsideredDays),
+    notes: String(body.notes || "").trim(),
+    slipStatus: "uploaded",
+    generatedAtIst: new Date(Date.now() + 19800000).toISOString(),
+  };
+}
+
+function numberField(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function salaryRecordDocumentId(employeeId, monthKey) {
+  return `${safeId(employeeId)}_${monthKey.replace("-", "")}`;
+}
+
+function safeId(value) {
+  return String(value).trim().replace(/[\/#?\[\]]/g, "_");
 }
 
 initializeFirebase();
