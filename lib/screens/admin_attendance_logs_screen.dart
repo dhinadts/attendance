@@ -8,6 +8,7 @@ import '../widgets/admin_bottom_nav.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class AdminAttendanceLogsScreen extends StatelessWidget {
   const AdminAttendanceLogsScreen({super.key});
@@ -19,7 +20,7 @@ class AdminAttendanceLogsScreen extends StatelessWidget {
       bottomNavigationBar: const AdminBottomNav(currentIndex: 1),
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
-            .collection('employee_profiles')
+            .appCollection('employee_profiles')
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {

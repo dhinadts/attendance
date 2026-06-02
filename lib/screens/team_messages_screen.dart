@@ -13,6 +13,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class TeamMessagesScreen extends StatefulWidget {
   const TeamMessagesScreen({super.key});
@@ -140,7 +141,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _messageStream() {
     return FirebaseFirestore.instance
-        .collection('team_messages')
+        .appCollection('team_messages')
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots();
@@ -149,7 +150,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
   void _watchDeliveryStatus(String outboxId) {
     _deliverySubscription?.cancel();
     _deliverySubscription = FirebaseFirestore.instance
-        .collection('fcm_outbox')
+        .appCollection('fcm_outbox')
         .doc(outboxId)
         .snapshots()
         .listen(

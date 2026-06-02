@@ -63,16 +63,19 @@ class EmployeeBottomNav extends StatelessWidget {
             ),
             label: 'Attendance',
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.list),
-            label: 'Log',
-          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Log'),
           const BottomNavigationBarItem(
             icon: Icon(Icons.receipt_long),
             label: 'Salary',
           ),
-          const BottomNavigationBarItem(icon: Icon(Icons.exit_to_app), label: 'Exit'),
-          const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.exit_to_app),
+            label: 'Exit',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
         ],
       ),
     );

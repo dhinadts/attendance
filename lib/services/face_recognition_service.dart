@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 import 'attendance_session_service.dart';
+import 'app_firestore.dart';
 
 class FaceRecognitionResult {
   const FaceRecognitionResult({
@@ -37,7 +38,7 @@ class FaceRecognitionService {
   Future<int> templateCount() async {
     final profile = await _attendanceService.loadEmployeeProfile();
     final doc = await _firestore
-        .collection('employee_profiles')
+        .appCollection('employee_profiles')
         .doc(profile.employeeId)
         .get();
     return _readTemplates(doc.data()).length;
@@ -54,7 +55,7 @@ class FaceRecognitionService {
         .map((face) => templateFromFace(face))
         .toList();
     await _firestore
-        .collection('employee_profiles')
+        .appCollection('employee_profiles')
         .doc(profile.employeeId)
         .set({
           'faceRecognition': {
@@ -71,7 +72,7 @@ class FaceRecognitionService {
   Future<FaceRecognitionResult> verify(Face face) async {
     final profile = await _attendanceService.loadEmployeeProfile();
     final doc = await _firestore
-        .collection('employee_profiles')
+        .appCollection('employee_profiles')
         .doc(profile.employeeId)
         .get();
     final templates = _readTemplates(doc.data());

@@ -7,19 +7,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'firebase_options.dart';
 import 'services/fcm_notification_service.dart';
+import 'services/app_firestore.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   try {
-    await FirebaseFirestore.instance.collection('fcm_background_events').add({
-      'messageId': message.messageId,
-      'title': message.notification?.title ?? message.data['title'],
-      'body': message.notification?.body ?? message.data['body'],
-      'data': message.data,
-      'receivedAt': FieldValue.serverTimestamp(),
-      'source': 'background',
-    });
+    await FirebaseFirestore.instance
+        .appCollection('fcm_background_events')
+        .add({
+          'messageId': message.messageId,
+          'title': message.notification?.title ?? message.data['title'],
+          'body': message.notification?.body ?? message.data['body'],
+          'data': message.data,
+          'receivedAt': FieldValue.serverTimestamp(),
+          'source': 'background',
+        });
   } catch (_) {
     // Background handlers must stay best-effort; notification delivery should
     // not crash because an audit write was blocked or unavailable.

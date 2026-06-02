@@ -10,28 +10,45 @@ Attendance App
          └─ Attendance
 ```
 
-Do not physically nest Firestore as `teams/{team}/users/{user}/dates/{date}/attendance`. Use top-level collections with `teamId`, `employeeId`, `date`, and `monthKey` fields. This keeps queries and indexes predictable for 100+ teams, 10,000+ employees, and multi-year history.
+Do not physically nest Firestore as `teams/{team}/users/{user}/dates/{date}/attendance`. This app uses one root namespace document, then flat subcollections with `teamId`, `employeeId`, `date`, and `monthKey` fields. This keeps queries and indexes predictable for 100+ teams, 10,000+ employees, and multi-year history.
+
+Physical Firestore namespace:
+
+```text
+Attendance/main
+├─ users
+├─ teams
+├─ employee_profiles
+├─ attendance
+├─ attendance_records
+├─ leave_requests
+├─ notifications
+├─ team_messages
+├─ fcm_outbox
+├─ salary_records
+└─ salary_structures
+```
 
 ## Firestore Collections
 
 ```text
-users/{uid}
-teams/{teamId}
-employee_profiles/{employeeId}
-attendance_records/{employeeId_YYYY-MM-DD}
-attendance_summaries/{employeeId_YYYY-MM}
-team_attendance_summaries/{teamId_YYYY-MM}
-leave_requests/{requestId}
-salary_structures/{employeeId}
-salary_records/{employeeId_YYYY-MM}
-notifications/{notificationId}
-notification_reads/{uid_notificationId}
-fcm_tokens/{uid_deviceId}
-fcm_outbox/{notificationId}
-announcements/{announcementId}
-company_documents/{documentId}
-holidays/{dateKey}
-audit_logs/{logId}
+Attendance/main/users/{uid}
+Attendance/main/teams/{teamId}
+Attendance/main/employee_profiles/{employeeId}
+Attendance/main/attendance_records/{employeeId_YYYY-MM-DD}
+Attendance/main/attendance_summaries/{employeeId_YYYY-MM}
+Attendance/main/team_attendance_summaries/{teamId_YYYY-MM}
+Attendance/main/leave_requests/{requestId}
+Attendance/main/salary_structures/{employeeId}
+Attendance/main/salary_records/{employeeId_YYYY-MM}
+Attendance/main/notifications/{notificationId}
+Attendance/main/notification_reads/{uid_notificationId}
+Attendance/main/fcm_tokens/{uid_deviceId}
+Attendance/main/fcm_outbox/{notificationId}
+Attendance/main/announcements/{announcementId}
+Attendance/main/company_documents/{documentId}
+Attendance/main/holidays/{dateKey}
+Attendance/main/audit_logs/{logId}
 ```
 
 Current app compatibility collections such as `attendance`, `team_messages`, and `notification_inbox` can remain during migration. New features should prefer the canonical collections above.

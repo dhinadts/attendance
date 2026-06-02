@@ -8,6 +8,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/employee_bottom_nav.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class AttendanceDetailsScreen extends StatefulWidget {
   const AttendanceDetailsScreen({super.key});
@@ -46,7 +47,7 @@ class _AttendanceDetailsScreenState extends State<AttendanceDetailsScreen> {
       return const Stream.empty();
     }
     return FirebaseFirestore.instance
-        .collection('attendance')
+        .appCollection('attendance')
         .where('employeeId', isEqualTo: profile.employeeId)
         .snapshots();
   }
@@ -57,7 +58,7 @@ class _AttendanceDetailsScreenState extends State<AttendanceDetailsScreen> {
       return const Stream.empty();
     }
     return FirebaseFirestore.instance
-        .collection('leave_requests')
+        .appCollection('leave_requests')
         .where('employeeId', isEqualTo: profile.employeeId)
         .snapshots();
   }

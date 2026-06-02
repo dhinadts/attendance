@@ -6,6 +6,7 @@ import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class NotificationTeamScreen extends StatelessWidget {
   const NotificationTeamScreen({super.key, required this.team});
@@ -19,7 +20,7 @@ class NotificationTeamScreen extends StatelessWidget {
       title: normalizedTeam,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
-            .collection('employee_profiles')
+            .appCollection('employee_profiles')
             .snapshots(),
         builder: (context, snapshot) {
           final employees =

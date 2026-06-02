@@ -7,6 +7,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class AdminLeaveRequestsScreen extends StatefulWidget {
   const AdminLeaveRequestsScreen({super.key});
@@ -20,7 +21,7 @@ class _AdminLeaveRequestsScreenState extends State<AdminLeaveRequestsScreen> {
   final _firestore = FirebaseFirestore.instance;
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _leaveStream() {
-    return _firestore.collection('leave_requests').snapshots();
+    return _firestore.appCollection('leave_requests').snapshots();
   }
 
   Future<void> _processLeave({
@@ -35,8 +36,8 @@ class _AdminLeaveRequestsScreenState extends State<AdminLeaveRequestsScreen> {
       throw StateError('Employee ID and date are required');
     }
 
-    final attendanceRef = _firestore.collection('attendance').doc(docId);
-    final leaveRef = _firestore.collection('leave_requests').doc(docId);
+    final attendanceRef = _firestore.appCollection('attendance').doc(docId);
+    final leaveRef = _firestore.appCollection('leave_requests').doc(docId);
     final batch = _firestore.batch();
 
     batch.set(leaveRef, {

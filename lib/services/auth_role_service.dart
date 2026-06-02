@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'app_firestore.dart';
 
 enum AppUserRole { employee, admin }
 
@@ -20,7 +21,7 @@ class AuthRoleService {
   }
 
   Future<AppUserRole> roleForUser(String uid) async {
-    final doc = await _firestore.collection('users').doc(uid).get();
+    final doc = await _firestore.appCollection('users').doc(uid).get();
     final rawRole = doc.data()?['role'] as String?;
     return rawRole == 'admin' ? AppUserRole.admin : AppUserRole.employee;
   }
@@ -65,7 +66,7 @@ class AuthRoleService {
     }
     if (normalizedEmployeeId.isNotEmpty) {
       final existingProfile = await _firestore
-          .collection('employee_profiles')
+          .appCollection('employee_profiles')
           .doc(normalizedEmployeeId)
           .get();
       if (existingProfile.exists) {
@@ -82,7 +83,7 @@ class AuthRoleService {
     final displayName = '$firstName $lastName'.trim();
     await user.updateDisplayName(displayName);
 
-    await _firestore.collection('users').doc(user.uid).set({
+    await _firestore.appCollection('users').doc(user.uid).set({
       'uid': user.uid,
       'email': email.trim(),
       'role': roleName,
@@ -100,7 +101,7 @@ class AuthRoleService {
 
     if (role == AppUserRole.employee) {
       await _firestore
-          .collection('employee_profiles')
+          .appCollection('employee_profiles')
           .doc(normalizedEmployeeId.isEmpty ? user.uid : normalizedEmployeeId)
           .set({
             'employeeId': normalizedEmployeeId.isEmpty

@@ -6,6 +6,7 @@ import '../widgets/admin_bottom_nav.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class AdminEmployeeDetailScreen extends StatefulWidget {
   const AdminEmployeeDetailScreen({
@@ -18,7 +19,8 @@ class AdminEmployeeDetailScreen extends StatefulWidget {
   final String? initialTab;
 
   @override
-  State<AdminEmployeeDetailScreen> createState() => _AdminEmployeeDetailScreenState();
+  State<AdminEmployeeDetailScreen> createState() =>
+      _AdminEmployeeDetailScreenState();
 }
 
 enum AttendanceFilterType { day, week, month, year, custom }
@@ -41,8 +43,12 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
     if (widget.initialTab != null) {
       initialIdx = int.tryParse(widget.initialTab!) ?? 0;
     }
-    _tabController = TabController(length: 2, vsync: this, initialIndex: initialIdx);
-    
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: initialIdx,
+    );
+
     // Initialize date range for custom filter
     final today = DateTime.now();
     _selectedDateRange = DateTimeRange(
@@ -64,8 +70,18 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
 
   String _formatMonth(DateTime dt) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[dt.month - 1]} ${dt.year}';
   }
@@ -74,7 +90,9 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
     if (timeIso == null || timeIso.isEmpty) return '-';
     final parsed = DateTime.tryParse(timeIso);
     if (parsed == null) return timeIso;
-    final hour = parsed.hour > 12 ? parsed.hour - 12 : (parsed.hour == 0 ? 12 : parsed.hour);
+    final hour = parsed.hour > 12
+        ? parsed.hour - 12
+        : (parsed.hour == 0 ? 12 : parsed.hour);
     final period = parsed.hour >= 12 ? 'PM' : 'AM';
     return '${hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')} $period';
   }
@@ -101,22 +119,48 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
         break;
       case AttendanceFilterType.week:
         final range = _getWeekRange(_selectedDate);
-        final start = DateTime(range.start.year, range.start.month, range.start.day);
-        final end = DateTime(range.end.year, range.end.month, range.end.day, 23, 59, 59);
-        inRange = logDate.isAfter(start.subtract(const Duration(seconds: 1))) &&
+        final start = DateTime(
+          range.start.year,
+          range.start.month,
+          range.start.day,
+        );
+        final end = DateTime(
+          range.end.year,
+          range.end.month,
+          range.end.day,
+          23,
+          59,
+          59,
+        );
+        inRange =
+            logDate.isAfter(start.subtract(const Duration(seconds: 1))) &&
             logDate.isBefore(end.add(const Duration(seconds: 1)));
         break;
       case AttendanceFilterType.month:
-        inRange = logDate.year == _selectedDate.year && logDate.month == _selectedDate.month;
+        inRange =
+            logDate.year == _selectedDate.year &&
+            logDate.month == _selectedDate.month;
         break;
       case AttendanceFilterType.year:
         inRange = logDate.year == _selectedDate.year;
         break;
       case AttendanceFilterType.custom:
         if (_selectedDateRange == null) return false;
-        final start = DateTime(_selectedDateRange!.start.year, _selectedDateRange!.start.month, _selectedDateRange!.start.day);
-        final end = DateTime(_selectedDateRange!.end.year, _selectedDateRange!.end.month, _selectedDateRange!.end.day, 23, 59, 59);
-        inRange = logDate.isAfter(start.subtract(const Duration(seconds: 1))) &&
+        final start = DateTime(
+          _selectedDateRange!.start.year,
+          _selectedDateRange!.start.month,
+          _selectedDateRange!.start.day,
+        );
+        final end = DateTime(
+          _selectedDateRange!.end.year,
+          _selectedDateRange!.end.month,
+          _selectedDateRange!.end.day,
+          23,
+          59,
+          59,
+        );
+        inRange =
+            logDate.isAfter(start.subtract(const Duration(seconds: 1))) &&
             logDate.isBefore(end.add(const Duration(seconds: 1)));
         break;
     }
@@ -136,7 +180,9 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
     } else if (_statusFilter == 'ABSENT') {
       return baseStatus == 'absent';
     } else if (_statusFilter == 'LEAVE') {
-      return baseStatus == 'leave' || status == 'leave' || dayStatus == 'approved_leave';
+      return baseStatus == 'leave' ||
+          status == 'leave' ||
+          dayStatus == 'approved_leave';
     }
 
     return true;
@@ -148,7 +194,10 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
       title: 'Employee Profile',
       bottomNavigationBar: const AdminBottomNav(currentIndex: 1),
       child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _firestore.collection('employee_profiles').doc(widget.employeeId).snapshots(),
+        stream: _firestore
+            .appCollection('employee_profiles')
+            .doc(widget.employeeId)
+            .snapshots(),
         builder: (context, profileSnapshot) {
           if (profileSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -163,7 +212,8 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
             );
           }
 
-          final name = profileData['employeeName'] as String? ?? 'Employee Details';
+          final name =
+              profileData['employeeName'] as String? ?? 'Employee Details';
           final dept = profileData['department'] as String? ?? 'TECH';
           final role = profileData['role'] as String? ?? 'EMPLOYEE';
 
@@ -173,7 +223,10 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
               Container(
                 width: double.infinity,
                 color: IndustrialColors.surface,
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 20,
+                ),
                 child: Row(
                   children: [
                     CircleAvatar(
@@ -181,8 +234,13 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                       backgroundColor: IndustrialColors.primary,
                       foregroundColor: IndustrialColors.onPrimary,
                       child: Text(
-                        name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'E',
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        name.isNotEmpty
+                            ? name.substring(0, 1).toUpperCase()
+                            : 'E',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -192,7 +250,8 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                         children: [
                           Text(
                             name,
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -200,9 +259,9 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                           const SizedBox(height: 2),
                           Text(
                             '$role | $dept',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  fontSize: 14,
-                                ),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.copyWith(fontSize: 14),
                           ),
                         ],
                       ),
@@ -253,9 +312,9 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
           Text(
             'Personal Details',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 12),
           IndustrialCard(
@@ -277,9 +336,9 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
           Text(
             'Company Placement',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 12),
           IndustrialCard(
@@ -292,9 +351,17 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                   highlight: true,
                 ),
                 const Divider(height: 20),
-                _buildInfoRow(Icons.factory, 'Department / Team', data['department'] as String? ?? 'TECH'),
+                _buildInfoRow(
+                  Icons.factory,
+                  'Department / Team',
+                  data['department'] as String? ?? 'TECH',
+                ),
                 const Divider(height: 20),
-                _buildInfoRow(Icons.engineering, 'Assigned Role', data['role'] as String? ?? 'EMPLOYEE'),
+                _buildInfoRow(
+                  Icons.engineering,
+                  'Assigned Role',
+                  data['role'] as String? ?? 'EMPLOYEE',
+                ),
               ],
             ),
           ),
@@ -303,7 +370,12 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value, {bool highlight = false}) {
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value, {
+    bool highlight = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -329,7 +401,9 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
-                    color: highlight ? IndustrialColors.secondary : IndustrialColors.onSurface,
+                    color: highlight
+                        ? IndustrialColors.secondary
+                        : IndustrialColors.onSurface,
                   ),
                 ),
               ],
@@ -344,7 +418,7 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
   Widget _buildAttendanceTab() {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _firestore
-          .collection('attendance')
+          .appCollection('attendance')
           .where('employeeId', isEqualTo: widget.employeeId)
           .snapshots(),
       builder: (context, snapshot) {
@@ -352,7 +426,9 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
           return const Center(child: CircularProgressIndicator());
         }
 
-        final logs = (snapshot.data?.docs ?? []).map((doc) => doc.data()).toList();
+        final logs = (snapshot.data?.docs ?? [])
+            .map((doc) => doc.data())
+            .toList();
         final filteredLogs = logs.where(_isLogVisible).toList()
           ..sort((a, b) {
             final dateA = a['loginDateIst'] as String? ?? '';
@@ -367,17 +443,22 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
         double totalHours = 0.0;
 
         for (final log in filteredLogs) {
-          final status = (log['attendanceStatus'] as String? ?? '').toLowerCase();
+          final status = (log['attendanceStatus'] as String? ?? '')
+              .toLowerCase();
           final baseStatus = (log['status'] as String? ?? '').toLowerCase();
           final dayStatus = (log['dayStatus'] as String? ?? '').toLowerCase();
-          final officeMinutes = (log['officeMinutes'] as num?)?.toDouble() ?? 0.0;
+          final officeMinutes =
+              (log['officeMinutes'] as num?)?.toDouble() ?? 0.0;
           totalHours += officeMinutes / 60.0;
 
           if (status == 'attendance_considered') {
             presentCount++;
-          } else if (status == 'not_considered_attendance' && baseStatus == 'present') {
+          } else if (status == 'not_considered_attendance' &&
+              baseStatus == 'present') {
             lateCount++;
-          } else if (baseStatus == 'leave' || status == 'leave' || dayStatus == 'approved_leave') {
+          } else if (baseStatus == 'leave' ||
+              status == 'leave' ||
+              dayStatus == 'approved_leave') {
             leaveCount++;
           }
         }
@@ -403,9 +484,12 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                             label: Text(type.name.toUpperCase()),
                             selected: isSelected,
                             selectedColor: IndustrialColors.primaryContainer,
-                            backgroundColor: IndustrialColors.surfaceContainerLow,
+                            backgroundColor:
+                                IndustrialColors.surfaceContainerLow,
                             labelStyle: TextStyle(
-                              color: isSelected ? Colors.white : IndustrialColors.onSurfaceVariant,
+                              color: isSelected
+                                  ? Colors.white
+                                  : IndustrialColors.onSurfaceVariant,
                               fontWeight: FontWeight.w700,
                               fontSize: 12,
                             ),
@@ -429,7 +513,10 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                       Expanded(
                         child: Text(
                           _getFilterDateText(),
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                       TextButton.icon(
@@ -449,7 +536,10 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                     children: [
                       const Text(
                         'Status Filter: ',
-                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       DropdownButton<String>(
@@ -461,11 +551,26 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                           fontSize: 14,
                         ),
                         items: const [
-                          DropdownMenuItem(value: 'ALL', child: Text('All Logs')),
-                          DropdownMenuItem(value: 'PRESENT', child: Text('Present Only')),
-                          DropdownMenuItem(value: 'LATE', child: Text('Late/Deductions')),
-                          DropdownMenuItem(value: 'ABSENT', child: Text('Absent Only')),
-                          DropdownMenuItem(value: 'LEAVE', child: Text('Approved Leaves')),
+                          DropdownMenuItem(
+                            value: 'ALL',
+                            child: Text('All Logs'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'PRESENT',
+                            child: Text('Present Only'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'LATE',
+                            child: Text('Late/Deductions'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'ABSENT',
+                            child: Text('Absent Only'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'LEAVE',
+                            child: Text('Approved Leaves'),
+                          ),
                         ],
                         onChanged: (val) {
                           if (val != null) {
@@ -481,7 +586,10 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
 
             // Statistics Pane
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 12.0,
+              ),
               child: GridView.count(
                 crossAxisCount: 4,
                 shrinkWrap: true,
@@ -490,10 +598,18 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                 crossAxisSpacing: 8,
                 childAspectRatio: 1.1,
                 children: [
-                  _buildStatBox('Present', '$presentCount', IndustrialColors.secondary),
+                  _buildStatBox(
+                    'Present',
+                    '$presentCount',
+                    IndustrialColors.secondary,
+                  ),
                   _buildStatBox('Late', '$lateCount', Colors.orange.shade800),
                   _buildStatBox('Leave', '$leaveCount', Colors.blue.shade800),
-                  _buildStatBox('Hours', '${totalHours.toStringAsFixed(1)}h', IndustrialColors.primary),
+                  _buildStatBox(
+                    'Hours',
+                    '${totalHours.toStringAsFixed(1)}h',
+                    IndustrialColors.primary,
+                  ),
                 ],
               ),
             ),
@@ -506,12 +622,17 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                         padding: EdgeInsets.all(24.0),
                         child: Text(
                           'No logs found matching selection.',
-                          style: TextStyle(color: IndustrialColors.onSurfaceVariant),
+                          style: TextStyle(
+                            color: IndustrialColors.onSurfaceVariant,
+                          ),
                         ),
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       itemCount: filteredLogs.length,
                       itemBuilder: (context, idx) {
                         final log = filteredLogs[idx];
@@ -537,12 +658,20 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
         children: [
           Text(
             value,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             label.toUpperCase(),
-            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: IndustrialColors.onSurfaceVariant),
+            style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: IndustrialColors.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -557,7 +686,8 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
     final sessionStatus = log['sessionStatus'] as String? ?? 'closed';
     final device = log['device'] as Map<String, dynamic>?;
 
-    final attendanceStatus = (log['attendanceStatus'] as String? ?? '').toLowerCase();
+    final attendanceStatus = (log['attendanceStatus'] as String? ?? '')
+        .toLowerCase();
     final baseStatus = (log['status'] as String? ?? '').toLowerCase();
     final dayStatus = (log['dayStatus'] as String? ?? '').toLowerCase();
 
@@ -568,13 +698,16 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
     if (attendanceStatus == 'attendance_considered') {
       chipLabel = 'PRESENT';
       chipType = StatusChipType.success;
-    } else if (attendanceStatus == 'not_considered_attendance' && baseStatus == 'present') {
+    } else if (attendanceStatus == 'not_considered_attendance' &&
+        baseStatus == 'present') {
       chipLabel = 'LATE';
       chipType = StatusChipType.alert;
     } else if (baseStatus == 'absent') {
       chipLabel = 'ABSENT';
       chipType = StatusChipType.neutral;
-    } else if (baseStatus == 'leave' || attendanceStatus == 'leave' || dayStatus == 'approved_leave') {
+    } else if (baseStatus == 'leave' ||
+        attendanceStatus == 'leave' ||
+        dayStatus == 'approved_leave') {
       chipLabel = 'LEAVE';
       chipType = StatusChipType.pending;
     }
@@ -599,7 +732,10 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
               children: [
                 Text(
                   dateStr,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
                 ),
                 StatusChip(label: chipLabel, type: chipType),
               ],
@@ -611,29 +747,60 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('CHECK IN', style: TextStyle(fontSize: 10, color: IndustrialColors.onSurfaceVariant)),
-                    Text(loginTime, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    const Text(
+                      'CHECK IN',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: IndustrialColors.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      loginTime,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('CHECK OUT', style: TextStyle(fontSize: 10, color: IndustrialColors.onSurfaceVariant)),
-                    Text(sessionStatus == 'active' ? 'Active now' : logoutTime,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: sessionStatus == 'active' ? IndustrialColors.secondary : IndustrialColors.onSurface,
-                        )),
+                    const Text(
+                      'CHECK OUT',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: IndustrialColors.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      sessionStatus == 'active' ? 'Active now' : logoutTime,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: sessionStatus == 'active'
+                            ? IndustrialColors.secondary
+                            : IndustrialColors.onSurface,
+                      ),
+                    ),
                   ],
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text('OFFICE TIME', style: TextStyle(fontSize: 10, color: IndustrialColors.onSurfaceVariant)),
+                    const Text(
+                      'OFFICE TIME',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: IndustrialColors.onSurfaceVariant,
+                      ),
+                    ),
                     Text(
                       '${officeHours}h ${officeMinsRemaining}m',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -643,12 +810,19 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
               const Divider(height: 16),
               Row(
                 children: [
-                  const Icon(Icons.devices, size: 14, color: IndustrialColors.onSurfaceVariant),
+                  const Icon(
+                    Icons.devices,
+                    size: 14,
+                    color: IndustrialColors.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       '${device['deviceName'] ?? "Device"} (${device['platform'] ?? "unknown"})',
-                      style: const TextStyle(fontSize: 11, color: IndustrialColors.onSurfaceVariant),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: IndustrialColors.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],

@@ -10,6 +10,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart'
 import 'package:go_router/go_router.dart';
 
 import 'auth_role_service.dart';
+import 'app_firestore.dart';
 
 class FcmNotificationService {
   FcmNotificationService._();
@@ -133,7 +134,7 @@ class FcmNotificationService {
       'department': normalizedDepartment,
       'updatedAt': FieldValue.serverTimestamp(),
     };
-    final userRef = _firestore.collection('users').doc(user.uid);
+    final userRef = _firestore.appCollection('users').doc(user.uid);
     final userDoc = await userRef.get();
     if (userDoc.exists) {
       await userRef.set({
@@ -143,7 +144,7 @@ class FcmNotificationService {
       }, SetOptions(merge: true));
     }
     await _firestore
-        .collection('fcm_tokens')
+        .appCollection('fcm_tokens')
         .doc('${user.uid}_${kIsWeb ? 'web' : 'android'}')
         .set(data, SetOptions(merge: true));
   }
@@ -306,7 +307,7 @@ class FcmNotificationService {
     if (_adminRequestSubscription != null) return;
     _adminRequestListenerPrimed = false;
     _adminRequestSubscription = _firestore
-        .collection('team_messages')
+        .appCollection('team_messages')
         .orderBy('createdAt', descending: true)
         .limit(25)
         .snapshots()
@@ -438,9 +439,9 @@ class FcmNotificationService {
     };
 
     final messageRef = await _firestore
-        .collection('team_messages')
+        .appCollection('team_messages')
         .add(message);
-    await _firestore.collection('fcm_outbox').doc(messageRef.id).set({
+    await _firestore.appCollection('fcm_outbox').doc(messageRef.id).set({
       ...message,
       'messageId': messageRef.id,
       'status': 'pending',
@@ -602,9 +603,9 @@ class FcmNotificationService {
     if (user == null) return;
     final messageId = data['messageId'] as String?;
     final docRef = messageId == null || messageId.isEmpty
-        ? _firestore.collection('notification_inbox').doc()
+        ? _firestore.appCollection('notification_inbox').doc()
         : _firestore
-              .collection('notification_inbox')
+              .appCollection('notification_inbox')
               .doc('${user.uid}_$messageId');
     await docRef.set({
       'uid': user.uid,

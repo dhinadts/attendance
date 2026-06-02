@@ -8,6 +8,7 @@ import '../widgets/employee_bottom_nav.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class ExitCompanyScreen extends StatefulWidget {
   const ExitCompanyScreen({super.key});
@@ -73,7 +74,7 @@ class _ExitCompanyScreenState extends State<ExitCompanyScreen> {
     final profile = _profile;
     if (profile == null) return const Stream.empty();
     return FirebaseFirestore.instance
-        .collection('exit_requests')
+        .appCollection('exit_requests')
         .where('employeeId', isEqualTo: profile.employeeId)
         .snapshots();
   }

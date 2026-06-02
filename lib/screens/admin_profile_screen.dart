@@ -13,6 +13,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
 import '../widgets/primary_action_button.dart';
+import '../services/app_firestore.dart';
 
 class AdminProfileScreen extends StatefulWidget {
   const AdminProfileScreen({super.key});
@@ -70,7 +71,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
     if (user == null) return;
 
     try {
-      final doc = await _firestore.collection('users').doc(user.uid).get();
+      final doc = await _firestore.appCollection('users').doc(user.uid).get();
       final data = doc.data() ?? {};
 
       setState(() {
@@ -117,7 +118,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
       final lastName = _lastNameController.text.trim();
       final displayName = '$firstName $lastName'.trim();
 
-      await _firestore.collection('users').doc(user.uid).set({
+      await _firestore.appCollection('users').doc(user.uid).set({
         'firstName': firstName,
         'lastName': lastName,
         'displayName': displayName.isEmpty ? user.email : displayName,
@@ -195,7 +196,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
     try {
       final bytes = await rootBundle.load('assets/branding/app_logo.png');
       final photoBase64 = base64Encode(bytes.buffer.asUint8List());
-      await _firestore.collection('users').doc(user.uid).set({
+      await _firestore.appCollection('users').doc(user.uid).set({
         'photoBase64': photoBase64,
         'photoSource': 'app_logo',
         'photoUpdatedAt': FieldValue.serverTimestamp(),
@@ -220,7 +221,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
       user.email ?? 'A',
     );
     final photoBase64 = await _buildInitialsAvatarBase64(initials);
-    await _firestore.collection('users').doc(user.uid).set({
+    await _firestore.appCollection('users').doc(user.uid).set({
       'photoBase64': photoBase64,
       'photoSource': 'initials',
       'photoUpdatedAt': FieldValue.serverTimestamp(),
@@ -234,7 +235,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
   Future<void> _clearPhoto() async {
     final user = _auth.currentUser;
     if (user == null) return;
-    await _firestore.collection('users').doc(user.uid).set({
+    await _firestore.appCollection('users').doc(user.uid).set({
       'photoBase64': FieldValue.delete(),
       'photoSource': FieldValue.delete(),
       'photoUpdatedAt': FieldValue.serverTimestamp(),
@@ -321,7 +322,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
       title: 'Admin Profile',
       bottomNavigationBar: const AdminBottomNav(currentIndex: 0),
       child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: _firestore.collection('users').doc(user.uid).snapshots(),
+        stream: _firestore.appCollection('users').doc(user.uid).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !_isLoaded) {

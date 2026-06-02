@@ -7,6 +7,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/employee_bottom_nav.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 enum _LogRange { today, week, month, year }
 
@@ -44,7 +45,7 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
       return const Stream.empty();
     }
     return FirebaseFirestore.instance
-        .collection('attendance')
+        .appCollection('attendance')
         .where('employeeId', isEqualTo: _profile!.employeeId)
         .snapshots();
   }

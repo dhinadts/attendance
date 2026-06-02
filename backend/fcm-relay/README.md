@@ -2,6 +2,19 @@
 
 Standalone Node backend for attendance APIs, salary generation, notification queueing, and Firebase Cloud Messaging delivery without Firebase Cloud Functions.
 
+Firestore writes are namespaced under:
+
+```text
+Attendance/main/{collectionName}
+```
+
+Override with:
+
+```text
+FIRESTORE_APP_ROOT_COLLECTION=Attendance
+FIRESTORE_APP_ROOT_DOCUMENT=main
+```
+
 The Flutter app writes pending push jobs to:
 
 ```text
@@ -162,6 +175,24 @@ GET /api/teams
 POST /api/teams
 GET /api/teams/:teamId/employees
 ```
+
+### One-time migration from root collections
+
+Your older app data may exist at root collections such as `employee_profiles`, `attendance`, `leave_requests`, and `salary_records`. Run this once to copy those documents into `Attendance/main/{collectionName}`:
+
+```http
+POST /api/admin/migrate-root-to-attendance
+```
+
+Optional body to migrate only selected collections:
+
+```json
+{
+  "collections": ["users", "employee_profiles", "attendance", "leave_requests", "salary_records"]
+}
+```
+
+Without `collections`, the backend copies all known attendance app collections.
 
 Create/update team:
 

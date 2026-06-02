@@ -5,6 +5,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'app_firestore.dart';
 
 class EmployeeProfile {
   const EmployeeProfile({
@@ -212,14 +213,14 @@ class AttendanceSessionService {
 
     final userDoc = user == null
         ? null
-        : await _firestore.collection('users').doc(user.uid).get();
+        : await _firestore.appCollection('users').doc(user.uid).get();
     final userData = userDoc?.data();
     final employeeId =
         prefs.getString(_employeeIdKey) ??
         (userData?['employeeId'] as String?) ??
         fallbackId;
     final profileDoc = await _firestore
-        .collection('employee_profiles')
+        .appCollection('employee_profiles')
         .doc(employeeId)
         .get();
     final profileData = profileDoc.data();
@@ -285,7 +286,7 @@ class AttendanceSessionService {
     await prefs.setString(_employeeDepartmentKey, profile.department.trim());
 
     await _firestore
-        .collection('employee_profiles')
+        .appCollection('employee_profiles')
         .doc(profile.employeeId.trim())
         .set({
           ...profile.toMap(),
@@ -295,7 +296,7 @@ class AttendanceSessionService {
 
     final user = _auth.currentUser;
     if (user != null) {
-      await _firestore.collection('users').doc(user.uid).set({
+      await _firestore.appCollection('users').doc(user.uid).set({
         'employeeId': profile.employeeId.trim(),
         'firstName': profile.firstName.trim(),
         'lastName': profile.lastName.trim(),
@@ -358,7 +359,7 @@ class AttendanceSessionService {
       final employee = await loadEmployeeProfile();
       final docId = attendanceDocumentId(employee.employeeId, todayIst);
       final docSnapshot = await _firestore
-          .collection('attendance')
+          .appCollection('attendance')
           .doc(docId)
           .get();
       final docData = docSnapshot.data();
@@ -372,7 +373,7 @@ class AttendanceSessionService {
       }
 
       final querySnapshot = await _firestore
-          .collection('attendance')
+          .appCollection('attendance')
           .where('employeeId', isEqualTo: employee.employeeId)
           .get();
       for (final record in querySnapshot.docs) {
@@ -447,7 +448,7 @@ class AttendanceSessionService {
     final loginAtIso = loginAt.toIso8601String();
     final loginDate = _dateKey(loginAt);
     final docId = attendanceDocumentId(employee.employeeId, loginDate);
-    final docRef = _firestore.collection('attendance').doc(docId);
+    final docRef = _firestore.appCollection('attendance').doc(docId);
 
     final officeDistanceMeters = Geolocator.distanceBetween(
       loginPosition.latitude,
@@ -548,7 +549,7 @@ class AttendanceSessionService {
     required String keepDateKey,
   }) async {
     final snapshot = await _firestore
-        .collection('attendance')
+        .appCollection('attendance')
         .where('employeeId', isEqualTo: employeeId)
         .get();
     final batch = _firestore.batch();
@@ -577,7 +578,9 @@ class AttendanceSessionService {
     double? distanceMeters,
   }) async {
     final requestedLogoutAt = nowIst;
-    final docRef = _firestore.collection('attendance').doc(session.documentId);
+    final docRef = _firestore
+        .appCollection('attendance')
+        .doc(session.documentId);
     final snapshot = await docRef.get();
     final data = snapshot.data();
     final loginAt = DateTime.tryParse(
@@ -664,7 +667,9 @@ class AttendanceSessionService {
     required double distanceMeters,
   }) async {
     final at = nowIst;
-    final docRef = _firestore.collection('attendance').doc(session.documentId);
+    final docRef = _firestore
+        .appCollection('attendance')
+        .doc(session.documentId);
 
     await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(docRef);
@@ -714,7 +719,9 @@ class AttendanceSessionService {
     required double distanceMeters,
   }) async {
     final at = nowIst;
-    final docRef = _firestore.collection('attendance').doc(session.documentId);
+    final docRef = _firestore
+        .appCollection('attendance')
+        .doc(session.documentId);
 
     await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(docRef);
@@ -770,7 +777,7 @@ class AttendanceSessionService {
     final dateKey = _dateKey(at);
     final docId = attendanceDocumentId(employee.employeeId, dateKey);
 
-    await _firestore.collection('attendance').doc(docId).set({
+    await _firestore.appCollection('attendance').doc(docId).set({
       'employeeId': employee.employeeId,
       'employeeName': employee.employeeName,
       'employee': employee.toMap(),
@@ -809,7 +816,7 @@ class AttendanceSessionService {
     final employee = await loadEmployeeProfile();
     final user = _auth.currentUser;
     final attendanceDoc = await _firestore
-        .collection('attendance')
+        .appCollection('attendance')
         .doc(attendanceDocumentId(employee.employeeId, dateKey))
         .get();
     final attendanceStatus = attendanceDoc.data()?['attendanceStatus'];
@@ -818,7 +825,7 @@ class AttendanceSessionService {
     }
 
     final docRef = _firestore
-        .collection('leave_requests')
+        .appCollection('leave_requests')
         .doc(leaveRequestDocumentId(employee.employeeId, dateKey));
     final existing = await docRef.get();
     final existingStatus = existing.data()?['status'] as String?;
@@ -859,8 +866,8 @@ class AttendanceSessionService {
       'createdAtIst': nowIstStr,
     };
 
-    final msgRef = await _firestore.collection('team_messages').add(message);
-    await _firestore.collection('fcm_outbox').doc(msgRef.id).set({
+    final msgRef = await _firestore.appCollection('team_messages').add(message);
+    await _firestore.appCollection('fcm_outbox').doc(msgRef.id).set({
       ...message,
       'messageId': msgRef.id,
       'status': 'pending',
@@ -884,7 +891,7 @@ class AttendanceSessionService {
     final at = nowIst;
     final user = _auth.currentUser;
     final pending = await _firestore
-        .collection('exit_requests')
+        .appCollection('exit_requests')
         .where('employeeId', isEqualTo: employee.employeeId)
         .where('status', isEqualTo: 'pending')
         .limit(1)
@@ -894,7 +901,7 @@ class AttendanceSessionService {
     }
 
     final requestId = exitRequestDocumentId(employee.employeeId);
-    await _firestore.collection('exit_requests').doc(requestId).set({
+    await _firestore.appCollection('exit_requests').doc(requestId).set({
       'employeeId': employee.employeeId,
       'employeeName': employee.employeeName,
       'employee': employee.toMap(),
@@ -927,8 +934,8 @@ class AttendanceSessionService {
       'createdAt': FieldValue.serverTimestamp(),
       'createdAtIst': at.toIso8601String(),
     };
-    final msgRef = await _firestore.collection('team_messages').add(message);
-    await _firestore.collection('fcm_outbox').doc(msgRef.id).set({
+    final msgRef = await _firestore.appCollection('team_messages').add(message);
+    await _firestore.appCollection('fcm_outbox').doc(msgRef.id).set({
       ...message,
       'messageId': msgRef.id,
       'status': 'pending',
@@ -950,7 +957,7 @@ class AttendanceSessionService {
     final monthKey =
         '${year.toString().padLeft(4, '0')}-${month.toString().padLeft(2, '0')}';
     final records = await _firestore
-        .collection('attendance')
+        .appCollection('attendance')
         .where('employeeId', isEqualTo: employee.employeeId)
         .get();
 
@@ -1003,7 +1010,7 @@ class AttendanceSessionService {
     };
 
     await _firestore
-        .collection('salary_records')
+        .appCollection('salary_records')
         .doc(salaryRecordDocumentId(employee.employeeId, year, month))
         .set(record, SetOptions(merge: true));
     return record;

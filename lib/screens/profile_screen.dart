@@ -10,6 +10,7 @@ import '../widgets/employee_bottom_nav.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -120,7 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return const Stream.empty();
     }
     return FirebaseFirestore.instance
-        .collection('leave_requests')
+        .appCollection('leave_requests')
         .where('employeeId', isEqualTo: employeeId)
         .snapshots();
   }

@@ -11,6 +11,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class AdminExportReportsScreen extends StatefulWidget {
   const AdminExportReportsScreen({super.key});
@@ -32,7 +33,7 @@ class _AdminExportReportsScreenState extends State<AdminExportReportsScreen> {
   }) async {
     setState(() => _isExporting = true);
     try {
-      final attendance = await _firestore.collection('attendance').get();
+      final attendance = await _firestore.appCollection('attendance').get();
       final rows = <List<String>>[
         [
           'Employee ID',
@@ -101,7 +102,7 @@ class _AdminExportReportsScreenState extends State<AdminExportReportsScreen> {
       title: 'Export Reports',
       bottomNavigationBar: const AdminBottomNav(currentIndex: 1),
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _firestore.collection('employee_profiles').snapshots(),
+        stream: _firestore.appCollection('employee_profiles').snapshots(),
         builder: (context, snapshot) {
           final grouped = _groupEmployees(snapshot.data?.docs ?? []);
           final departments = grouped.keys.toList()..sort();

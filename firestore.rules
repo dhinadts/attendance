@@ -239,6 +239,229 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    function appUserDoc(appId) {
+      return get(/databases/$(database)/documents/Attendance/$(appId)/users/$(request.auth.uid));
+    }
+
+    function hasAppUserDoc(appId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/Attendance/$(appId)/users/$(request.auth.uid));
+    }
+
+    function appRole(appId) {
+      return hasAppUserDoc(appId) && appUserDoc(appId).data.role != null
+          ? appUserDoc(appId).data.role
+          : 'employee';
+    }
+
+    function appIsAdmin(appId) {
+      return signedIn() && (appRole(appId) == 'admin' || appRole(appId) == 'ADMIN');
+    }
+
+    function appEmployeeId(appId) {
+      return hasAppUserDoc(appId) ? appUserDoc(appId).data.employeeId : null;
+    }
+
+    function appTeamId(appId) {
+      return hasAppUserDoc(appId) ? appUserDoc(appId).data.teamId : null;
+    }
+
+    function appOwnsEmployee(appId, employeeIdValue) {
+      return signedIn() && appEmployeeId(appId) == employeeIdValue;
+    }
+
+    match /Attendance/{appId} {
+      allow read: if signedIn();
+      allow create, update, delete: if appIsAdmin(appId);
+
+      match /users/{uid} {
+        allow read: if signedIn() && (request.auth.uid == uid || appIsAdmin(appId));
+        allow create: if signedIn() && request.auth.uid == uid
+          && request.resource.data.role == 'employee';
+        allow update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.employeeId == resource.data.employeeId
+          && (appIsAdmin(appId)
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'firstName',
+              'lastName',
+              'displayName',
+              'nickName',
+              'email',
+              'updatedAt',
+              'fcmToken',
+              'fcmUpdatedAt',
+              'teamId'
+            ]));
+        allow delete: if false;
+      }
+
+      match /employee_profiles/{employeeIdValue} {
+        allow read: if appOwnsEmployee(appId, employeeIdValue) || appIsAdmin(appId);
+        allow create: if appIsAdmin(appId)
+          || (appOwnsEmployee(appId, employeeIdValue)
+            && request.resource.data.employeeId == employeeIdValue);
+        allow update: if appIsAdmin(appId)
+          || (appOwnsEmployee(appId, employeeIdValue)
+            && request.resource.data.employeeId == resource.data.employeeId);
+        allow delete: if appIsAdmin(appId);
+      }
+
+      match /teams/{teamIdValue} {
+        allow read: if signedIn();
+        allow create, update, delete: if appIsAdmin(appId);
+      }
+
+      match /attendance/{attendanceId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
+        allow create: if signedIn()
+          && request.resource.data.employeeId == appEmployeeId(appId);
+        allow update: if appIsAdmin(appId)
+          || (signedIn()
+            && resource.data.employeeId == appEmployeeId(appId)
+            && request.resource.data.employeeId == resource.data.employeeId);
+        allow delete: if appIsAdmin(appId);
+      }
+
+      match /attendance_records/{attendanceId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
+        allow create: if signedIn()
+          && request.resource.data.employeeId == appEmployeeId(appId);
+        allow update: if appIsAdmin(appId)
+          || (signedIn()
+            && resource.data.employeeId == appEmployeeId(appId)
+            && request.resource.data.employeeId == resource.data.employeeId);
+        allow delete: if appIsAdmin(appId);
+      }
+
+      match /attendance_summaries/{summaryId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
+        allow create, update, delete: if appIsAdmin(appId);
+      }
+
+      match /team_attendance_summaries/{summaryId} {
+        allow read: if appIsAdmin(appId) || resource.data.teamId == appTeamId(appId);
+        allow create, update, delete: if appIsAdmin(appId);
+      }
+
+      match /leave_requests/{requestId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
+        allow create: if signedIn()
+          && request.resource.data.employeeId == appEmployeeId(appId);
+        allow update: if appIsAdmin(appId)
+          || (signedIn()
+            && resource.data.employeeId == appEmployeeId(appId)
+            && request.resource.data.employeeId == resource.data.employeeId);
+        allow delete: if appIsAdmin(appId);
+      }
+
+      match /attendance_mark_requests/{requestId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
+        allow create: if signedIn()
+          && request.resource.data.employeeId == appEmployeeId(appId);
+        allow update, delete: if appIsAdmin(appId);
+      }
+
+      match /salary_records/{recordId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
+        allow create, update, delete: if appIsAdmin(appId);
+      }
+
+      match /salary_structures/{employeeIdValue} {
+        allow read: if appIsAdmin(appId) || appOwnsEmployee(appId, employeeIdValue);
+        allow create, update, delete: if appIsAdmin(appId);
+      }
+
+      match /exit_requests/{requestId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
+        allow create: if signedIn()
+          && request.resource.data.employeeId == appEmployeeId(appId);
+        allow update, delete: if appIsAdmin(appId);
+      }
+
+      match /team_messages/{messageId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.senderUid == request.auth.uid;
+        allow update, delete: if appIsAdmin(appId);
+      }
+
+      match /fcm_outbox/{messageId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.senderUid == request.auth.uid);
+        allow create: if signedIn()
+          && request.resource.data.senderUid == request.auth.uid;
+        allow update, delete: if appIsAdmin(appId);
+      }
+
+      match /fcm_tokens/{tokenId} {
+        allow read: if appIsAdmin(appId);
+        allow create, update: if signedIn()
+          && request.resource.data.uid == request.auth.uid;
+        allow delete: if appIsAdmin(appId)
+          || (signedIn() && resource.data.uid == request.auth.uid);
+      }
+
+      match /notification_inbox/{notificationId} {
+        allow read, update, delete: if signedIn()
+          && resource.data.uid == request.auth.uid;
+        allow create: if signedIn()
+          && request.resource.data.uid == request.auth.uid;
+      }
+
+      match /notification_reads/{readId} {
+        allow read: if signedIn() && resource.data.uid == request.auth.uid;
+        allow create, update: if signedIn()
+          && request.resource.data.uid == request.auth.uid;
+        allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      }
+
+      match /notifications/{notificationId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && (
+            resource.data.recipientUid == request.auth.uid
+            || resource.data.employeeId == appEmployeeId(appId)
+            || resource.data.teamId == appTeamId(appId)
+            || resource.data.targetType == 'all'
+          ));
+        allow create, update, delete: if appIsAdmin(appId);
+      }
+
+      match /announcements/{announcementId} {
+        allow read: if signedIn();
+        allow create, update, delete: if appIsAdmin(appId);
+      }
+
+      match /company_documents/{documentId} {
+        allow read: if signedIn();
+        allow create, update, delete: if appIsAdmin(appId);
+      }
+
+      match /holidays/{dateKey} {
+        allow read: if signedIn();
+        allow create, update, delete: if appIsAdmin(appId);
+      }
+
+      match /audit_logs/{logId} {
+        allow read: if appIsAdmin(appId);
+        allow create: if signedIn();
+        allow update, delete: if false;
+      }
+
+      match /fcm_background_events/{eventId} {
+        allow read: if appIsAdmin(appId);
+        allow create: if signedIn();
+        allow update, delete: if false;
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

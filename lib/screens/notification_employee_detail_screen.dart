@@ -8,6 +8,7 @@ import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class NotificationEmployeeDetailScreen extends StatefulWidget {
   const NotificationEmployeeDetailScreen({
@@ -65,12 +66,12 @@ class _NotificationEmployeeDetailScreenState
       final employeeId = widget.employeeId?.trim();
       if (employeeId != null && employeeId.isNotEmpty) {
         final profile = await _firestore
-            .collection('employee_profiles')
+            .appCollection('employee_profiles')
             .doc(employeeId)
             .get();
         employee = profile.data();
         final userQuery = await _firestore
-            .collection('users')
+            .appCollection('users')
             .where('employeeId', isEqualTo: employeeId)
             .limit(1)
             .get();
@@ -95,7 +96,7 @@ class _NotificationEmployeeDetailScreenState
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _messagesStream() {
     return _firestore
-        .collection('team_messages')
+        .appCollection('team_messages')
         .orderBy('createdAt', descending: true)
         .limit(150)
         .snapshots();
@@ -105,7 +106,7 @@ class _NotificationEmployeeDetailScreenState
     final uid = _auth.currentUser?.uid;
     if (uid == null) return const Stream.empty();
     return _firestore
-        .collection('notification_reads')
+        .appCollection('notification_reads')
         .where('uid', isEqualTo: uid)
         .snapshots();
   }
@@ -155,7 +156,7 @@ class _NotificationEmployeeDetailScreenState
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
     await _firestore
-        .collection('notification_reads')
+        .appCollection('notification_reads')
         .doc('${uid}_$messageId')
         .set({
           'uid': uid,

@@ -10,6 +10,7 @@ import '../widgets/employee_bottom_nav.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -72,7 +73,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         _service.todayIst,
       );
       final snapshot = await FirebaseFirestore.instance
-          .collection('attendance')
+          .appCollection('attendance')
           .doc(docId)
           .get();
       return _firstLoginAtIst(snapshot.data());
@@ -114,7 +115,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       _service.todayIst,
     );
     return FirebaseFirestore.instance
-        .collection('attendance')
+        .appCollection('attendance')
         .doc(docId)
         .snapshots();
   }

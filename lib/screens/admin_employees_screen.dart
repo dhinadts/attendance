@@ -8,6 +8,7 @@ import '../widgets/admin_bottom_nav.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class AdminEmployeesScreen extends StatefulWidget {
   const AdminEmployeesScreen({super.key});
@@ -25,7 +26,7 @@ class _AdminEmployeesScreenState extends State<AdminEmployeesScreen> {
       title: 'Employees & Teams',
       bottomNavigationBar: const AdminBottomNav(currentIndex: 1),
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _firestore.collection('employee_profiles').snapshots(),
+        stream: _firestore.appCollection('employee_profiles').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

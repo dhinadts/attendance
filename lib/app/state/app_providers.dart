@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/attendance_session_service.dart';
 import '../../services/auth_role_service.dart';
 import '../../services/payroll_api_service.dart';
+import '../../services/app_firestore.dart';
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
   return FirebaseFirestore.instance;
@@ -73,7 +74,7 @@ final employeeProfilesStreamProvider =
     StreamProvider<List<Map<String, dynamic>>>((ref) {
       return ref
           .watch(firestoreProvider)
-          .collection('employee_profiles')
+          .appCollection('employee_profiles')
           .snapshots()
           .map(
             (snapshot) => snapshot.docs
@@ -89,7 +90,7 @@ final salaryRecordsStreamProvider =
     ) {
       Query<Map<String, dynamic>> query = ref
           .watch(firestoreProvider)
-          .collection('salary_records');
+          .appCollection('salary_records');
       final trimmedEmployeeId = employeeId?.trim();
       if (trimmedEmployeeId != null && trimmedEmployeeId.isNotEmpty) {
         query = query.where('employeeId', isEqualTo: trimmedEmployeeId);

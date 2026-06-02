@@ -7,6 +7,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class AdminMarkAttendanceScreen extends StatefulWidget {
   const AdminMarkAttendanceScreen({super.key, this.requestId, this.employeeId});
@@ -26,11 +27,11 @@ class _AdminMarkAttendanceScreenState extends State<AdminMarkAttendanceScreen> {
     final employeeId = widget.employeeId?.trim();
     if (employeeId != null && employeeId.isNotEmpty) {
       return _firestore
-          .collection('attendance_mark_requests')
+          .appCollection('attendance_mark_requests')
           .where('employeeId', isEqualTo: employeeId)
           .snapshots();
     }
-    return _firestore.collection('attendance_mark_requests').snapshots();
+    return _firestore.appCollection('attendance_mark_requests').snapshots();
   }
 
   Future<void> _processRequest({
@@ -49,9 +50,11 @@ class _AdminMarkAttendanceScreenState extends State<AdminMarkAttendanceScreen> {
     final attendanceId = '${_safeId(employeeId)}_$date';
     final batch = _firestore.batch();
     final requestRef = _firestore
-        .collection('attendance_mark_requests')
+        .appCollection('attendance_mark_requests')
         .doc(requestId);
-    final attendanceRef = _firestore.collection('attendance').doc(attendanceId);
+    final attendanceRef = _firestore
+        .appCollection('attendance')
+        .doc(attendanceId);
     final nowIst = DateTime.now()
         .toUtc()
         .add(const Duration(hours: 5, minutes: 30))

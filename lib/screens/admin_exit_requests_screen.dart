@@ -7,6 +7,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class AdminExitRequestsScreen extends StatefulWidget {
   const AdminExitRequestsScreen({super.key, this.requestId, this.employeeId});
@@ -23,11 +24,11 @@ class _AdminExitRequestsScreenState extends State<AdminExitRequestsScreen> {
   final _firestore = FirebaseFirestore.instance;
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _requestStream() {
-    var query = _firestore.collection('exit_requests').limit(100);
+    var query = _firestore.appCollection('exit_requests').limit(100);
     final employeeId = widget.employeeId?.trim();
     if (employeeId != null && employeeId.isNotEmpty) {
       return _firestore
-          .collection('exit_requests')
+          .appCollection('exit_requests')
           .where('employeeId', isEqualTo: employeeId)
           .snapshots();
     }
@@ -39,7 +40,7 @@ class _AdminExitRequestsScreenState extends State<AdminExitRequestsScreen> {
     required bool approved,
     required String adminReason,
   }) async {
-    await _firestore.collection('exit_requests').doc(requestId).set({
+    await _firestore.appCollection('exit_requests').doc(requestId).set({
       'status': approved ? 'approved' : 'rejected',
       'adminReason': adminReason.trim(),
       'respondedAt': FieldValue.serverTimestamp(),

@@ -11,6 +11,7 @@ import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import '../services/app_firestore.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({
@@ -85,7 +86,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
     try {
       final doc = await FirebaseFirestore.instance
-          .collection('team_messages')
+          .appCollection('team_messages')
           .doc(messageId)
           .get();
       if (!mounted) return;
@@ -101,7 +102,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           bool isRead = false;
           if (uid != null) {
             final readDoc = await FirebaseFirestore.instance
-                .collection('notification_reads')
+                .appCollection('notification_reads')
                 .doc('${uid}_$messageId')
                 .get();
             isRead = readDoc.exists && (readDoc.data()?['read'] == true);
@@ -123,7 +124,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _messagesStream() {
     return FirebaseFirestore.instance
-        .collection('team_messages')
+        .appCollection('team_messages')
         .orderBy('createdAt', descending: true)
         .limit(100)
         .snapshots();
@@ -133,7 +134,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const Stream.empty();
     return FirebaseFirestore.instance
-        .collection('notification_reads')
+        .appCollection('notification_reads')
         .where('uid', isEqualTo: uid)
         .snapshots();
   }
@@ -174,7 +175,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     await FirebaseFirestore.instance
-        .collection('notification_reads')
+        .appCollection('notification_reads')
         .doc('${uid}_$messageId')
         .set({
           'uid': uid,
@@ -557,7 +558,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       children: [
         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
-              .collection('employee_profiles')
+              .appCollection('employee_profiles')
               .snapshots(),
           builder: (context, employeesSnapshot) {
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(

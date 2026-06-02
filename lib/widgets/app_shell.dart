@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/industrial_theme.dart';
+import '../services/app_firestore.dart';
 
 class AppShell extends StatefulWidget {
   final Widget child;
@@ -663,7 +664,7 @@ class _NotificationBell extends StatelessWidget {
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
-          .collection('users')
+          .appCollection('users')
           .doc(uid)
           .snapshots(),
       builder: (context, userSnapshot) {
@@ -675,14 +676,14 @@ class _NotificationBell extends StatelessWidget {
 
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
-              .collection('team_messages')
+              .appCollection('team_messages')
               .orderBy('createdAt', descending: true)
               .limit(100)
               .snapshots(),
           builder: (context, messageSnapshot) {
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance
-                  .collection('notification_reads')
+                  .appCollection('notification_reads')
                   .where('uid', isEqualTo: uid)
                   .snapshots(),
               builder: (context, readSnapshot) {
