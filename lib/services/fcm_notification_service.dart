@@ -16,6 +16,7 @@ class FcmNotificationService {
 
   static final FcmNotificationService instance = FcmNotificationService._();
   static final navigatorKey = GlobalKey<NavigatorState>();
+  static const androidNotificationChannelId = 'team_messages_heads_up';
 
   final _messaging = FirebaseMessaging.instance;
   final _auth = FirebaseAuth.instance;
@@ -31,10 +32,12 @@ class FcmNotificationService {
   final Set<String> _shownForegroundMessageIds = <String>{};
 
   static const _channel = fln.AndroidNotificationChannel(
-    'team_messages',
+    androidNotificationChannelId,
     'Team messages',
     description: 'Team and admin message notifications',
     importance: fln.Importance.high,
+    playSound: true,
+    enableVibration: true,
   );
 
   Future<void> initialize() async {
@@ -248,6 +251,8 @@ class FcmNotificationService {
             channelDescription: _channel.description,
             importance: fln.Importance.high,
             priority: fln.Priority.high,
+            playSound: true,
+            enableVibration: true,
           ),
         ),
       );
@@ -365,7 +370,7 @@ class FcmNotificationService {
     );
   }
 
-  Future<void> sendTeamMessage({
+  Future<String> sendTeamMessage({
     required String title,
     required String body,
     required AppUserRole senderRole,
@@ -429,6 +434,7 @@ class FcmNotificationService {
       'delivery': 'cloud_function',
       'createdAt': FieldValue.serverTimestamp(),
     });
+    return messageRef.id;
   }
 
   static String topicForTeam(String team) => _topicForTeam(team);

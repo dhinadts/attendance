@@ -4,6 +4,7 @@ const admin = require("firebase-admin");
 const PORT = Number(process.env.PORT || 8080);
 const DRY_RUN = process.env.FCM_RELAY_DRY_RUN === "true";
 const OUTBOX_LIMIT = Number(process.env.FCM_OUTBOX_LIMIT || 25);
+const ANDROID_NOTIFICATION_CHANNEL_ID = "team_messages_heads_up";
 
 function parseServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
@@ -130,7 +131,9 @@ function messageDataFor(data, messageId) {
     android: {
       priority: "high",
       notification: {
-        channelId: "team_messages",
+        channelId: ANDROID_NOTIFICATION_CHANNEL_ID,
+        priority: "high",
+        defaultSound: true,
         clickAction: "FLUTTER_NOTIFICATION_CLICK",
       },
     },

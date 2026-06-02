@@ -3,6 +3,8 @@ const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 
 admin.initializeApp();
 
+const ANDROID_NOTIFICATION_CHANNEL_ID = "team_messages_heads_up";
+
 function chunk(array, size) {
   const chunks = [];
   for (let index = 0; index < array.length; index += size) {
@@ -104,7 +106,9 @@ exports.sendTeamMessagePush = onDocumentCreated(
         android: {
           priority: "high",
           notification: {
-            channelId: "team_messages",
+            channelId: ANDROID_NOTIFICATION_CHANNEL_ID,
+            priority: "high",
+            defaultSound: true,
             clickAction: "FLUTTER_NOTIFICATION_CLICK",
           },
         },
@@ -120,7 +124,9 @@ exports.sendTeamMessagePush = onDocumentCreated(
         android: {
           priority: "high",
           notification: {
-            channelId: "team_messages",
+            channelId: ANDROID_NOTIFICATION_CHANNEL_ID,
+            priority: "high",
+            defaultSound: true,
             clickAction: "FLUTTER_NOTIFICATION_CLICK",
           },
         },

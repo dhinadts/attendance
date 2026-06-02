@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +34,9 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
   String _teamToAdd = OrganizationOptions.teams.first;
   final Set<String> _selectedTeams = <String>{};
   String? _status;
+  StatusChipType _statusType = StatusChipType.neutral;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _deliverySubscription;
 
   @override
   void initState() {
@@ -41,6 +46,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
 
   @override
   void dispose() {
+    _deliverySubscription?.cancel();
     _titleController.dispose();
     _messageController.dispose();
     super.dispose();
@@ -78,21 +84,28 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
     final body = _messageController.text.trim();
     final teams = _selectedTeams.toList();
     if (title.isEmpty || body.isEmpty) {
-      setState(() => _status = 'Title and message are required');
+      setState(() {
+        _status = 'Title and message are required';
+        _statusType = StatusChipType.alert;
+      });
       return;
     }
     if (!_sendToAllTeams && teams.isEmpty) {
-      setState(() => _status = 'Team is required for selected-team messages');
+      setState(() {
+        _status = 'Team is required for selected-team messages';
+        _statusType = StatusChipType.alert;
+      });
       return;
     }
 
     setState(() {
       _isSending = true;
       _status = null;
+      _statusType = StatusChipType.neutral;
     });
 
     try {
-      await FcmNotificationService.instance.sendTeamMessage(
+      final outboxId = await FcmNotificationService.instance.sendTeamMessage(
         title: title,
         body: body,
         senderRole: _role,
@@ -107,10 +120,17 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
 
       if (!mounted) return;
       _messageController.clear();
-      setState(() => _status = 'Message saved. Push delivery queued.');
+      setState(() {
+        _status = 'Message saved. Waiting for push delivery...';
+        _statusType = StatusChipType.pending;
+      });
+      _watchDeliveryStatus(outboxId);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _status = error.toString());
+      setState(() {
+        _status = error.toString();
+        _statusType = StatusChipType.alert;
+      });
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
@@ -124,6 +144,64 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots();
+  }
+
+  void _watchDeliveryStatus(String outboxId) {
+    _deliverySubscription?.cancel();
+    _deliverySubscription = FirebaseFirestore.instance
+        .collection('fcm_outbox')
+        .doc(outboxId)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            final data = snapshot.data();
+            if (data == null || !mounted) return;
+            final deliveryStatus = data['status'] as String? ?? 'pending';
+            final error = data['error'] as String?;
+            switch (deliveryStatus) {
+              case 'sent':
+                setState(() {
+                  _status = 'Message saved. Push delivered.';
+                  _statusType = StatusChipType.success;
+                });
+                _deliverySubscription?.cancel();
+                _deliverySubscription = null;
+              case 'failed':
+                setState(() {
+                  _status = error == null || error.isEmpty
+                      ? 'Message saved, but push delivery failed.'
+                      : 'Push delivery failed: $error';
+                  _statusType = StatusChipType.alert;
+                });
+                _deliverySubscription?.cancel();
+                _deliverySubscription = null;
+              case 'retry':
+                setState(() {
+                  _status = error == null || error.isEmpty
+                      ? 'Message saved. Push delivery is retrying.'
+                      : 'Push delivery retrying: $error';
+                  _statusType = StatusChipType.pending;
+                });
+              case 'processing':
+                setState(() {
+                  _status = 'Message saved. Push delivery processing...';
+                  _statusType = StatusChipType.pending;
+                });
+              default:
+                setState(() {
+                  _status = 'Message saved. Push delivery queued.';
+                  _statusType = StatusChipType.pending;
+                });
+            }
+          },
+          onError: (Object error) {
+            if (!mounted) return;
+            setState(() {
+              _status = 'Message saved. Unable to read push delivery status.';
+              _statusType = StatusChipType.pending;
+            });
+          },
+        );
   }
 
   bool _canReadMessage(Map<String, dynamic> data) {
@@ -222,12 +300,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
                   ),
                   if (_status != null) ...[
                     const SizedBox(height: 12),
-                    StatusChip(
-                      label: _status!,
-                      type: _status!.startsWith('Message')
-                          ? StatusChipType.success
-                          : StatusChipType.alert,
-                    ),
+                    StatusChip(label: _status!, type: _statusType),
                   ],
                 ],
               ),
