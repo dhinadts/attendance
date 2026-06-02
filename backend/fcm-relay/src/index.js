@@ -1,5 +1,6 @@
 const express = require("express");
 const admin = require("firebase-admin");
+const { registerTaskRoutes } = require("./routes/taskRoutes");
 
 const PORT = Number(process.env.PORT || 8080);
 const DRY_RUN = process.env.FCM_RELAY_DRY_RUN === "true";
@@ -312,114 +313,6 @@ async function migrateRootCollectionsToAttendance(firestore, collectionNames) {
     result[collectionName] = copied;
   }
   return result;
-}
-
-function normalizeTaskPriority(value) {
-  const normalized = String(value || "medium").trim().toLowerCase();
-  return ["low", "medium", "high", "urgent"].includes(normalized)
-    ? normalized
-    : "medium";
-}
-
-function normalizeTaskStatus(value) {
-  const normalized = String(value || "todo").trim().toLowerCase();
-  const aliases = {
-    "to do": "todo",
-    "in progress": "in_progress",
-    complete: "done",
-    completed: "done",
-  };
-  const status = aliases[normalized] || normalized;
-  return ["todo", "in_progress", "blocked", "done", "closed"].includes(status)
-    ? status
-    : "todo";
-}
-
-function taskPayloadFromBody(body, employee, assigner) {
-  const normalizedBody = {
-    ...body,
-    employeeId: body.employeeId || body.assignedToEmployeeId,
-  };
-  requireFields(normalizedBody, ["title", "employeeId"]);
-  const employeeId = String(normalizedBody.employeeId).trim();
-  const docId = String(body.id || body.taskId || "").trim();
-  const ticketKey = String(body.ticketKey || body.ticket || "").trim();
-  const team = String(
-    body.team || body.teamId || employee?.teamId || employee?.department || "TECH",
-  )
-    .trim()
-    .toUpperCase();
-  const nowIst = nowIstIso();
-  return {
-    id: docId,
-    ticketKey,
-    title: String(body.title).trim(),
-    description: String(body.description || body.details || "").trim(),
-    team,
-    teamId: team,
-    priority: normalizeTaskPriority(body.priority),
-    status: normalizeTaskStatus(body.status),
-    assignedToEmployeeId: employeeId,
-    assignedToUid: String(employee?.uid || body.assignedToUid || "").trim(),
-    assignedToName: String(
-      body.employeeName || body.assignedToName || employee?.employeeName || employeeId,
-    ).trim(),
-    assignedByUid: String(assigner?.uid || body.assignedByUid || "backend_api").trim(),
-    assignedByName: String(assigner?.name || body.assignedByName || "Admin").trim(),
-    assignedByRole: String(assigner?.role || body.assignedByRole || "admin").trim(),
-    dueDate: String(body.dueDate || "").trim(),
-    sprint: String(body.sprint || "").trim(),
-    estimateHours: numberOrZero(body.estimateHours),
-    storyPoints: numberOrZero(body.storyPoints),
-    source: String(body.source || "backend_task_api").trim(),
-    createdAtIst: nowIst,
-    updatedAtIst: nowIst,
-  };
-}
-
-async function buildTaskRecord(firestore, body, assigner) {
-  const employeeId = body.employeeId || body.assignedToEmployeeId;
-  const employee = await employeeProfileById(firestore, employeeId);
-  const payload = taskPayloadFromBody(body, employee, assigner);
-  return {
-    ...payload,
-    scrumReports: Array.isArray(body.scrumReports) ? body.scrumReports : [],
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
-}
-
-function publicTask(taskId, data) {
-  return { id: taskId, ...data };
-}
-
-async function maybeNotifyTaskAssignment(firestore, task) {
-  if (!task.assignedToUid) return null;
-  return queueNotification(
-    firestore,
-    {
-      title: "New Task Assigned",
-      body: `${task.ticketKey || "TASK"} - ${task.title}`,
-      recipientUids: [task.assignedToUid],
-      employeeId: task.assignedToEmployeeId,
-      teamId: task.teamId || task.team,
-      department: task.teamId || task.team,
-      targetType: "employee",
-      senderUid: task.assignedByUid,
-      senderRole: task.assignedByRole,
-      senderName: task.assignedByName,
-      type: "task_assigned",
-      requestId: task.id || "",
-      taskId: task.id || "",
-      ticketKey: task.ticketKey || "",
-      route: "/tasks",
-      data: {
-        taskId: task.id || "",
-        ticketKey: task.ticketKey || "",
-      },
-    },
-    "task_assignment_api",
-  );
 }
 
 function buildAttendanceRecord({ body, employee, existing }) {
@@ -1038,172 +931,17 @@ function startHttpServer() {
     response.status(201).json({ ok: true, monthKey, count: records.length, records });
   }));
 
-  app.get("/api/tasks", asyncRoute(async (request, response) => {
-    requireApiKey(request);
-    let query = appCollection(firestore, "tasks");
-    if (request.query.employeeId) {
-      query = query.where("assignedToEmployeeId", "==", String(request.query.employeeId));
-    }
-    if (request.query.team || request.query.teamId) {
-      query = query.where(
-        "teamId",
-        "==",
-        String(request.query.team || request.query.teamId).trim().toUpperCase(),
-      );
-    }
-    if (request.query.status) {
-      query = query.where("status", "==", normalizeTaskStatus(request.query.status));
-    }
-    const snapshot = await query.limit(Number(request.query.limit || 100)).get();
-    const tasks = snapshot.docs
-      .map((doc) => publicTask(doc.id, doc.data()))
-      .sort((a, b) => String(b.updatedAtIst || "").localeCompare(String(a.updatedAtIst || "")));
-    response.json({ ok: true, tasks });
-  }));
-
-  app.get("/api/tasks/:taskId", asyncRoute(async (request, response) => {
-    requireApiKey(request);
-    const snapshot = await appCollection(firestore, "tasks")
-      .doc(request.params.taskId)
-      .get();
-    if (!snapshot.exists) {
-      response.status(404).json({ ok: false, error: "Task not found" });
-      return;
-    }
-    response.json({ ok: true, task: publicTask(snapshot.id, snapshot.data()) });
-  }));
-
-  app.post("/api/tasks", asyncRoute(async (request, response) => {
-    requireApiKey(request);
-    const assigner = {
-      uid: String(request.body?.assignedByUid || "backend_api").trim(),
-      name: String(request.body?.assignedByName || "Admin").trim(),
-      role: String(request.body?.assignedByRole || "admin").trim(),
-    };
-    const task = await buildTaskRecord(firestore, request.body || {}, assigner);
-    const ref = task.id
-      ? appCollection(firestore, "tasks").doc(safeId(task.id))
-      : appCollection(firestore, "tasks").doc();
-    const ticketKey = task.ticketKey || `DTS-${ref.id.slice(0, 5).toUpperCase()}`;
-    const record = { ...task, id: ref.id, ticketKey };
-    await ref.set(record, { merge: true });
-    const notification = await maybeNotifyTaskAssignment(
-      firestore,
-      record,
-    );
-    response.status(201).json({
-      ok: true,
-      taskId: ref.id,
-      task: publicTask(ref.id, record),
-      notification,
-    });
-  }));
-
-  app.post("/api/tasks/import", asyncRoute(async (request, response) => {
-    requireApiKey(request);
-    const rows = Array.isArray(request.body?.tasks) ? request.body.tasks : [];
-    if (rows.length === 0) throw new Error("tasks array is required");
-    if (rows.length > 450) throw new Error("Import supports up to 450 tasks per request");
-
-    const assigner = {
-      uid: String(request.body?.assignedByUid || "backend_api").trim(),
-      name: String(request.body?.assignedByName || "Admin").trim(),
-      role: String(request.body?.assignedByRole || "admin").trim(),
-    };
-    const batch = firestore.batch();
-    const created = [];
-    for (const row of rows) {
-      const task = await buildTaskRecord(firestore, row || {}, assigner);
-      const ref = task.id
-        ? appCollection(firestore, "tasks").doc(safeId(task.id))
-        : appCollection(firestore, "tasks").doc();
-      const ticketKey = task.ticketKey || `DTS-${ref.id.slice(0, 5).toUpperCase()}`;
-      const record = { ...task, id: ref.id, ticketKey };
-      batch.set(ref, record, { merge: true });
-      created.push(publicTask(ref.id, record));
-    }
-    await batch.commit();
-
-    for (const task of created) {
-      await maybeNotifyTaskAssignment(firestore, task);
-    }
-
-    response.status(201).json({ ok: true, count: created.length, tasks: created });
-  }));
-
-  app.patch("/api/tasks/:taskId/scrum", asyncRoute(async (request, response) => {
-    requireApiKey(request);
-    const taskRef = appCollection(firestore, "tasks").doc(request.params.taskId);
-    const snapshot = await taskRef.get();
-    if (!snapshot.exists) {
-      response.status(404).json({ ok: false, error: "Task not found" });
-      return;
-    }
-    const nowIst = nowIstIso();
-    const update = {
-      summary: String(request.body?.summary || request.body?.latestScrumSummary || "").trim(),
-      blocker: String(request.body?.blocker || request.body?.latestBlocker || "").trim(),
-      hours: String(request.body?.hours || request.body?.latestHours || "").trim(),
-      status: normalizeTaskStatus(request.body?.status || snapshot.data().status),
-      reporterUid: String(request.body?.reporterUid || "").trim(),
-      reporterName: String(request.body?.reporterName || "").trim(),
-      reportedAtIst: nowIst,
-    };
-    await taskRef.set(
-      {
-        status: update.status,
-        latestScrumSummary: update.summary,
-        latestBlocker: update.blocker,
-        latestHours: update.hours,
-        scrumReports: admin.firestore.FieldValue.arrayUnion(update),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAtIst: nowIst,
-      },
-      { merge: true },
-    );
-    response.json({ ok: true, taskId: request.params.taskId, update });
-  }));
-
-  app.patch("/api/tasks/:taskId/feedback", asyncRoute(async (request, response) => {
-    requireApiKey(request);
-    const taskRef = appCollection(firestore, "tasks").doc(request.params.taskId);
-    const snapshot = await taskRef.get();
-    if (!snapshot.exists) {
-      response.status(404).json({ ok: false, error: "Task not found" });
-      return;
-    }
-    const nowIst = nowIstIso();
-    const feedback = {
-      latestFeedback: String(request.body?.feedback || request.body?.latestFeedback || "").trim(),
-      latestAchievement: String(request.body?.achievement || request.body?.latestAchievement || "").trim(),
-      latestImprovement: String(request.body?.improvement || request.body?.latestImprovement || "").trim(),
-      feedbackByUid: String(request.body?.feedbackByUid || "backend_api").trim(),
-      feedbackByName: String(request.body?.feedbackByName || "Manager").trim(),
-      feedbackAt: admin.firestore.FieldValue.serverTimestamp(),
-      feedbackAtIst: nowIst,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAtIst: nowIst,
-    };
-    await taskRef.set(feedback, { merge: true });
-    response.json({ ok: true, taskId: request.params.taskId, feedback });
-  }));
-
-  app.patch("/api/tasks/:taskId/status", asyncRoute(async (request, response) => {
-    requireApiKey(request);
-    const status = normalizeTaskStatus(request.body?.status);
-    const nowIst = nowIstIso();
-    await appCollection(firestore, "tasks")
-      .doc(request.params.taskId)
-      .set(
-        {
-          status,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAtIst: nowIst,
-        },
-        { merge: true },
-      );
-    response.json({ ok: true, taskId: request.params.taskId, status });
-  }));
+  registerTaskRoutes(app, {
+    admin,
+    firestore,
+    appCollection,
+    asyncRoute,
+    requireApiKey,
+    queueNotification,
+    employeeProfileById,
+    safeId,
+    nowIstIso,
+  });
 
   app.post("/api/notifications/send", asyncRoute(async (request, response) => {
     requireApiKey(request);

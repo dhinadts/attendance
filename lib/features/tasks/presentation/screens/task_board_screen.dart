@@ -4,16 +4,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
-import '../services/app_firestore.dart';
-import '../services/attendance_session_service.dart';
-import '../services/auth_role_service.dart';
-import '../theme/industrial_theme.dart';
-import '../widgets/admin_bottom_nav.dart';
-import '../widgets/app_shell.dart';
-import '../widgets/employee_bottom_nav.dart';
-import '../widgets/industrial_card.dart';
-import '../widgets/primary_action_button.dart';
-import '../widgets/status_chip.dart';
+import 'package:attendance/services/app_firestore.dart';
+import 'package:attendance/services/attendance_session_service.dart';
+import 'package:attendance/services/auth_role_service.dart';
+import 'package:attendance/theme/industrial_theme.dart';
+import 'package:attendance/widgets/admin_bottom_nav.dart';
+import 'package:attendance/widgets/app_shell.dart';
+import 'package:attendance/widgets/employee_bottom_nav.dart';
+import 'package:attendance/widgets/industrial_card.dart';
+import 'package:attendance/widgets/primary_action_button.dart';
+import 'package:attendance/widgets/status_chip.dart';
 
 class TaskBoardScreen extends StatefulWidget {
   const TaskBoardScreen({super.key, required this.adminMode});

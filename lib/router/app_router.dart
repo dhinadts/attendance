@@ -23,7 +23,7 @@ import '../screens/salary_payroll_reports_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/startup_screen.dart';
 import '../screens/team_messages_screen.dart';
-import '../screens/task_board_screen.dart';
+import '../features/tasks/presentation/screens/task_board_screen.dart';
 import '../screens/admin_employees_screen.dart';
 import '../screens/admin_employee_detail_screen.dart';
 import '../screens/admin_export_reports_screen.dart';
