@@ -206,7 +206,7 @@ class FcmNotificationService {
     final title = _titleFor(message);
     final body = _bodyFor(message);
     final messageId = message.data['messageId'] as String?;
-    await _saveIncomingMessage(
+    await _saveIncomingMessageBestEffort(
       title: title,
       body: body,
       data: message.data,
