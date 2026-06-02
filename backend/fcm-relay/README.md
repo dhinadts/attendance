@@ -1,6 +1,6 @@
-# attendance FCM Relay
+# attendance Backend and FCM Relay
 
-Standalone Node backend for sending Firebase Cloud Messaging push notifications without Firebase Cloud Functions.
+Standalone Node backend for attendance APIs, salary generation, notification queueing, and Firebase Cloud Messaging delivery without Firebase Cloud Functions.
 
 The Flutter app writes pending push jobs to:
 
@@ -147,7 +147,187 @@ The relay supports configurable retry/backoff and optional simple metrics. New e
 
 These are optional — if not set, the relay uses sensible defaults and continues working as before.
 
-## Payroll API
+## Attendance App APIs
+
+All API endpoints accept JSON and use `BACKEND_API_KEY` when configured. Send it as:
+
+```text
+x-api-key: your-private-api-key
+```
+
+### Teams
+
+```http
+GET /api/teams
+POST /api/teams
+GET /api/teams/:teamId/employees
+```
+
+Create/update team:
+
+```json
+{
+  "teamId": "TECH",
+  "name": "TECH",
+  "description": "Engineering team",
+  "logoPath": "attendance-app/teams/TECH/logo.png",
+  "active": true
+}
+```
+
+### Employees
+
+```http
+GET /api/employees/:employeeId
+POST /api/employees
+```
+
+Create/update employee profile:
+
+```json
+{
+  "employeeId": "EMP001",
+  "uid": "firebase-auth-uid",
+  "employeeName": "John Doe",
+  "email": "john@company.com",
+  "teamId": "TECH",
+  "designation": "DEVELOPER",
+  "monthlySalary": 45000,
+  "joiningDate": "2026-06-01",
+  "status": "active"
+}
+```
+
+### Attendance
+
+```http
+POST /api/attendance/check-in
+POST /api/attendance/check-out
+GET /api/attendance?employeeId=EMP001&monthKey=2026-06
+GET /api/attendance?teamId=TECH&date=2026-06-02
+POST /api/attendance/close-day
+```
+
+Check in:
+
+```json
+{
+  "employeeId": "EMP001",
+  "at": "2026-06-02T09:30:00+05:30",
+  "source": "mobile"
+}
+```
+
+Check out:
+
+```json
+{
+  "employeeId": "EMP001",
+  "at": "2026-06-02T18:15:00+05:30"
+}
+```
+
+Close missing attendance for a day:
+
+```json
+{
+  "date": "2026-06-02",
+  "status": "Absent"
+}
+```
+
+### Salary
+
+```http
+POST /api/salary-structures
+POST /api/salary/generate-month
+POST /api/payroll/upload
+GET /api/payroll/:employeeId/:monthKey
+```
+
+Salary structure:
+
+```json
+{
+  "employeeId": "EMP001",
+  "monthlySalary": 45000,
+  "basicPay": 30000,
+  "allowances": { "fixed": 10000 },
+  "deductions": { "fixed": 2500 },
+  "effectiveFrom": "2026-06"
+}
+```
+
+Generate monthly salary records:
+
+```json
+{
+  "year": 2026,
+  "month": 6,
+  "teamId": "TECH",
+  "workingDays": 26,
+  "notify": true
+}
+```
+
+### Notifications and FCM
+
+```http
+POST /api/notifications/send
+POST /api/fcm/send
+```
+
+Send to teams:
+
+```json
+{
+  "title": "Announcement",
+  "body": "Meeting at 5 PM",
+  "targetType": "teams",
+  "targetTeams": ["TECH", "OPERATIONS"],
+  "senderRole": "admin",
+  "senderName": "Admin",
+  "type": "Announcement"
+}
+```
+
+Send to one employee by employee id:
+
+```json
+{
+  "title": "Salary Generated",
+  "body": "Your salary slip is ready.",
+  "targetType": "employee",
+  "employeeId": "EMP001",
+  "senderRole": "admin",
+  "senderName": "Payroll",
+  "type": "salary_generated"
+}
+```
+
+Send to admin users:
+
+```json
+{
+  "title": "Leave Request",
+  "body": "EMP001 requested leave.",
+  "targetType": "admin",
+  "employeeId": "EMP001",
+  "type": "leave_request"
+}
+```
+
+The backend writes both:
+
+```text
+notifications/{notificationId}
+team_messages/{messageId}
+fcm_outbox/{messageId}
+```
+
+Then the relay listener sends FCM and updates `fcm_outbox.status`.
+
+## Legacy Payroll API
 
 Admin web payroll upload can call:
 

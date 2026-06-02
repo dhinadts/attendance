@@ -1,0 +1,89 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function hasUserDoc() {
+      return signedIn()
+        && firestore.exists(
+          /databases/(default)/documents/users/$(request.auth.uid)
+        );
+    }
+
+    function role() {
+      return hasUserDoc() && userDoc().data.role != null
+        ? userDoc().data.role
+        : 'employee';
+    }
+
+    function isAdmin() {
+      return signedIn() && (role() == 'admin' || role() == 'ADMIN');
+    }
+
+    function employeeId() {
+      return hasUserDoc() ? userDoc().data.employeeId : null;
+    }
+
+    function ownsEmployee(employeeIdValue) {
+      return signedIn() && employeeId() == employeeIdValue;
+    }
+
+    match /attendance-app/users/{employeeIdValue}/profile/{fileName} {
+      allow read: if isAdmin() || ownsEmployee(employeeIdValue);
+      allow write: if isAdmin() || ownsEmployee(employeeIdValue);
+    }
+
+    match /attendance-app/users/{employeeIdValue}/documents/{fileName} {
+      allow read: if isAdmin() || ownsEmployee(employeeIdValue);
+      allow write: if isAdmin() || ownsEmployee(employeeIdValue);
+    }
+
+    match /attendance-app/users/{employeeIdValue}/attendance/{year}/{month}/{day}/{fileName} {
+      allow read: if isAdmin() || ownsEmployee(employeeIdValue);
+      allow write: if isAdmin() || ownsEmployee(employeeIdValue);
+    }
+
+    match /attendance-app/attendance/{year}/{month}/{day}/{teamId}/{employeeIdValue}/{fileName} {
+      allow read: if isAdmin() || ownsEmployee(employeeIdValue);
+      allow write: if isAdmin() || ownsEmployee(employeeIdValue);
+    }
+
+    match /attendance-app/leave-documents/{year}/{month}/{employeeIdValue}/{fileName} {
+      allow read: if isAdmin() || ownsEmployee(employeeIdValue);
+      allow write: if isAdmin() || ownsEmployee(employeeIdValue);
+    }
+
+    match /attendance-app/salary-slips/{monthKey}/{teamId}/{employeeIdValue}/{fileName} {
+      allow read: if isAdmin() || ownsEmployee(employeeIdValue);
+      allow write: if isAdmin();
+    }
+
+    match /attendance-app/teams/{teamId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /attendance-app/announcements/{year}/{announcementId}/{fileName} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /attendance-app/company-documents/{category}/{fileName} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

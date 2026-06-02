@@ -22,7 +22,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return signedIn() && role() == 'admin';
+      return signedIn() && (role() == 'admin' || role() == 'ADMIN');
     }
 
     function employeeId() {
@@ -31,6 +31,14 @@ service cloud.firestore {
 
     function ownsEmployee(employeeIdValue) {
       return signedIn() && employeeId() == employeeIdValue;
+    }
+
+    function teamId() {
+      return hasUserDoc() ? userDoc().data.teamId : null;
+    }
+
+    function sameTeam(teamIdValue) {
+      return signedIn() && teamId() == teamIdValue;
     }
 
     match /users/{uid} {
@@ -76,6 +84,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /teams/{teamIdValue} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     match /attendance/{attendanceId} {
       allow read: if isAdmin()
         || (signedIn() && resource.data.employeeId == employeeId());
@@ -85,6 +98,29 @@ service cloud.firestore {
         || (signedIn() && resource.data.employeeId == employeeId()
           && request.resource.data.employeeId == resource.data.employeeId);
       allow delete: if isAdmin();
+    }
+
+    match /attendance_records/{attendanceId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.employeeId == employeeId());
+      allow create: if signedIn()
+        && request.resource.data.employeeId == employeeId();
+      allow update: if isAdmin()
+        || (signedIn()
+          && resource.data.employeeId == employeeId()
+          && request.resource.data.employeeId == resource.data.employeeId);
+      allow delete: if isAdmin();
+    }
+
+    match /attendance_summaries/{summaryId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.employeeId == employeeId());
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /team_attendance_summaries/{summaryId} {
+      allow read: if isAdmin() || sameTeam(resource.data.teamId);
+      allow create, update, delete: if isAdmin();
     }
 
     match /leave_requests/{requestId} {
@@ -112,6 +148,11 @@ service cloud.firestore {
         || (signedIn() && resource.data.employeeId == employeeId());
       allow create, update: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    match /salary_structures/{employeeIdValue} {
+      allow read: if isAdmin() || ownsEmployee(employeeIdValue);
+      allow create, update, delete: if isAdmin();
     }
 
     match /exit_requests/{requestId} {
@@ -158,6 +199,38 @@ service cloud.firestore {
       allow create, update: if signedIn()
         && request.resource.data.uid == request.auth.uid;
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAdmin()
+        || (signedIn() && (
+          resource.data.recipientUid == request.auth.uid
+          || resource.data.employeeId == employeeId()
+          || resource.data.teamId == teamId()
+          || resource.data.targetType == 'all'
+        ));
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /company_documents/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /holidays/{dateKey} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if signedIn();
+      allow update, delete: if false;
     }
 
     match /fcm_background_events/{eventId} {

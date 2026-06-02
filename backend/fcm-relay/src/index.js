@@ -5,7 +5,11 @@ const PORT = Number(process.env.PORT || 8080);
 const DRY_RUN = process.env.FCM_RELAY_DRY_RUN === "true";
 const OUTBOX_LIMIT = Number(process.env.FCM_OUTBOX_LIMIT || 25);
 const ANDROID_NOTIFICATION_CHANNEL_ID = "team_messages_heads_up";
-const MAX_RETRY_ATTEMPTS = Number(process.env.FCM_MAX_RETRY_ATTEPTS || 2);
+const MAX_RETRY_ATTEMPTS = Number(
+  process.env.FCM_MAX_RETRY_ATTEMPTS ||
+    process.env.FCM_MAX_RETRY_ATTEPTS ||
+    2,
+);
 const BACKOFF_BASE_SECONDS = Number(process.env.FCM_BACKOFF_BASE_SECONDS || 30);
 const MAX_BACKOFF_SECONDS = Number(process.env.FCM_MAX_BACKOFF_SECONDS || 86400);
 const METRICS_ENABLED = process.env.FCM_METRICS_ENABLED === "true";
@@ -86,6 +90,60 @@ function calculateNextRetrySeconds(retryCount) {
   }
 }
 
+function asyncRoute(handler) {
+  return async (request, response) => {
+    try {
+      await handler(request, response);
+    } catch (error) {
+      response.status(error.statusCode || 400).json({
+        ok: false,
+        error: error.message || String(error),
+      });
+    }
+  };
+}
+
+function requireFields(body, fields) {
+  const missing = fields.filter((field) => {
+    const value = body[field];
+    return value === undefined || value === null || String(value).trim() === "";
+  });
+  if (missing.length > 0) {
+    throw new Error(`Missing required fields: ${missing.join(", ")}`);
+  }
+}
+
+function nowIstIso() {
+  return new Date(Date.now() + 19800000).toISOString();
+}
+
+function monthKeyFor(year, month) {
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+}
+
+function dateKeyFromIso(value) {
+  return String(value || nowIstIso()).slice(0, 10);
+}
+
+function attendanceRecordId(employeeId, dateKey) {
+  return `${safeId(employeeId)}_${dateKey}`;
+}
+
+function topicForTeam(team) {
+  const normalized = String(team || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+  return normalized ? `team_${normalized}` : "team_all";
+}
+
+function numberOrZero(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 async function tokensForRecipientUids(firestore, recipientUids) {
   const uniqueUids = [...new Set((recipientUids || []).filter(Boolean))];
   const tokens = [];
@@ -127,6 +185,198 @@ async function tokensForMessage(firestore, data) {
       : [];
 
   return tokensForRecipientUids(firestore, [...recipientUids, ...adminUids]);
+}
+
+async function employeeProfileById(firestore, employeeId) {
+  const snapshot = await firestore
+    .collection("employee_profiles")
+    .doc(employeeId)
+    .get();
+  if (!snapshot.exists) {
+    const error = new Error(`Employee not found: ${employeeId}`);
+    error.statusCode = 404;
+    throw error;
+  }
+  return { id: snapshot.id, ...snapshot.data() };
+}
+
+async function uidForEmployeeId(firestore, employeeId) {
+  const snapshot = await firestore
+    .collection("users")
+    .where("employeeId", "==", employeeId)
+    .limit(1)
+    .get();
+  return snapshot.empty ? "" : snapshot.docs[0].id;
+}
+
+function buildTeamRecord(body) {
+  requireFields(body, ["teamId", "name"]);
+  const teamId = String(body.teamId).trim().toUpperCase();
+  return {
+    teamId,
+    name: String(body.name).trim(),
+    description: String(body.description || "").trim(),
+    logoPath: String(body.logoPath || "").trim(),
+    active: body.active !== false,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+function buildEmployeeProfile(body) {
+  requireFields(body, ["employeeId", "employeeName", "email", "teamId"]);
+  const employeeId = String(body.employeeId).trim();
+  const teamId = String(body.teamId).trim().toUpperCase();
+  const designation = String(
+    body.designation || body.role || "EMPLOYEE",
+  ).trim();
+  return {
+    employeeId,
+    uid: String(body.uid || "").trim(),
+    employeeName: String(body.employeeName).trim(),
+    firstName: String(body.firstName || "").trim(),
+    lastName: String(body.lastName || "").trim(),
+    email: String(body.email).trim(),
+    designation,
+    role: designation,
+    teamId,
+    department: teamId,
+    monthlySalary: numberOrZero(body.monthlySalary),
+    profilePhotoPath: String(body.profilePhotoPath || "").trim(),
+    joiningDate: String(body.joiningDate || "").trim(),
+    status: String(body.status || "active").trim(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+function buildAttendanceRecord({ body, employee, existing }) {
+  const at = String(body.at || nowIstIso());
+  const date = String(body.date || dateKeyFromIso(at));
+  const employeeId = String(body.employeeId || employee.employeeId).trim();
+  const teamId = String(
+    body.teamId || employee.teamId || employee.department || "",
+  )
+    .trim()
+    .toUpperCase();
+  const monthKey = date.slice(0, 7);
+  return {
+    ...(existing || {}),
+    employeeId,
+    uid: String(employee.uid || body.uid || "").trim(),
+    employeeName: String(employee.employeeName || body.employeeName || ""),
+    teamId,
+    department: teamId,
+    date,
+    monthKey,
+    status: String(body.status || existing?.status || "Present"),
+    source: String(body.source || "backend_api"),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+}
+
+function workMinutesBetween(checkInAt, checkOutAt) {
+  const checkIn = Date.parse(checkInAt || "");
+  const checkOut = Date.parse(checkOutAt || "");
+  if (!Number.isFinite(checkIn) || !Number.isFinite(checkOut)) return 0;
+  return Math.max(0, Math.round((checkOut - checkIn) / 60000));
+}
+
+async function summarizeAttendance(firestore, employeeId, monthKey) {
+  const snapshot = await firestore
+    .collection("attendance_records")
+    .where("employeeId", "==", employeeId)
+    .where("monthKey", "==", monthKey)
+    .get();
+
+  const summary = {
+    employeeId,
+    monthKey,
+    teamId: "",
+    presentDays: 0,
+    absentDays: 0,
+    leaveDays: 0,
+    halfDays: 0,
+    holidayDays: 0,
+    weekendDays: 0,
+    totalWorkMinutes: 0,
+    payableDays: 0,
+    notConsideredDays: 0,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  snapshot.forEach((doc) => {
+    const data = doc.data();
+    summary.teamId = summary.teamId || data.teamId || data.department || "";
+    const status = String(data.status || "").toLowerCase();
+    const minutes = Number(data.workMinutes || 0);
+    summary.totalWorkMinutes += Number.isFinite(minutes) ? minutes : 0;
+    if (status === "present") {
+      summary.presentDays += 1;
+      summary.payableDays += 1;
+    } else if (status === "leave") {
+      summary.leaveDays += 1;
+      summary.payableDays += 1;
+    } else if (status === "half day" || status === "half_day") {
+      summary.halfDays += 1;
+      summary.payableDays += 0.5;
+    } else if (status === "holiday") {
+      summary.holidayDays += 1;
+      summary.payableDays += 1;
+    } else if (status === "weekend") {
+      summary.weekendDays += 1;
+    } else {
+      summary.absentDays += 1;
+      summary.notConsideredDays += 1;
+    }
+  });
+
+  await firestore
+    .collection("attendance_summaries")
+    .doc(`${safeId(employeeId)}_${monthKey}`)
+    .set(summary, { merge: true });
+  return summary;
+}
+
+async function queueNotification(firestore, body, delivery = "backend_api") {
+  const resolvedBody = { ...body };
+  if (
+    resolvedBody.employeeId &&
+    !resolvedBody.recipientUid &&
+    !Array.isArray(resolvedBody.recipientUids)
+  ) {
+    const uid = await uidForEmployeeId(firestore, String(resolvedBody.employeeId));
+    if (uid) resolvedBody.recipientUids = [uid];
+  }
+  const message = buildFcmOutboxMessage(resolvedBody);
+  const notificationRef = await firestore.collection("notifications").add({
+    ...message,
+    teamId: String(body.teamId || body.department || message.targetTeam || "")
+      .trim()
+      .toUpperCase(),
+    route: String(body.route || "/notifications"),
+    data: body.data || {},
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const messageRef = await firestore.collection("team_messages").add({
+    ...message,
+    notificationId: notificationRef.id,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await firestore.collection("fcm_outbox").doc(messageRef.id).set({
+    ...message,
+    notificationId: notificationRef.id,
+    messageId: messageRef.id,
+    status: "pending",
+    delivery,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return {
+    notificationId: notificationRef.id,
+    messageId: messageRef.id,
+    status: "pending",
+  };
 }
 
 function messageDataFor(data, messageId) {
@@ -352,33 +602,270 @@ function startHttpServer() {
   app.get("/health", (_request, response) => {
     response.status(200).send("ok");
   });
-  app.post("/api/fcm/send", async (request, response) => {
-    try {
-      requireApiKey(request);
-      const message = buildFcmOutboxMessage(request.body || {});
-      const messageRef = await firestore.collection("team_messages").add({
-        ...message,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      await firestore.collection("fcm_outbox").doc(messageRef.id).set({
-        ...message,
-        messageId: messageRef.id,
-        status: "pending",
-        delivery: "external_fcm_relay_api",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      response.status(202).json({
-        ok: true,
-        messageId: messageRef.id,
-        status: "pending",
-      });
-    } catch (error) {
-      response.status(error.statusCode || 400).json({
-        ok: false,
-        error: error.message || String(error),
-      });
+  app.get("/api/teams", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    const snapshot = await firestore.collection("teams").orderBy("name").get();
+    response.json({ ok: true, teams: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) });
+  }));
+
+  app.post("/api/teams", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    const team = buildTeamRecord(request.body || {});
+    await firestore.collection("teams").doc(team.teamId).set(
+      { ...team, createdAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    response.status(201).json({ ok: true, team });
+  }));
+
+  app.get("/api/teams/:teamId/employees", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    const teamId = String(request.params.teamId || "").trim().toUpperCase();
+    const snapshot = await firestore
+      .collection("employee_profiles")
+      .where("teamId", "==", teamId)
+      .get();
+    response.json({
+      ok: true,
+      teamId,
+      employees: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+    });
+  }));
+
+  app.get("/api/employees/:employeeId", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    const employee = await employeeProfileById(firestore, request.params.employeeId);
+    response.json({ ok: true, employee });
+  }));
+
+  app.post("/api/employees", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    const profile = buildEmployeeProfile(request.body || {});
+    await firestore.collection("employee_profiles").doc(profile.employeeId).set(
+      { ...profile, createdAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    if (profile.uid) {
+      await firestore.collection("users").doc(profile.uid).set(
+        {
+          uid: profile.uid,
+          email: profile.email,
+          role: "EMPLOYEE",
+          employeeId: profile.employeeId,
+          teamId: profile.teamId,
+          active: profile.status === "active",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
     }
-  });
+    response.status(201).json({ ok: true, employee: profile });
+  }));
+
+  app.post("/api/attendance/check-in", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    requireFields(request.body || {}, ["employeeId"]);
+    const employee = await employeeProfileById(firestore, request.body.employeeId);
+    const at = String(request.body.at || nowIstIso());
+    const date = String(request.body.date || dateKeyFromIso(at));
+    const recordId = attendanceRecordId(employee.employeeId, date);
+    const ref = firestore.collection("attendance_records").doc(recordId);
+    const snapshot = await ref.get();
+    const record = buildAttendanceRecord({
+      body: request.body || {},
+      employee,
+      existing: snapshot.data(),
+    });
+    await ref.set(
+      {
+        ...record,
+        checkInAt: at,
+        status: String(request.body.status || "Present"),
+        createdAt: snapshot.exists
+          ? snapshot.data().createdAt || admin.firestore.FieldValue.serverTimestamp()
+          : admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    response.status(201).json({ ok: true, attendanceId: recordId, record: { ...record, checkInAt: at } });
+  }));
+
+  app.post("/api/attendance/check-out", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    requireFields(request.body || {}, ["employeeId"]);
+    const employee = await employeeProfileById(firestore, request.body.employeeId);
+    const at = String(request.body.at || nowIstIso());
+    const date = String(request.body.date || dateKeyFromIso(at));
+    const recordId = attendanceRecordId(employee.employeeId, date);
+    const ref = firestore.collection("attendance_records").doc(recordId);
+    const snapshot = await ref.get();
+    const existing = snapshot.data() || {};
+    const record = buildAttendanceRecord({ body: request.body || {}, employee, existing });
+    const checkInAt = existing.checkInAt || request.body.checkInAt || at;
+    const workMinutes = workMinutesBetween(checkInAt, at);
+    await ref.set(
+      {
+        ...record,
+        checkInAt,
+        checkOutAt: at,
+        workMinutes,
+        status: String(request.body.status || existing.status || "Present"),
+      },
+      { merge: true },
+    );
+    await summarizeAttendance(firestore, employee.employeeId, date.slice(0, 7));
+    response.json({ ok: true, attendanceId: recordId, workMinutes });
+  }));
+
+  app.get("/api/attendance", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    let query = firestore.collection("attendance_records");
+    if (request.query.employeeId) {
+      query = query.where("employeeId", "==", String(request.query.employeeId));
+    }
+    if (request.query.teamId) {
+      query = query.where("teamId", "==", String(request.query.teamId).toUpperCase());
+    }
+    if (request.query.monthKey) {
+      query = query.where("monthKey", "==", String(request.query.monthKey));
+    }
+    if (request.query.date) {
+      query = query.where("date", "==", String(request.query.date));
+    }
+    const snapshot = await query.limit(Number(request.query.limit || 100)).get();
+    response.json({ ok: true, records: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) });
+  }));
+
+  app.post("/api/attendance/close-day", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    requireFields(request.body || {}, ["date"]);
+    const date = String(request.body.date);
+    const monthKey = date.slice(0, 7);
+    const status = String(request.body.status || "Absent");
+    const employees = await firestore.collection("employee_profiles").where("status", "==", "active").get();
+    const batch = firestore.batch();
+    let created = 0;
+    for (const doc of employees.docs) {
+      const employee = { id: doc.id, ...doc.data() };
+      const recordId = attendanceRecordId(employee.employeeId || doc.id, date);
+      const ref = firestore.collection("attendance_records").doc(recordId);
+      const attendance = await ref.get();
+      if (attendance.exists) continue;
+      batch.set(ref, {
+        employeeId: employee.employeeId || doc.id,
+        uid: employee.uid || "",
+        employeeName: employee.employeeName || "",
+        teamId: employee.teamId || employee.department || "",
+        department: employee.teamId || employee.department || "",
+        date,
+        monthKey,
+        status,
+        workMinutes: 0,
+        source: "daily_close_api",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      created += 1;
+    }
+    await batch.commit();
+    response.json({ ok: true, date, status, created });
+  }));
+
+  app.post("/api/salary-structures", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    requireFields(request.body || {}, ["employeeId"]);
+    const employee = await employeeProfileById(firestore, request.body.employeeId);
+    const structure = {
+      employeeId: employee.employeeId,
+      teamId: employee.teamId || employee.department || "",
+      monthlySalary: numberOrZero(request.body.monthlySalary || employee.monthlySalary),
+      basicPay: numberOrZero(request.body.basicPay),
+      allowances: request.body.allowances || {},
+      deductions: request.body.deductions || {},
+      effectiveFrom: String(request.body.effectiveFrom || ""),
+      active: request.body.active !== false,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    await firestore.collection("salary_structures").doc(employee.employeeId).set(structure, { merge: true });
+    response.status(201).json({ ok: true, structure });
+  }));
+
+  app.post("/api/salary/generate-month", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    requireFields(request.body || {}, ["year", "month"]);
+    const year = Number(request.body.year);
+    const month = Number(request.body.month);
+    const monthKey = monthKeyFor(year, month);
+    let employeesQuery = firestore.collection("employee_profiles").where("status", "==", "active");
+    if (request.body.teamId) {
+      employeesQuery = employeesQuery.where("teamId", "==", String(request.body.teamId).toUpperCase());
+    }
+    const employees = await employeesQuery.get();
+    const records = [];
+    for (const doc of employees.docs) {
+      const employee = { id: doc.id, ...doc.data() };
+      const employeeId = employee.employeeId || doc.id;
+      const summary = await summarizeAttendance(firestore, employeeId, monthKey);
+      const structureDoc = await firestore.collection("salary_structures").doc(employeeId).get();
+      const structure = structureDoc.data() || {};
+      const monthlySalary = numberOrZero(structure.monthlySalary || employee.monthlySalary);
+      const workingDays = Number(request.body.workingDays || 26);
+      const payableDays = Number(summary.payableDays || 0);
+      const grossSalary = Math.round((monthlySalary / workingDays) * payableDays);
+      const deductions = numberOrZero(request.body.fixedDeductions || 0) + numberOrZero(structure.deductions?.fixed);
+      const netSalary = Math.max(0, grossSalary - deductions);
+      const salaryRecord = {
+        employeeId,
+        employeeName: employee.employeeName || "",
+        teamId: employee.teamId || employee.department || summary.teamId || "",
+        department: employee.teamId || employee.department || summary.teamId || "",
+        monthKey,
+        year,
+        month,
+        basicPay: numberOrZero(structure.basicPay || monthlySalary),
+        allowances: numberOrZero(structure.allowances?.fixed),
+        deductions,
+        grossSalary,
+        netSalary,
+        payableDays,
+        officeMinutes: summary.totalWorkMinutes,
+        leaveDays: summary.leaveDays,
+        notConsideredDays: summary.notConsideredDays,
+        salarySlipPath: `attendance-app/salary-slips/${monthKey}/${employee.teamId || employee.department || "GENERAL"}/${employeeId}/slip.pdf`,
+        generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        generatedAtIst: nowIstIso(),
+      };
+      await firestore.collection("salary_records").doc(`${safeId(employeeId)}_${monthKey}`).set(salaryRecord, { merge: true });
+      records.push(salaryRecord);
+      if (request.body.notify === true && employee.uid) {
+        await queueNotification(firestore, {
+          title: "Salary Generated",
+          body: `Your salary slip for ${monthKey} is ready.`,
+          recipientUids: [employee.uid],
+          employeeId,
+          teamId: salaryRecord.teamId,
+          department: salaryRecord.department,
+          targetType: "employee",
+          senderRole: "admin",
+          senderName: "Payroll",
+          type: "salary_generated",
+        }, "salary_generation_api");
+      }
+    }
+    response.status(201).json({ ok: true, monthKey, count: records.length, records });
+  }));
+
+  app.post("/api/notifications/send", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    const queued = await queueNotification(firestore, request.body || {}, "notification_api");
+    response.status(202).json({ ok: true, ...queued });
+  }));
+
+  app.post("/api/fcm/send", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    const queued = await queueNotification(firestore, request.body || {}, "external_fcm_relay_api");
+    response.status(202).json({ ok: true, ...queued });
+  }));
   app.post("/api/payroll/upload", async (request, response) => {
     try {
       requireApiKey(request);
@@ -429,9 +916,19 @@ function buildFcmOutboxMessage(body) {
   const targetTeams = Array.isArray(body.targetTeams)
     ? body.targetTeams.map((team) => String(team).trim()).filter(Boolean)
     : [];
-  const topics = Array.isArray(body.topics)
+  const explicitTopics = Array.isArray(body.topics)
     ? body.topics.map((topic) => String(topic).trim()).filter(Boolean)
     : [];
+  const topics = [...explicitTopics];
+  for (const team of targetTeams) {
+    topics.push(topicForTeam(team));
+  }
+  if (String(body.targetType || "").toLowerCase() === "admin") {
+    topics.push("admin_all");
+  }
+  if (String(body.targetType || "").toLowerCase() === "all") {
+    topics.push("team_all");
+  }
   const recipientUids = Array.isArray(body.recipientUids)
     ? body.recipientUids.map((uid) => String(uid).trim()).filter(Boolean)
     : [];
