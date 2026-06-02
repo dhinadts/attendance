@@ -26,4 +26,19 @@ class OrganizationOptions {
     'DIRECTOR',
     'SENIOR SOFTWARE DEVELOPER',
   ];
+
+  static const roles = [
+    'ADMIN',
+    'EMPLOYEE',
+    'MANAGER',
+    'HR',
+    'CEO',
+    'DIRECTOR',
+    'TECH_LEAD',
+    'TEAM_LEAD',
+  ];
+
+  static const adminRoles = ['ADMIN', 'MANAGER', 'HR', 'CEO', 'DIRECTOR'];
+
+  static const partialAdminRoles = ['TECH_LEAD', 'TEAM_LEAD'];
 }

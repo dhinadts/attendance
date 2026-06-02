@@ -86,6 +86,10 @@ final appRouter = GoRouter(
       return '/dashboard';
     }
 
+    if (path == '/admin-create-user' && role != AppUserRole.admin) {
+      return '/admin-dashboard';
+    }
+
     if (role == AppUserRole.partialAdmin) {
       if (_leaveApprovalRoutes.contains(path) &&
           access?.canApproveLeave != true) {

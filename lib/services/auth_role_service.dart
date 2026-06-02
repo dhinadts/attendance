@@ -10,7 +10,7 @@ extension AppUserRoleX on AppUserRole {
   bool get isAdminLike =>
       this == AppUserRole.admin || this == AppUserRole.partialAdmin;
 
-  bool get canAssignRoles => isAdminLike;
+  bool get canAssignRoles => this == AppUserRole.admin;
 
   String get storageValue {
     switch (this) {
@@ -135,6 +135,7 @@ class AuthRoleService {
     required String employeeId,
     String department = '',
     String employeeRole = 'EMPLOYEE',
+    String organizationRole = 'EMPLOYEE',
     bool canApproveLeave = false,
     bool canManageSalary = false,
   }) async {
@@ -161,11 +162,14 @@ class AuthRoleService {
       throw ArgumentError('Employee ID is required');
     }
     if (role == AppUserRole.partialAdmin &&
+        !OrganizationOptions.partialAdminRoles.contains(
+          organizationRole.trim(),
+        ) &&
         !OrganizationOptions.seniorEmployeeRoles.contains(
           employeeRole.trim(),
         )) {
       throw ArgumentError(
-        'Partial admin access is available only for senior employee roles',
+        'Partial admin access is available only for senior or lead roles',
       );
     }
     if (normalizedEmployeeId.isNotEmpty) {
@@ -214,6 +218,8 @@ class AuthRoleService {
         'displayName': displayName,
         'department': department.trim(),
         'employeeRole': employeeRole.trim(),
+        'organizationRole': organizationRole.trim(),
+        'accessRoleName': organizationRole.trim(),
         'canApproveLeave': allowLeaveApproval,
         'canManageSalary': allowSalaryManagement,
         'permissions': {
@@ -240,6 +246,8 @@ class AuthRoleService {
                   ? 'EMPLOYEE'
                   : employeeRole.trim(),
               'department': department.trim(),
+              'organizationRole': organizationRole.trim(),
+              'accessRoleName': organizationRole.trim(),
               'employeeRole': employeeRole.trim().isEmpty
                   ? 'EMPLOYEE'
                   : employeeRole.trim(),

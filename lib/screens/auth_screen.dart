@@ -38,6 +38,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _canManageSalary = false;
   String _selectedTeam = OrganizationOptions.teams.first;
   String _selectedEmployeeRole = OrganizationOptions.employeeRoles.last;
+  String _selectedOrganizationRole = 'EMPLOYEE';
   AppUserRole _selectedSignupRole = AppUserRole.employee;
   String? _error;
   String? _notice;
@@ -100,6 +101,7 @@ class _AuthScreenState extends State<AuthScreen> {
               employeeId: _employeeIdController.text,
               department: _selectedTeam,
               employeeRole: _selectedEmployeeRole,
+              organizationRole: _selectedOrganizationRole,
               canApproveLeave: _effectiveCanApproveLeave,
               canManageSalary: _effectiveCanManageSalary,
             )
@@ -138,6 +140,7 @@ class _AuthScreenState extends State<AuthScreen> {
     _lastNameController.clear();
     _employeeIdController.clear();
     _selectedEmployeeRole = OrganizationOptions.employeeRoles.last;
+    _selectedOrganizationRole = 'EMPLOYEE';
     _selectedSignupRole = AppUserRole.employee;
     _canApproveLeave = false;
     _canManageSalary = false;
@@ -166,6 +169,29 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     _canApproveLeave = true;
     _canManageSalary = false;
+  }
+
+  AppUserRole _accessRoleForOrganizationRole(String role) {
+    final normalized = role.trim().toUpperCase();
+    if (OrganizationOptions.adminRoles.contains(normalized)) {
+      return AppUserRole.admin;
+    }
+    if (OrganizationOptions.partialAdminRoles.contains(normalized)) {
+      return AppUserRole.partialAdmin;
+    }
+    return AppUserRole.employee;
+  }
+
+  void _selectOrganizationRole(String organizationRole) {
+    _selectedOrganizationRole = organizationRole;
+    final accessRole = _accessRoleForOrganizationRole(organizationRole);
+    _applyRoleDefaults(accessRole);
+    if (accessRole == AppUserRole.partialAdmin &&
+        !OrganizationOptions.seniorEmployeeRoles.contains(
+          _selectedEmployeeRole,
+        )) {
+      _selectedEmployeeRole = OrganizationOptions.seniorEmployeeRoles.first;
+    }
   }
 
   Future<void> _sendPasswordReset() async {
@@ -325,29 +351,21 @@ class _AuthScreenState extends State<AuthScreen> {
         if (_isSignup) ...[
           if (_canAssignPrivilegedRoles) ...[
             const SizedBox(height: 16),
-            DropdownButtonFormField<AppUserRole>(
-              initialValue: _selectedSignupRole,
+            DropdownButtonFormField<String>(
+              initialValue: _selectedOrganizationRole,
               decoration: _inputDecoration(
-                'Access Role',
+                'Role',
                 Icons.admin_panel_settings_outlined,
               ),
-              items: AppUserRole.values
+              items: OrganizationOptions.roles
                   .map(
-                    (role) =>
-                        DropdownMenuItem(value: role, child: Text(role.label)),
+                    (role) => DropdownMenuItem(value: role, child: Text(role)),
                   )
                   .toList(),
               onChanged: (value) {
                 if (value == null) return;
                 setState(() {
-                  _applyRoleDefaults(value);
-                  if (value == AppUserRole.partialAdmin &&
-                      !OrganizationOptions.seniorEmployeeRoles.contains(
-                        _selectedEmployeeRole,
-                      )) {
-                    _selectedEmployeeRole =
-                        OrganizationOptions.seniorEmployeeRoles.first;
-                  }
+                  _selectOrganizationRole(value);
                 });
               },
             ),

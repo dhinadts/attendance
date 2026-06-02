@@ -251,7 +251,7 @@ class _AdminSideMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const items = [
+    const operationsItems = [
       _DrawerItem('Dashboard', Icons.dashboard, '/admin-dashboard'),
       _DrawerItem('Employees', Icons.groups, '/admin-employees'),
       _DrawerItem('Attendance', Icons.fact_check, '/admin-attendance'),
@@ -268,12 +268,21 @@ class _AdminSideMenu extends StatelessWidget {
       _DrawerItem('Payroll', Icons.payments, '/admin-salary'),
       _DrawerItem('Export Reports', Icons.table_view, '/admin-export-reports'),
       _DrawerItem('Exit Requests', Icons.exit_to_app, '/admin-exit-requests'),
+    ];
+    const communicationItems = [
       _DrawerItem('Messages', Icons.chat_bubble_outline, '/admin-messages'),
       _DrawerItem('Notifications', Icons.notifications, '/admin-notifications'),
-      _DrawerItem('Create User', Icons.person_add, '/admin-create-user'),
+    ];
+    const accountItems = [
       _DrawerItem('Profile', Icons.person, '/admin-profile'),
       _DrawerItem('Settings', Icons.settings, '/admin-settings'),
     ];
+    const createUserItem = _DrawerItem(
+      'Create User',
+      Icons.person_add,
+      '/admin-create-user',
+    );
+    final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Container(
       width: 286,
@@ -338,30 +347,48 @@ class _AdminSideMenu extends StatelessWidget {
               child: Divider(color: IndustrialColors.outlineVariant),
             ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
-                children: [
-                  _MenuSectionLabel('Operations'),
-                  for (final item in items.take(8))
-                    _AdminSideMenuItem(
-                      item: item,
-                      selected: _isSelected(item.route),
-                    ),
-                  const SizedBox(height: 12),
-                  _MenuSectionLabel('Communication'),
-                  for (final item in items.skip(8).take(2))
-                    _AdminSideMenuItem(
-                      item: item,
-                      selected: _isSelected(item.route),
-                    ),
-                  const SizedBox(height: 12),
-                  _MenuSectionLabel('Account'),
-                  for (final item in items.skip(10))
-                    _AdminSideMenuItem(
-                      item: item,
-                      selected: _isSelected(item.route),
-                    ),
-                ],
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: uid == null
+                    ? null
+                    : FirebaseFirestore.instance
+                          .appCollection('users')
+                          .doc(uid)
+                          .snapshots(),
+                builder: (context, snapshot) {
+                  final canCreateUsers = appUserRoleFromValue(
+                    snapshot.data?.data()?['role'],
+                  ).canAssignRoles;
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+                    children: [
+                      _MenuSectionLabel('Operations'),
+                      for (final item in operationsItems)
+                        _AdminSideMenuItem(
+                          item: item,
+                          selected: _isSelected(item.route),
+                        ),
+                      const SizedBox(height: 12),
+                      _MenuSectionLabel('Communication'),
+                      for (final item in communicationItems)
+                        _AdminSideMenuItem(
+                          item: item,
+                          selected: _isSelected(item.route),
+                        ),
+                      const SizedBox(height: 12),
+                      _MenuSectionLabel('Account'),
+                      if (canCreateUsers)
+                        _AdminSideMenuItem(
+                          item: createUserItem,
+                          selected: _isSelected(createUserItem.route),
+                        ),
+                      for (final item in accountItems)
+                        _AdminSideMenuItem(
+                          item: item,
+                          selected: _isSelected(item.route),
+                        ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -571,45 +598,37 @@ class _AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = isAdmin
-        ? const [
-            _DrawerItem('Admin Dashboard', Icons.dashboard, '/admin-dashboard'),
-            _DrawerItem('Attendance Logs', Icons.groups, '/admin-attendance'),
-            _DrawerItem('Payroll', Icons.payments, '/admin-salary'),
-            _DrawerItem(
-              'Exit Requests',
-              Icons.exit_to_app,
-              '/admin-exit-requests',
-            ),
-            _DrawerItem(
-              'Notifications',
-              Icons.notifications,
-              '/admin-notifications',
-            ),
-            _DrawerItem(
-              'Messages',
-              Icons.chat_bubble_outline,
-              '/admin-messages',
-            ),
-            _DrawerItem('Create User', Icons.person_add, '/admin-create-user'),
-            _DrawerItem('Settings', Icons.settings, '/admin-settings'),
-            _DrawerItem('Profile', Icons.person, '/admin-profile'),
-          ]
-        : const [
-            _DrawerItem('Dashboard', Icons.home, '/dashboard'),
-            _DrawerItem('Face Attendance', Icons.face, '/face-attendance'),
-            _DrawerItem(
-              'Attendance Details',
-              Icons.calendar_month,
-              '/attendance-details',
-            ),
-            _DrawerItem('Salary Download', Icons.receipt_long, '/salary'),
-            _DrawerItem('Exit Company', Icons.exit_to_app, '/exit-company'),
-            _DrawerItem('Notifications', Icons.notifications, '/notifications'),
-            _DrawerItem('Messages', Icons.chat_bubble_outline, '/messages'),
-            _DrawerItem('Profile', Icons.person, '/profile'),
-            _DrawerItem('Settings', Icons.settings, '/settings'),
-          ];
+    const adminItems = [
+      _DrawerItem('Admin Dashboard', Icons.dashboard, '/admin-dashboard'),
+      _DrawerItem('Attendance Logs', Icons.groups, '/admin-attendance'),
+      _DrawerItem('Payroll', Icons.payments, '/admin-salary'),
+      _DrawerItem('Exit Requests', Icons.exit_to_app, '/admin-exit-requests'),
+      _DrawerItem('Notifications', Icons.notifications, '/admin-notifications'),
+      _DrawerItem('Messages', Icons.chat_bubble_outline, '/admin-messages'),
+      _DrawerItem('Settings', Icons.settings, '/admin-settings'),
+      _DrawerItem('Profile', Icons.person, '/admin-profile'),
+    ];
+    const createUserItem = _DrawerItem(
+      'Create User',
+      Icons.person_add,
+      '/admin-create-user',
+    );
+    const employeeItems = [
+      _DrawerItem('Dashboard', Icons.home, '/dashboard'),
+      _DrawerItem('Face Attendance', Icons.face, '/face-attendance'),
+      _DrawerItem(
+        'Attendance Details',
+        Icons.calendar_month,
+        '/attendance-details',
+      ),
+      _DrawerItem('Salary Download', Icons.receipt_long, '/salary'),
+      _DrawerItem('Exit Company', Icons.exit_to_app, '/exit-company'),
+      _DrawerItem('Notifications', Icons.notifications, '/notifications'),
+      _DrawerItem('Messages', Icons.chat_bubble_outline, '/messages'),
+      _DrawerItem('Profile', Icons.person, '/profile'),
+      _DrawerItem('Settings', Icons.settings, '/settings'),
+    ];
+    final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Drawer(
       backgroundColor: IndustrialColors.surface,
@@ -628,20 +647,36 @@ class _AppDrawer extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  for (final item in items)
-                    ListTile(
-                      selected: currentPath == item.route,
-                      leading: Icon(item.icon),
-                      title: Text(item.label),
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        context.go(item.route);
-                      },
-                    ),
-                ],
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: !isAdmin || uid == null
+                    ? null
+                    : FirebaseFirestore.instance
+                          .appCollection('users')
+                          .doc(uid)
+                          .snapshots(),
+                builder: (context, snapshot) {
+                  final canCreateUsers = appUserRoleFromValue(
+                    snapshot.data?.data()?['role'],
+                  ).canAssignRoles;
+                  final items = isAdmin
+                      ? [...adminItems, if (canCreateUsers) createUserItem]
+                      : employeeItems;
+                  return ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      for (final item in items)
+                        ListTile(
+                          selected: currentPath == item.route,
+                          leading: Icon(item.icon),
+                          title: Text(item.label),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            context.go(item.route);
+                          },
+                        ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
