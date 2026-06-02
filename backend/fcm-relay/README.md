@@ -358,6 +358,123 @@ fcm_outbox/{messageId}
 
 Then the relay listener sends FCM and updates `fcm_outbox.status`.
 
+### Task Management
+
+Task records are stored under:
+
+```text
+Attendance/main/tasks/{taskId}
+```
+
+Endpoints:
+
+```http
+GET /api/tasks
+GET /api/tasks/:taskId
+POST /api/tasks
+POST /api/tasks/import
+PATCH /api/tasks/:taskId/scrum
+PATCH /api/tasks/:taskId/feedback
+PATCH /api/tasks/:taskId/status
+```
+
+List tasks:
+
+```http
+GET /api/tasks?employeeId=DTS0003
+GET /api/tasks?teamId=TECH
+GET /api/tasks?status=in_progress
+```
+
+Create one task:
+
+```json
+{
+  "ticketKey": "DTS-101",
+  "title": "Build attendance summary card",
+  "description": "Create mobile responsive summary metrics.",
+  "employeeId": "DTS0003",
+  "team": "TECH",
+  "priority": "high",
+  "assignedByUid": "admin-uid",
+  "assignedByName": "Director",
+  "assignedByRole": "DIRECTOR",
+  "notify": true
+}
+```
+
+Bulk import tasks:
+
+```json
+{
+  "assignedByName": "Manager",
+  "assignedByRole": "MANAGER",
+  "notify": true,
+  "tasks": [
+    {
+      "ticketKey": "DTS-102",
+      "title": "Fix leave approval history",
+      "description": "Show approved and rejected leave history.",
+      "employeeId": "DTS0003",
+      "team": "OPERATIONS",
+      "priority": "medium"
+    }
+  ]
+}
+```
+
+Submit employee daily scrum and timesheet:
+
+```json
+{
+  "status": "in_progress",
+  "summary": "Completed notification UI testing.",
+  "blocker": "Waiting for FCM device token from QA phone.",
+  "hours": "6.5",
+  "reporterUid": "employee-auth-uid",
+  "reporterName": "Employee One"
+}
+```
+
+Submit manager feedback:
+
+```json
+{
+  "feedback": "Good progress on delivery.",
+  "achievement": "Completed task before planned time.",
+  "improvement": "Add more test evidence in scrum notes.",
+  "feedbackByUid": "manager-auth-uid",
+  "feedbackByName": "Manager"
+}
+```
+
+Update status only:
+
+```json
+{
+  "status": "done"
+}
+```
+
+Allowed task statuses:
+
+```text
+todo
+in_progress
+blocked
+done
+closed
+```
+
+Allowed priorities:
+
+```text
+low
+medium
+high
+urgent
+```
+
 ## Legacy Payroll API
 
 Admin web payroll upload can call:

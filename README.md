@@ -1,379 +1,489 @@
-#### Make it for multiple comapnies
+# WorkSync Pro
 
-# attendance
+WorkSync Pro is a Flutter and Firebase attendance management application for employee attendance, leave approvals, salary records, push notifications, and agile task tracking.
 
-`attendance` is a Flutter-based employee attendance, salary, leave, exit-request, and team notification application built for Android-first workplace usage.
+The app currently supports employee, admin, and partial-admin access. It is designed around Firebase Authentication, Cloud Firestore, Firebase Cloud Messaging, Firebase Storage-ready data paths, and an optional Node.js FCM relay backend.
 
-The app is designed for small and growing teams that need a lightweight way to capture face-authenticated attendance, track office time, calculate payroll from attendance records, and communicate with employees through Firebase-powered notifications.
+## Current Status
 
-## Product Value
-
-- Reduces manual attendance follow-up with face login and geofence-based check-in.
-- Helps payroll teams calculate salary from actual working days and office minutes.
-- Gives employees one place for attendance history, salary slips, profile updates, exit requests, and team notifications.
-- Supports admin-to-all, admin-to-team, team-to-team, user-to-user, user-to-admin, and admin-to-user messaging patterns.
-- Keeps role-based views clean: employees see employee workflows, admins see review and broadcast workflows.
+This application is suitable for internal demo and staged QA. Core app flows are implemented, including attendance, leave, notifications, salary records, role-based routing, and agile task assignment. Production deployment still requires strict Firebase rules review, device testing, backend hardening, and policy configuration.
 
 ## Tech Stack
 
-- **Flutter / Dart**: Mobile app UI and business flow.
-- **Firebase Auth**: Email/password login and session persistence.
-- **Cloud Firestore**: Attendance, profile, leave, salary, exit, messaging, notification-read state.
-- **Firebase Cloud Messaging**: Push notifications for topics and direct user delivery.
-- **Firebase Functions or FCM Relay Backend**: Server-side FCM trigger from `fcm_outbox`.
-- **flutter_local_notifications**: Foreground local notifications and notification modal support.
-- **camera**: Face capture.
-- **google_mlkit_face_detection**: Face detection before marking attendance.
-- **geolocator**: Current-location and geofence tracking.
-- **path_provider**: Salary PDF file storage.
-- **go_router**: Role-based route navigation.
+- Flutter / Dart
+- Firebase Authentication
+- Cloud Firestore
+- Firebase Cloud Messaging
+- flutter_local_notifications
+- go_router
+- Riverpod / Flutter Riverpod
+- Node.js backend relay in `backend/fcm-relay`
+- CSV/XLSX task import using `file_picker` and `excel`
 
-## Core Features
+## Main Features
 
 ### Authentication And Roles
 
-- Email/password login and signup.
-- Session persistence through Firebase Auth.
-- Role-based routing:
-  - Employee dashboard and employee modules.
-  - Admin dashboard and approval/broadcast modules.
-- Supported signup roles:
-  - Employee
-  - Admin
+- Email and password login.
+- Signup role groups:
+  - `admin`
+  - `employee`
+  - `partialAdmin`
+- Admin-like roles can open admin routes.
+- Full admin can create users.
+- Partial admins can be given limited permissions such as leave approval or salary management.
+
+Role mapping is managed in:
+
+```text
+lib/constants/organization_options.dart
+lib/services/auth_role_service.dart
+```
 
 ### Teams And Employee Roles
 
-Configured teams:
+Supported teams include:
 
-- `TECH`
-- `OPERATIONS`
-- `SALES`
-- `ANALYST`
-- `MARKETING`
-- `CEO`
-- `DIRECTOR`
+```text
+TECH
+OPERATIONS
+SALES
+ANALYST
+MARKETING
+CEO
+DIRECTOR
+```
 
-Configured employee roles:
+Supported employee roles include:
 
-- `SENIOR SOFTWARE DEVELOPER`
-- `JUNIOR SOFTWARE DEVELOPER`
-- `DEVELOPER`
-- `TESTER`
-- `RELATIONSHIP MANAGER`
-- `EXECUTIVE`
-- `EMPLOYEE`
+```text
+CEO
+DIRECTOR
+SENIOR SOFTWARE DEVELOPER
+JUNIOR SOFTWARE DEVELOPER
+DEVELOPER
+TESTER
+RELATIONSHIP MANAGER
+EXECUTIVE
+EMPLOYEE
+```
 
 ### Attendance
 
-- Daily face-authenticated check-in.
-- Current login location becomes the 10-meter attendance zone.
-- Daily attendance documents use deterministic IDs:
-  - `attendance/{employeeId_yyyy-MM-dd}`
-- Session records include in-office segments.
-- Minimum 7 office hours required for attendance consideration.
-- Auto logout after 9 hours.
-- Calendar view statuses:
+- Face-authenticated attendance flow.
+- Attendance calendar.
+- Daily attendance status:
   - Present
-  - Leave
   - Absent
-  - Approved Leave
-  - Requested Leave
-  - Not Considered
+  - Leave
+  - Approved leave
+  - Requested leave
+  - Rejected leave
+  - Not considered
+- Employee attendance tab reflects leave approval/rejection details below the calendar selection.
+- Attendance records are stored under the app namespace:
+
+```text
+Attendance/main/attendance/{employeeId_yyyy-MM-dd}
+```
+
+### Leave Approval
+
+Admin approval screens now show:
+
+- Pending leave requests.
+- Approved and rejected history in the same screen.
+- Approved/rejected by whom.
+- Approved/rejected date and time.
+- Admin approval note or rejection reason.
+
+Employee login reflects approval or rejection in the attendance details screen.
 
 ### Salary
 
-- Monthly salary records use:
-  - `salary_records/{employeeId_yyyy-MM}`
-- Salary slip generation is based on attendance records.
-- Month/year selection is available.
-- Salary slip PDF is generated and saved locally.
+- Admin salary management screen.
+- Employee salary download screen.
+- Salary records stream from Firestore.
+- Salary generated/uploaded date can be displayed in employee updates.
 
-### Leave Requests
-
-- Leave request document ID:
-  - `leave_requests/{employeeId_yyyy-MM-dd}`
-- Duplicate leave request prevention is included.
-- Leave cannot be requested for a completed attendance-considered day.
-
-### Exit Company
-
-- Employee can submit relieving request with:
-  - Subject
-  - Reason
-  - Leaving date
-- Duplicate pending exit request prevention is included.
-- Exit requests are stored under:
-  - `exit_requests/{employeeId_requestId}`
-
-### Profile
-
-Editable employee profile fields:
-
-- Employee ID
-- Nick name
-- First name
-- Last name
-- DOB
-- Contact number
-- Email
-- Joining date
-- Department/team
-- Role
-
-Profile updates are stored in Firebase and local cache.
-
-### Notifications And Messaging
-
-- Notification bell in app bar with unread badge.
-- Separate notifications screen with news-reader style layout.
-- Read/unread status stored in:
-  - `notification_reads/{uid_messageId}`
-- Message broadcast flow:
-  - Flutter app writes to `team_messages`.
-  - Flutter app writes pending push request to `fcm_outbox`.
-  - Firebase Function or `backend/fcm-relay` listens to `fcm_outbox/{messageId}`.
-  - Server backend sends FCM push to topics or direct user tokens.
-
-Supported messaging scenarios:
-
-- Admin to all teams
-- Admin to selected teams
-- Admin to user
-- Team to team
-- User to user
-- User to admin
-
-## Firebase Data Model
-
-Main collections:
+Salary records use:
 
 ```text
-users/{uid}
-employee_profiles/{employeeId}
-attendance/{employeeId_yyyy-MM-dd}
-leave_requests/{employeeId_yyyy-MM-dd}
-salary_records/{employeeId_yyyy-MM}
-exit_requests/{employeeId_requestId}
-team_messages/{messageId}
-fcm_outbox/{messageId}
-fcm_tokens/{uid_platform}
-notification_inbox/{notificationId}
-notification_reads/{uid_messageId}
-fcm_background_events/{eventId}
+Attendance/main/salary_records/{recordId}
 ```
 
-## FCM Behavior
+### Notifications And FCM
 
-### Foreground
+- Foreground, background, and terminated-state notification handling.
+- Notification bell with unread count.
+- Admin notification screens by team and employee.
+- Employee update panel shows relevant push notifications.
+- FCM outbox pattern:
 
-- FCM message is received in-app.
-- Local notification is shown.
-- Modal dialog appears with:
-  - `CLEAR`
-  - `OPEN`
-- Message is stored in `notification_inbox`.
+```text
+Attendance/main/fcm_outbox/{messageId}
+```
 
-### Background
+The Flutter app writes notification requests. The backend relay or Firebase Functions should send real push notifications from the server side.
 
-- Notification appears in Android notification tray.
-- Tapping notification opens messages/notifications route.
-- Background event is best-effort logged.
+### Agile Task And Scrum Module
 
-### Terminated
+Admin and partial-admin users can assign work through:
 
-- Initial FCM message is captured using `getInitialMessage()`.
-- After app starts and navigator is available, app opens the correct message route.
+```text
+/admin-tasks
+```
 
-## Free Push Notification Demo
+Employees update their work through:
 
-FCM is free. For a free demo without Firebase Functions deployment:
+```text
+/tasks
+```
 
-1. Run the app and login.
-2. Ensure the user is subscribed to topics like:
-   - `team_all`
-   - `team_tech`
-   - `team_operations`
-   - `admin_all`
-3. Open Firebase Console.
-4. Go to Messaging.
-5. Create a notification campaign.
-6. Target a topic such as `team_all` or `team_tech`.
-7. Send the message.
+Task features:
 
-This verifies real push delivery for foreground, background, and terminated app states.
+- Single task creation.
+- Bulk import by CSV or XLSX.
+- Jira-style ticket key.
+- Team assignment.
+- Employee assignment.
+- Priority.
+- Task status.
+- Daily scrum update.
+- Timesheet hours.
+- Blockers.
+- Manager feedback.
+- Achievements.
+- Improvements.
 
-For automated user-to-user push, run either Firebase Functions or the standalone FCM relay backend.
+Task records use:
 
-## Free Backend FCM Relay
+```text
+Attendance/main/tasks/{taskId}
+```
 
-This repository includes a standalone Node backend:
+### Task Import Format
+
+Admin task import supports `.csv` and `.xlsx`.
+
+Expected columns:
+
+```text
+ticketKey,title,description,employeeId,employeeName,team,priority
+```
+
+Required columns:
+
+```text
+title
+employeeId
+```
+
+Optional columns:
+
+```text
+ticketKey
+description
+employeeName
+team
+priority
+```
+
+Allowed priorities:
+
+```text
+low
+medium
+high
+urgent
+```
+
+If `employeeName` or `team` is missing, the app tries to fill them from `employee_profiles`.
+
+## Firebase Structure
+
+The app is moving toward a single namespaced Firestore structure:
+
+```text
+Attendance/main/users
+Attendance/main/employee_profiles
+Attendance/main/attendance
+Attendance/main/leave_requests
+Attendance/main/salary_records
+Attendance/main/salary_structures
+Attendance/main/tasks
+Attendance/main/team_messages
+Attendance/main/fcm_outbox
+Attendance/main/fcm_tokens
+Attendance/main/notification_inbox
+Attendance/main/notification_reads
+Attendance/main/exit_requests
+Attendance/main/audit_logs
+Attendance/main/fcm_background_events
+```
+
+The helper is:
+
+```text
+lib/services/app_firestore.dart
+```
+
+Use this pattern in Flutter:
+
+```dart
+FirebaseFirestore.instance.appCollection('collection_name')
+```
+
+## Firebase Storage Recommendation
+
+Recommended storage hierarchy:
+
+```text
+attendance-app/
+  teams/
+    {teamId}/logo/
+  users/
+    {employeeId}/profile/
+  attendance/
+    {employeeId}/{yyyy-MM-dd}/attachments/
+  leave-documents/
+    {employeeId}/{requestId}/
+  salary-slips/
+    {employeeId}/{yyyy-MM}/
+  announcements/
+    {announcementId}/attachments/
+  company-documents/
+```
+
+## Backend Relay
+
+Backend folder:
 
 ```text
 backend/fcm-relay
 ```
 
-Use it when you want automatic push notifications without deploying Firebase Functions.
+Purpose:
+
+- Listen to pending FCM outbox documents.
+- Send push notifications through Firebase Admin SDK.
+- Provide optional API endpoints for employees, attendance, salary, notification, and migration tasks.
 
 Run locally:
 
 ```powershell
 cd backend/fcm-relay
 npm install
-$env:FIREBASE_PROJECT_ID="your-project-id"
-$env:FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"your-project-id", ... }'
 npm start
 ```
 
-Deploy on Render/Railway:
-
-- Root directory: `backend/fcm-relay`
-- Build command: `npm install`
-- Start command: `npm start`
-- Health check path: `/health`
-
-If Render root directory is set to `backend`, use:
-
-- Root directory: `backend`
-- Build command: `npm run build`
-- Start command: `npm start`
-- Health check path: `/health`
-
-Required environment variables:
+Important environment variables:
 
 ```text
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_SERVICE_ACCOUNT_BASE64=base64-encoded-full-service-account-json
+FIREBASE_PROJECT_ID
+FIREBASE_SERVICE_ACCOUNT_BASE64
 FCM_RELAY_DRY_RUN=false
 ```
 
-Create the base64 value in PowerShell from the downloaded Firebase service account JSON:
-
-```powershell
-[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-Content .\firebase-service-account.json -Raw)))
-```
-
-The relay watches `fcm_outbox` documents with `status: pending` or `status: retry`, sends the push through Firebase Admin SDK, and updates the document to `sent`, `failed`, or `retry`.
-
-Important: never place service account JSON in the Flutter app, and never commit it to git.
-
-## Firebase Deployment
-
-Install dependencies:
-
-```powershell
-cd functions
-npm install
-```
-
-Deploy Firestore rules and Functions:
-
-```powershell
-firebase login
-firebase use inmakes-87ea0
-firebase deploy --only firestore:rules,functions
-```
-
-Deploy separately:
-
-```powershell
-firebase deploy --only firestore:rules
-firebase deploy --only functions
-```
-
-Firebase Functions may require the Blaze plan and these APIs:
-
-- Cloud Functions
-- Cloud Build
-- Artifact Registry
+Never commit Firebase service account JSON.
 
 ## Local Development
 
-Install Flutter dependencies:
+Install Flutter packages:
 
 ```powershell
 flutter pub get
 ```
 
-Run analyzer:
+Analyze:
 
 ```powershell
-flutter analyze lib
+flutter analyze
 ```
 
-Build Android release:
+Run app:
+
+```powershell
+flutter run
+```
+
+Build Android APK:
 
 ```powershell
 flutter build apk --release
 ```
 
-If local Dart analytics causes permission issues on Windows, use:
+Backend syntax check:
 
 ```powershell
-$env:DART_ANALYTICS_DISABLED='true'
-$env:APPDATA='D:\dhinadts\products\attendance\.appdata'
-$env:PUB_CACHE='D:\dhinadts\products\attendance\.pub-cache'
-flutter analyze lib
+npm --prefix backend/fcm-relay run check
+```
+
+## Demo Users
+
+Demo users seeded earlier:
+
+```text
+CEO
+Email: ceo@gmail.com
+Password: Qwerty@123
+
+Director
+Email: director@gmail.com
+Password: Qwerty@123
+
+Employee
+Email: emp1@gmail.com
+Password: Qwerty@123
+```
+
+## Important Files
+
+```text
+lib/router/app_router.dart
+lib/widgets/app_shell.dart
+lib/widgets/admin_bottom_nav.dart
+lib/widgets/employee_bottom_nav.dart
+lib/screens/owner_dashboard_screen.dart
+lib/screens/employee_dashboard_screen.dart
+lib/screens/task_board_screen.dart
+lib/screens/admin_leave_requests_screen.dart
+lib/screens/admin_leave_approval_screen.dart
+lib/screens/attendance_details_screen.dart
+lib/services/auth_role_service.dart
+lib/services/attendance_session_service.dart
+lib/services/fcm_notification_service.dart
+lib/services/app_firestore.dart
+firestore.rules
+backend/fcm-relay/src/index.js
 ```
 
 ## Audit Report
 
-### Completed
+### What Is Working
 
-- App name set to `attendance`.
-- Firebase Auth login and signup added.
-- Auth persistence and role-based route guards added.
-- Employee/admin route separation added.
-- Drawer navigation added.
-- Back navigation improved with fallback routing.
-- Face attendance flow implemented.
-- Attendance daily document IDs implemented.
-- Attendance segment model added for office-minute calculation.
-- 7-hour eligibility logic added.
-- 9-hour auto logout logic added.
-- Leave request duplicate prevention added.
-- Exit request validation and duplicate pending prevention added.
-- Salary generation from attendance records added.
-- Salary PDF generation added.
-- Profile validation added.
-- Team and role master lists added.
-- FCM foreground, background, and terminated handling added.
-- Notification bell with unread badge added.
-- Separate notification reader screen added.
-- Firestore security rules added.
-- Firebase Function trigger for `fcm_outbox` added.
+- Firebase Auth login and signup are implemented.
+- Admin, employee, and partial-admin route guards exist.
+- Employee dashboard and admin dashboard are separated.
+- Employee bottom navigation includes Home, Attendance, Log, Tasks, Salary, and Exit.
+- Profile is accessible from the app bar.
+- Settings icon is available in the app bar.
+- Admin dashboard has compact summary, quick actions, recent activity, task access, notification access, and payroll access.
+- Leave requests can be approved/rejected.
+- Approved/rejected leave history is shown in the admin leave screen.
+- Employee attendance details reflect leave approval/rejection.
+- FCM notification routing exists for foreground/background/terminated app launch.
+- Notification inbox/read tracking exists.
+- Task assignment module exists for admin/partial-admin.
+- Employee task/scrum/timesheet updates exist.
+- Admin task import supports CSV and XLSX.
+- Firestore rules include namespaced `Attendance/{appId}` rules.
+- `flutter analyze` passes.
 
-### Pending Tasks
+### Current Risks
 
-- Deploy Firestore rules to Firebase.
-- Deploy Firebase Functions for automatic FCM delivery.
-- Test FCM on real Android device for foreground/background/terminated states.
-- Add admin approval screens for leave and exit requests.
-- Add admin salary review/finalization workflow.
-- Add holiday and weekly-off calendar support.
-- Add overtime, unpaid leave, paid leave, and deduction policy settings.
-- Add stronger admin creation flow. Admin signup should be controlled in production.
-- Add profile-change approval for sensitive fields like employee ID, joining date, department, and role.
-- Add Firestore composite indexes if production queries require them.
-- Add pagination for notifications and team messages.
-- Add attachment support for salary slips if slips need to be uploaded/shared.
-- Add test coverage for attendance calculations, salary calculations, and route guards.
+- Firestore rules still include both legacy root collections and `Attendance/main` namespaced collections. Production should standardize on one structure.
+- Some admin-like access is broad. Partial-admin permissions should be reviewed against company policy.
+- Attendance and salary calculations are still client-heavy. Production payroll should validate calculations server-side.
+- FCM delivery depends on the relay/backend or Cloud Functions being deployed and correctly configured.
+- Face detection confirms a face exists, but does not prove identity unless a separate identity matching process is added.
+- Task import validates required fields but does not yet enforce all business rules, such as due dates, sprint ownership, or duplicate ticket keys.
+- Notification lists and task lists currently use broad streams. Production scale should add pagination and query indexes.
+- Salary slip file storage and Firebase Storage rules need final production implementation if PDFs are uploaded to Firebase Storage.
+- There is limited automated test coverage for auth, leave approval, FCM navigation, payroll, and task import.
 
-### Risks And Notes
+### Recommended Production Work
 
-- FCM direct sending from Flutter app is intentionally not implemented because server credentials must never be placed inside an APK.
-- The app-side trigger writes to `fcm_outbox`; server-side Firebase Function sends the real push.
-- Notification badge currently reads latest messages from Firestore. For very large production use, move to per-user notification documents for cheaper reads.
-- Face detection verifies that a face exists, but it does not yet verify a specific registered identity. True face recognition requires a separate biometric matching service or approved on-device model.
-- Background location behavior depends on Android battery and permission policy. Test on target devices before production payroll use.
+1. Standardize Firestore to only:
 
-## Project Status
+```text
+Attendance/main/{collection}
+```
 
-The app is now suitable for a functional internal demo:
+2. Deploy and verify Firestore rules.
 
-- Employee attendance demo
-- Salary slip demo
-- Leave/exit request demo
-- Admin/team notification demo
-- Firebase Console topic push demo
+3. Add server-side validation for:
 
-For production, complete the pending deployment, approval workflows, salary policy rules, and device testing.
+- Attendance closure.
+- Salary generation.
+- Leave approval.
+- Task import.
+- Role and permission changes.
+
+4. Add composite indexes for production queries:
+
+- `leave_requests`: `employeeId`, `date`, `status`
+- `attendance`: `employeeId`, `loginDateIst`
+- `salary_records`: `employeeId`, `monthKey`
+- `tasks`: `assignedToEmployeeId`, `status`, `updatedAt`
+- `team_messages`: `createdAt`, `targetType`
+
+5. Add automated tests:
+
+- Role routing tests.
+- Leave approval/rejection tests.
+- Task import parser tests.
+- Attendance status tests.
+- FCM route resolution tests.
+
+6. Add admin audit logs for:
+
+- User creation.
+- Role changes.
+- Leave approvals/rejections.
+- Salary generation.
+- Task imports.
+
+7. Add production task fields:
+
+- Sprint.
+- Due date.
+- Estimate hours.
+- Story points.
+- Reviewer.
+- Completion date.
+- Acceptance criteria.
+
+8. Add pagination for:
+
+- Notifications.
+- Team messages.
+- Tasks.
+- Attendance logs.
+
+9. Add secure backend APIs for:
+
+- Bulk imports.
+- Salary generation.
+- Scheduled attendance closing.
+- FCM dispatch.
+
+10. Create a Firebase Storage rules file before enabling uploaded salary slips or leave documents.
+
+## Deployment Checklist
+
+- Run `flutter analyze`.
+- Run backend syntax check.
+- Confirm Firebase project configuration.
+- Deploy Firestore rules.
+- Deploy or host FCM relay backend.
+- Configure Firebase service account environment variable on backend host.
+- Test Android notifications in:
+  - Foreground
+  - Background
+  - Terminated state
+- Test admin leave approval notification click.
+- Test employee leave reflection.
+- Test task assignment and employee scrum update.
+- Test CSV and XLSX task import.
+- Test salary record display.
+
+## Suggested Current App Name
+
+The UI currently uses:
+
+```text
+WorkSync Pro
+```
+
+See `APP_NAME_SUGGESTIONS.md` for more naming options.

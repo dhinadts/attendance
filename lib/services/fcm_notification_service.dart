@@ -527,7 +527,15 @@ class FcmNotificationService {
     }
 
     if (!isAdmin && type == 'leave_response') {
-      return '/profile';
+      return '/attendance-details';
+    }
+
+    if (!isAdmin && type == 'salary_generated') {
+      return '/salary';
+    }
+
+    if (!isAdmin && type == 'task_assigned') {
+      return '/tasks';
     }
 
     final messageId = data['messageId'] as String?;
