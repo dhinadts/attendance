@@ -23,6 +23,11 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  static const _allowDemoRoleSignup = bool.fromEnvironment(
+    'ALLOW_PUBLIC_ROLE_SIGNUP',
+    defaultValue: true,
+  );
+
   final _auth = AuthRoleService();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -37,9 +42,8 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _canApproveLeave = false;
   bool _canManageSalary = false;
   String _selectedTeam = OrganizationOptions.teams.first;
-  String _selectedEmployeeRole = OrganizationOptions.employeeRoles.last;
-  String _selectedOrganizationRole = 'EMPLOYEE';
-  AppUserRole _selectedSignupRole = AppUserRole.employee;
+  SignupRole _selectedSignupRole = SignupRole.employee;
+  String _selectedEmployeeRole = SignupRole.employee.allowedRoles.last;
   String? _error;
   String? _notice;
   bool _obscurePassword = true;
@@ -57,7 +61,7 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() {
       _canAssignPrivilegedRoles = role?.canAssignRoles == true;
       if (!_canAssignPrivilegedRoles) {
-        _selectedSignupRole = AppUserRole.employee;
+        _selectedSignupRole = SignupRole.employee;
       }
       if (widget.adminCreateMode && !_canAssignPrivilegedRoles) {
         _error = 'Only admin or partial admin users can create accounts';
@@ -93,17 +97,18 @@ class _AuthScreenState extends State<AuthScreen> {
           ? await _auth.signUp(
               email: _emailController.text,
               password: _passwordController.text,
-              role: _canAssignPrivilegedRoles
-                  ? _selectedSignupRole
+              role: _allowRoleSelection
+                  ? _selectedSignupRole.appUserRole
                   : AppUserRole.employee,
               firstName: _firstNameController.text,
               lastName: _lastNameController.text,
               employeeId: _employeeIdController.text,
               department: _selectedTeam,
               employeeRole: _selectedEmployeeRole,
-              organizationRole: _selectedOrganizationRole,
+              organizationRole: _selectedEmployeeRole,
               canApproveLeave: _effectiveCanApproveLeave,
               canManageSalary: _effectiveCanManageSalary,
+              allowPrivilegedSignup: _allowRoleSelection,
             )
           : await _auth.signIn(
               email: _emailController.text,
@@ -139,30 +144,35 @@ class _AuthScreenState extends State<AuthScreen> {
     _firstNameController.clear();
     _lastNameController.clear();
     _employeeIdController.clear();
-    _selectedEmployeeRole = OrganizationOptions.employeeRoles.last;
-    _selectedOrganizationRole = 'EMPLOYEE';
-    _selectedSignupRole = AppUserRole.employee;
+    _selectedSignupRole = SignupRole.employee;
+    _selectedEmployeeRole = SignupRole.employee.allowedRoles.last;
     _canApproveLeave = false;
     _canManageSalary = false;
   }
 
+  bool get _allowRoleSelection =>
+      _canAssignPrivilegedRoles || _allowDemoRoleSignup;
+
   bool get _showPermissionControls =>
-      _canAssignPrivilegedRoles && _selectedSignupRole.isAdminLike;
+      _allowRoleSelection && _selectedSignupRole.appUserRole.isAdminLike;
 
   bool get _effectiveCanApproveLeave =>
-      _selectedSignupRole == AppUserRole.admin || _canApproveLeave;
+      _selectedSignupRole == SignupRole.admin || _canApproveLeave;
 
   bool get _effectiveCanManageSalary =>
-      _selectedSignupRole == AppUserRole.admin || _canManageSalary;
+      _selectedSignupRole == SignupRole.admin || _canManageSalary;
 
-  void _applyRoleDefaults(AppUserRole role) {
+  void _applyRoleDefaults(SignupRole role) {
     _selectedSignupRole = role;
-    if (role == AppUserRole.admin) {
+    if (!role.allowedRoles.contains(_selectedEmployeeRole)) {
+      _selectedEmployeeRole = role.allowedRoles.first;
+    }
+    if (role == SignupRole.admin) {
       _canApproveLeave = true;
       _canManageSalary = true;
       return;
     }
-    if (role == AppUserRole.employee) {
+    if (role == SignupRole.employee) {
       _canApproveLeave = false;
       _canManageSalary = false;
       return;
@@ -171,27 +181,8 @@ class _AuthScreenState extends State<AuthScreen> {
     _canManageSalary = false;
   }
 
-  AppUserRole _accessRoleForOrganizationRole(String role) {
-    final normalized = role.trim().toUpperCase();
-    if (OrganizationOptions.adminRoles.contains(normalized)) {
-      return AppUserRole.admin;
-    }
-    if (OrganizationOptions.partialAdminRoles.contains(normalized)) {
-      return AppUserRole.partialAdmin;
-    }
-    return AppUserRole.employee;
-  }
-
-  void _selectOrganizationRole(String organizationRole) {
-    _selectedOrganizationRole = organizationRole;
-    final accessRole = _accessRoleForOrganizationRole(organizationRole);
-    _applyRoleDefaults(accessRole);
-    if (accessRole == AppUserRole.partialAdmin &&
-        !OrganizationOptions.seniorEmployeeRoles.contains(
-          _selectedEmployeeRole,
-        )) {
-      _selectedEmployeeRole = OrganizationOptions.seniorEmployeeRoles.first;
-    }
+  void _selectSignupRole(SignupRole role) {
+    _applyRoleDefaults(role);
   }
 
   Future<void> _sendPasswordReset() async {
@@ -315,8 +306,8 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 8),
         Text(
           _isSignup
-              ? (_canAssignPrivilegedRoles
-                    ? 'Create employee, partial admin, or admin access'
+              ? (_allowRoleSelection
+                    ? 'Select team, role, and employee role'
                     : 'Create employee workspace access')
               : 'Sign in to access attendance workspace',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -349,51 +340,6 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
         if (_isSignup) ...[
-          if (_canAssignPrivilegedRoles) ...[
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedOrganizationRole,
-              decoration: _inputDecoration(
-                'Role',
-                Icons.admin_panel_settings_outlined,
-              ),
-              items: OrganizationOptions.roles
-                  .map(
-                    (role) => DropdownMenuItem(value: role, child: Text(role)),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _selectOrganizationRole(value);
-                });
-              },
-            ),
-            if (_showPermissionControls) ...[
-              const SizedBox(height: 12),
-              _buildPermissionSwitch(
-                title: 'Approve Leave',
-                subtitle: 'Can review, approve, and reject leave requests',
-                icon: Icons.event_available_outlined,
-                value: _effectiveCanApproveLeave,
-                enabled: _selectedSignupRole != AppUserRole.admin,
-                onChanged: (value) {
-                  setState(() => _canApproveLeave = value);
-                },
-              ),
-              const SizedBox(height: 10),
-              _buildPermissionSwitch(
-                title: 'Manage Salaries',
-                subtitle: 'Can upload and manage salary records',
-                icon: Icons.payments_outlined,
-                value: _effectiveCanManageSalary,
-                enabled: _selectedSignupRole != AppUserRole.admin,
-                onChanged: (value) {
-                  setState(() => _canManageSalary = value);
-                },
-              ),
-            ],
-          ],
           const SizedBox(height: 16),
           Row(
             children: [
@@ -416,52 +362,87 @@ class _AuthScreenState extends State<AuthScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          if (_selectedSignupRole != AppUserRole.admin ||
+          if (_selectedSignupRole != SignupRole.admin ||
               !_canAssignPrivilegedRoles)
             TextField(
               controller: _employeeIdController,
               decoration: _inputDecoration('Employee ID', Icons.badge_outlined),
             ),
-          if (_selectedSignupRole != AppUserRole.admin ||
+          if (_selectedSignupRole != SignupRole.admin ||
               !_canAssignPrivilegedRoles)
             const SizedBox(height: 16),
-          if (_selectedSignupRole != AppUserRole.admin ||
-              !_canAssignPrivilegedRoles) ...[
-            DropdownButtonFormField<String>(
-              initialValue: _selectedTeam,
-              decoration: _inputDecoration('Team', Icons.groups_outlined),
-              items: OrganizationOptions.teams
+          DropdownButtonFormField<String>(
+            initialValue: _selectedTeam,
+            decoration: _inputDecoration('Team', Icons.groups_outlined),
+            items: OrganizationOptions.teams
+                .map((team) => DropdownMenuItem(value: team, child: Text(team)))
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _selectedTeam = value);
+            },
+          ),
+          if (_allowRoleSelection) ...[
+            const SizedBox(height: 16),
+            DropdownButtonFormField<SignupRole>(
+              initialValue: _selectedSignupRole,
+              decoration: _inputDecoration(
+                'Role',
+                Icons.admin_panel_settings_outlined,
+              ),
+              items: SignupRole.values
                   .map(
-                    (team) => DropdownMenuItem(value: team, child: Text(team)),
+                    (role) =>
+                        DropdownMenuItem(value: role, child: Text(role.label)),
                   )
                   .toList(),
               onChanged: (value) {
                 if (value == null) return;
-                setState(() => _selectedTeam = value);
+                setState(() {
+                  _selectSignupRole(value);
+                });
               },
             ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedEmployeeRole,
-              decoration: _inputDecoration(
-                'Employee Role',
-                Icons.engineering_outlined,
+            if (_showPermissionControls) ...[
+              const SizedBox(height: 12),
+              _buildPermissionSwitch(
+                title: 'Approve Leave',
+                subtitle: 'Can review, approve, and reject leave requests',
+                icon: Icons.event_available_outlined,
+                value: _effectiveCanApproveLeave,
+                enabled: _selectedSignupRole != SignupRole.admin,
+                onChanged: (value) {
+                  setState(() => _canApproveLeave = value);
+                },
               ),
-              items:
-                  (_selectedSignupRole == AppUserRole.partialAdmin
-                          ? OrganizationOptions.seniorEmployeeRoles
-                          : OrganizationOptions.employeeRoles)
-                      .map(
-                        (role) =>
-                            DropdownMenuItem(value: role, child: Text(role)),
-                      )
-                      .toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() => _selectedEmployeeRole = value);
-              },
-            ),
+              const SizedBox(height: 10),
+              _buildPermissionSwitch(
+                title: 'Manage Salaries',
+                subtitle: 'Can upload and manage salary records',
+                icon: Icons.payments_outlined,
+                value: _effectiveCanManageSalary,
+                enabled: _selectedSignupRole != SignupRole.admin,
+                onChanged: (value) {
+                  setState(() => _canManageSalary = value);
+                },
+              ),
+            ],
           ],
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedEmployeeRole,
+            decoration: _inputDecoration(
+              'Employee Role',
+              Icons.engineering_outlined,
+            ),
+            items: _selectedSignupRole.allowedRoles
+                .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _selectedEmployeeRole = value);
+            },
+          ),
         ],
         if (!_isSignup) ...[
           const SizedBox(height: 18),

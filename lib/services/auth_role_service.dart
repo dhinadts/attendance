@@ -6,6 +6,19 @@ import 'app_firestore.dart';
 
 enum AppUserRole { employee, partialAdmin, admin }
 
+extension SignupRoleAuthX on SignupRole {
+  AppUserRole get appUserRole {
+    switch (this) {
+      case SignupRole.admin:
+        return AppUserRole.admin;
+      case SignupRole.employee:
+        return AppUserRole.employee;
+      case SignupRole.partialAdmin:
+        return AppUserRole.partialAdmin;
+    }
+  }
+}
+
 extension AppUserRoleX on AppUserRole {
   bool get isAdminLike =>
       this == AppUserRole.admin || this == AppUserRole.partialAdmin;
@@ -138,12 +151,13 @@ class AuthRoleService {
     String organizationRole = 'EMPLOYEE',
     bool canApproveLeave = false,
     bool canManageSalary = false,
+    bool allowPrivilegedSignup = false,
   }) async {
     final creator = _auth.currentUser;
     final creatorRole = creator == null ? null : await currentRole();
     final isAdminCreatedAccount = creatorRole?.canAssignRoles == true;
 
-    if (role.isAdminLike && !isAdminCreatedAccount) {
+    if (role.isAdminLike && !isAdminCreatedAccount && !allowPrivilegedSignup) {
       throw StateError(
         'Admin and partial admin accounts must be created by an authorized admin',
       );
@@ -162,14 +176,12 @@ class AuthRoleService {
       throw ArgumentError('Employee ID is required');
     }
     if (role == AppUserRole.partialAdmin &&
+        !OrganizationOptions.partialAdminRoles.contains(employeeRole.trim()) &&
         !OrganizationOptions.partialAdminRoles.contains(
           organizationRole.trim(),
-        ) &&
-        !OrganizationOptions.seniorEmployeeRoles.contains(
-          employeeRole.trim(),
         )) {
       throw ArgumentError(
-        'Partial admin access is available only for senior or lead roles',
+        'Partial admin access is available only for lead roles',
       );
     }
     if (normalizedEmployeeId.isNotEmpty) {

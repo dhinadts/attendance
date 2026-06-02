@@ -26,6 +26,8 @@ class SalaryPayrollReportsScreen extends ConsumerWidget {
       title: 'Salary',
       bottomNavigationBar: const EmployeeBottomNav(currentIndex: 3),
       child: profileAsync.when(
+        skipLoadingOnRefresh: false,
+        skipLoadingOnReload: false,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text(error.toString())),
         data: (profile) {
@@ -114,6 +116,8 @@ class SalaryPayrollReportsScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 20),
                       recordsAsync.when(
+                        skipLoadingOnRefresh: false,
+                        skipLoadingOnReload: false,
                         loading: () => const LinearProgressIndicator(),
                         error: (error, _) => Text(error.toString()),
                         data: (records) {

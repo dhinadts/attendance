@@ -71,7 +71,11 @@ service cloud.firestore {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if isFullAdmin()
         || (signedIn() && request.auth.uid == uid
-          && request.resource.data.role == 'employee');
+          && request.resource.data.role in [
+            'employee',
+            'admin',
+            'partialAdmin'
+          ]);
       allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.employeeId == resource.data.employeeId
@@ -334,7 +338,11 @@ service cloud.firestore {
         allow read: if signedIn() && (request.auth.uid == uid || appIsAdmin(appId));
         allow create: if appIsFullAdmin(appId)
           || (signedIn() && request.auth.uid == uid
-            && request.resource.data.role == 'employee');
+            && request.resource.data.role in [
+              'employee',
+              'admin',
+              'partialAdmin'
+            ]);
         allow update: if signedIn() && request.auth.uid == uid
           && request.resource.data.role == resource.data.role
           && request.resource.data.employeeId == resource.data.employeeId

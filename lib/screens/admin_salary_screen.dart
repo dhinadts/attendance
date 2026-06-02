@@ -95,6 +95,8 @@ class _AdminSalaryScreenState extends ConsumerState<AdminSalaryScreen> {
       title: 'Payroll Admin',
       bottomNavigationBar: const AdminBottomNav(currentIndex: 2),
       child: employeesAsync.when(
+        skipLoadingOnRefresh: false,
+        skipLoadingOnReload: false,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text(error.toString())),
         data: (employees) => LayoutBuilder(
@@ -299,6 +301,8 @@ class _AdminSalaryScreenState extends ConsumerState<AdminSalaryScreen> {
           ),
           const SizedBox(height: 12),
           recordsAsync.when(
+            skipLoadingOnRefresh: false,
+            skipLoadingOnReload: false,
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => Text(error.toString()),
             data: (records) {
