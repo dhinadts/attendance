@@ -20,4 +20,10 @@ class OrganizationOptions {
     'CEO',
     'DIRECTOR',
   ];
+
+  static const seniorEmployeeRoles = [
+    'CEO',
+    'DIRECTOR',
+    'SENIOR SOFTWARE DEVELOPER',
+  ];
 }

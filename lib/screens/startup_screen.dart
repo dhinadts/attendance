@@ -37,8 +37,7 @@ class _StartupScreenState extends State<StartupScreen> {
       role,
     );
     context.go(
-      pendingRoute ??
-          (role == AppUserRole.admin ? '/admin-dashboard' : '/dashboard'),
+      pendingRoute ?? (role.isAdminLike ? '/admin-dashboard' : '/dashboard'),
     );
   }
 

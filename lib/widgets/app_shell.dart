@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../services/auth_role_service.dart';
 
 class AppShell extends StatefulWidget {
   final Widget child;
@@ -51,6 +52,7 @@ class _AppShellState extends State<AppShell> {
       '/admin-salary',
       '/admin-settings',
       '/admin-profile',
+      '/admin-create-user',
       '/dashboard',
       '/attendance-details',
       '/attendance-log',
@@ -268,6 +270,7 @@ class _AdminSideMenu extends StatelessWidget {
       _DrawerItem('Exit Requests', Icons.exit_to_app, '/admin-exit-requests'),
       _DrawerItem('Messages', Icons.chat_bubble_outline, '/admin-messages'),
       _DrawerItem('Notifications', Icons.notifications, '/admin-notifications'),
+      _DrawerItem('Create User', Icons.person_add, '/admin-create-user'),
       _DrawerItem('Profile', Icons.person, '/admin-profile'),
       _DrawerItem('Settings', Icons.settings, '/admin-settings'),
     ];
@@ -550,6 +553,8 @@ class _AdminTopBar extends StatelessWidget {
         return 'Notifications';
       case '/admin-profile':
         return 'Admin Profile';
+      case '/admin-create-user':
+        return 'Create User';
       case '/admin-settings':
         return 'Settings';
       default:
@@ -586,6 +591,7 @@ class _AppDrawer extends StatelessWidget {
               Icons.chat_bubble_outline,
               '/admin-messages',
             ),
+            _DrawerItem('Create User', Icons.person_add, '/admin-create-user'),
             _DrawerItem('Settings', Icons.settings, '/admin-settings'),
             _DrawerItem('Profile', Icons.person, '/admin-profile'),
           ]
@@ -669,7 +675,8 @@ class _NotificationBell extends StatelessWidget {
           .snapshots(),
       builder: (context, userSnapshot) {
         final userData = userSnapshot.data?.data();
-        final isAdmin = userData?['role'] == 'admin' || isAdminPath;
+        final isAdmin =
+            appUserRoleFromValue(userData?['role']).isAdminLike || isAdminPath;
         final department = (userData?['department'] as String?)
             ?.trim()
             .toLowerCase();

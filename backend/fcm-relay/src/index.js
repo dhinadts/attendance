@@ -175,7 +175,13 @@ async function tokensForRecipientUids(firestore, recipientUids) {
 
 async function adminRecipientUids(firestore) {
   const snapshot = await appCollection(firestore, "users")
-    .where("role", "==", "admin")
+    .where("role", "in", [
+      "admin",
+      "ADMIN",
+      "partialAdmin",
+      "partial_admin",
+      "PARTIAL_ADMIN",
+    ])
     .get();
   return snapshot.docs.map((doc) => doc.id).filter(Boolean);
 }

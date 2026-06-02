@@ -1,8 +1,57 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import '../constants/organization_options.dart';
 import 'app_firestore.dart';
 
-enum AppUserRole { employee, admin }
+enum AppUserRole { employee, partialAdmin, admin }
+
+extension AppUserRoleX on AppUserRole {
+  bool get isAdminLike =>
+      this == AppUserRole.admin || this == AppUserRole.partialAdmin;
+
+  bool get canAssignRoles => isAdminLike;
+
+  String get storageValue {
+    switch (this) {
+      case AppUserRole.employee:
+        return 'employee';
+      case AppUserRole.partialAdmin:
+        return 'partialAdmin';
+      case AppUserRole.admin:
+        return 'admin';
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case AppUserRole.employee:
+        return 'EMPLOYEE';
+      case AppUserRole.partialAdmin:
+        return 'PARTIAL ADMIN';
+      case AppUserRole.admin:
+        return 'ADMIN';
+    }
+  }
+}
+
+AppUserRole appUserRoleFromValue(Object? value) {
+  final normalized = value
+      ?.toString()
+      .trim()
+      .replaceAll('-', '_')
+      .replaceAll(' ', '_')
+      .toLowerCase();
+  switch (normalized) {
+    case 'admin':
+      return AppUserRole.admin;
+    case 'partialadmin':
+    case 'partial_admin':
+      return AppUserRole.partialAdmin;
+    default:
+      return AppUserRole.employee;
+  }
+}
 
 class AuthRoleService {
   AuthRoleService({FirebaseAuth? auth, FirebaseFirestore? firestore})
@@ -22,8 +71,7 @@ class AuthRoleService {
 
   Future<AppUserRole> roleForUser(String uid) async {
     final doc = await _firestore.appCollection('users').doc(uid).get();
-    final rawRole = doc.data()?['role'] as String?;
-    return rawRole == 'admin' ? AppUserRole.admin : AppUserRole.employee;
+    return appUserRoleFromValue(doc.data()?['role']);
   }
 
   Future<AppUserRole> signIn({
@@ -48,8 +96,14 @@ class AuthRoleService {
     String department = '',
     String employeeRole = 'EMPLOYEE',
   }) async {
-    if (role == AppUserRole.admin) {
-      throw StateError('Admin accounts must be created by an authorized admin');
+    final creator = _auth.currentUser;
+    final creatorRole = creator == null ? null : await currentRole();
+    final isAdminCreatedAccount = creatorRole?.canAssignRoles == true;
+
+    if (role.isAdminLike && !isAdminCreatedAccount) {
+      throw StateError(
+        'Admin and partial admin accounts must be created by an authorized admin',
+      );
     }
     if (email.trim().isEmpty || !email.trim().contains('@')) {
       throw ArgumentError('Valid email is required');
@@ -61,8 +115,16 @@ class AuthRoleService {
       throw ArgumentError('First name is required');
     }
     final normalizedEmployeeId = employeeId.trim();
-    if (role == AppUserRole.employee && normalizedEmployeeId.isEmpty) {
+    if (role != AppUserRole.admin && normalizedEmployeeId.isEmpty) {
       throw ArgumentError('Employee ID is required');
+    }
+    if (role == AppUserRole.partialAdmin &&
+        !OrganizationOptions.seniorEmployeeRoles.contains(
+          employeeRole.trim(),
+        )) {
+      throw ArgumentError(
+        'Partial admin access is available only for senior employee roles',
+      );
     }
     if (normalizedEmployeeId.isNotEmpty) {
       final existingProfile = await _firestore
@@ -74,53 +136,70 @@ class AuthRoleService {
       }
     }
 
-    final credential = await _auth.createUserWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
-    final user = credential.user!;
-    final roleName = role.name;
-    final displayName = '$firstName $lastName'.trim();
-    await user.updateDisplayName(displayName);
+    FirebaseApp? secondaryApp;
+    FirebaseAuth accountAuth = _auth;
+    if (isAdminCreatedAccount) {
+      secondaryApp = await Firebase.initializeApp(
+        name: 'account_creator_${DateTime.now().microsecondsSinceEpoch}',
+        options: Firebase.app().options,
+      );
+      accountAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+    }
 
-    await _firestore.appCollection('users').doc(user.uid).set({
-      'uid': user.uid,
-      'email': email.trim(),
-      'role': roleName,
-      'employeeId': normalizedEmployeeId.isEmpty
-          ? user.uid
-          : normalizedEmployeeId,
-      'firstName': firstName.trim(),
-      'lastName': lastName.trim(),
-      'nickName': firstName.trim(),
-      'displayName': displayName,
-      'department': department.trim(),
-      'employeeRole': employeeRole.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      final credential = await accountAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final user = credential.user!;
+      final roleName = role.storageValue;
+      final displayName = '$firstName $lastName'.trim();
+      await user.updateDisplayName(displayName);
 
-    if (role == AppUserRole.employee) {
-      await _firestore
-          .appCollection('employee_profiles')
-          .doc(normalizedEmployeeId.isEmpty ? user.uid : normalizedEmployeeId)
-          .set({
-            'employeeId': normalizedEmployeeId.isEmpty
-                ? user.uid
-                : normalizedEmployeeId,
-            'firstName': firstName.trim(),
-            'lastName': lastName.trim(),
-            'nickName': firstName.trim(),
-            'employeeName': displayName,
-            'email': email.trim(),
-            'role': employeeRole.trim().isEmpty
-                ? 'EMPLOYEE'
-                : employeeRole.trim(),
-            'department': department.trim(),
-            'employeeRole': employeeRole.trim().isEmpty
-                ? 'EMPLOYEE'
-                : employeeRole.trim(),
-            'createdAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+      await _firestore.appCollection('users').doc(user.uid).set({
+        'uid': user.uid,
+        'email': email.trim(),
+        'role': roleName,
+        'employeeId': normalizedEmployeeId.isEmpty
+            ? user.uid
+            : normalizedEmployeeId,
+        'firstName': firstName.trim(),
+        'lastName': lastName.trim(),
+        'nickName': firstName.trim(),
+        'displayName': displayName,
+        'department': department.trim(),
+        'employeeRole': employeeRole.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (role != AppUserRole.admin) {
+        await _firestore
+            .appCollection('employee_profiles')
+            .doc(normalizedEmployeeId.isEmpty ? user.uid : normalizedEmployeeId)
+            .set({
+              'employeeId': normalizedEmployeeId.isEmpty
+                  ? user.uid
+                  : normalizedEmployeeId,
+              'firstName': firstName.trim(),
+              'lastName': lastName.trim(),
+              'nickName': firstName.trim(),
+              'employeeName': displayName,
+              'email': email.trim(),
+              'role': employeeRole.trim().isEmpty
+                  ? 'EMPLOYEE'
+                  : employeeRole.trim(),
+              'department': department.trim(),
+              'employeeRole': employeeRole.trim().isEmpty
+                  ? 'EMPLOYEE'
+                  : employeeRole.trim(),
+              'createdAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+      }
+    } finally {
+      if (isAdminCreatedAccount) {
+        await accountAuth.signOut();
+        await secondaryApp?.delete();
+      }
     }
 
     return role;

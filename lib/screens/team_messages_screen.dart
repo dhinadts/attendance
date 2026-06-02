@@ -56,7 +56,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
   Future<void> _load() async {
     final role = await _authRoleService.currentRole() ?? AppUserRole.employee;
     EmployeeProfile? profile;
-    if (role == AppUserRole.employee) {
+    if (!role.isAdminLike) {
       profile = await _attendanceService.loadEmployeeProfile();
       await FcmNotificationService.instance.registerCurrentUser(
         department: profile.department,
@@ -69,7 +69,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
     setState(() {
       _role = role;
       _profile = profile;
-      if (role == AppUserRole.employee && profile != null) {
+      if (!role.isAdminLike && profile != null) {
         _selectedTeams
           ..clear()
           ..add(profile.department);
@@ -206,7 +206,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
   }
 
   bool _canReadMessage(Map<String, dynamic> data) {
-    if (_role == AppUserRole.admin) return true;
+    if (_role.isAdminLike) return true;
     final targetType = data['targetType'] as String?;
     if (targetType == 'all') return true;
     final targetTeams = (data['targetTeams'] as List?)
@@ -224,7 +224,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = _role == AppUserRole.admin;
+    final isAdmin = _role.isAdminLike;
     return AppShell(
       title: 'Messages',
       child: SingleChildScrollView(
@@ -281,7 +281,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
                     subtitle: const Text('Broadcast to every configured team'),
                     contentPadding: EdgeInsets.zero,
                   ),
-                  if (_role != AppUserRole.admin)
+                  if (!_role.isAdminLike)
                     Padding(
                       padding: const EdgeInsets.only(top: 6.0, bottom: 6.0),
                       child: Text(

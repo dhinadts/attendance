@@ -117,6 +117,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
       final firstName = _firstNameController.text.trim();
       final lastName = _lastNameController.text.trim();
       final displayName = '$firstName $lastName'.trim();
+      final currentDoc = await _firestore
+          .appCollection('users')
+          .doc(user.uid)
+          .get();
+      final currentRole = currentDoc.data()?['role'] as String? ?? 'admin';
 
       await _firestore.appCollection('users').doc(user.uid).set({
         'firstName': firstName,
@@ -131,7 +136,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
         'joiningDate': _joiningDateController.text.trim(),
         'department': _selectedDepartment,
         'employeeRole': _selectedRole,
-        'role': 'admin',
+        'role': currentRole,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 

@@ -74,14 +74,14 @@ final appRouter = GoRouter(
     final isEmployeeRoute = _employeeOnlyRoutes.contains(path);
 
     if (isLogin) {
-      return role == AppUserRole.admin ? '/admin-dashboard' : '/dashboard';
+      return role?.isAdminLike == true ? '/admin-dashboard' : '/dashboard';
     }
 
-    if (role == AppUserRole.admin && isEmployeeRoute) {
+    if (role?.isAdminLike == true && isEmployeeRoute) {
       return '/admin-dashboard';
     }
 
-    if (role != AppUserRole.admin && isAdminRoute) {
+    if (role?.isAdminLike != true && isAdminRoute) {
       return '/dashboard';
     }
 
@@ -97,6 +97,12 @@ final appRouter = GoRouter(
       path: '/login',
       name: 'login',
       builder: (context, state) => const AuthScreen(),
+    ),
+    GoRoute(
+      path: '/admin-create-user',
+      name: 'adminCreateUser',
+      builder: (context, state) =>
+          const AuthScreen(initialSignup: true, adminCreateMode: true),
     ),
     GoRoute(
       path: '/face-attendance',

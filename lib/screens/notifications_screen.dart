@@ -68,7 +68,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
     final role = await _authRoleService.currentRole() ?? AppUserRole.employee;
     EmployeeProfile? profile;
-    if (role == AppUserRole.employee) {
+    if (!role.isAdminLike) {
       profile = await _attendanceService.loadEmployeeProfile();
     }
     if (!mounted) return;
@@ -92,7 +92,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (!mounted) return;
       final data = doc.data();
       if (doc.exists && data != null) {
-        if (_role == AppUserRole.employee && _profile == null) {
+        if (!_role.isAdminLike && _profile == null) {
           await _load();
           if (!mounted) return;
         }
@@ -142,7 +142,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _isRelevant(Map<String, dynamic> data) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
-    if (_role == AppUserRole.admin) {
+    if (_role.isAdminLike) {
       final targetType = data['targetType'] as String?;
       return targetType == 'all' ||
           targetType == 'admin' ||
@@ -194,7 +194,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       _markRead(messageId);
     }
 
-    if (_role == AppUserRole.admin) {
+    if (_role.isAdminLike) {
       final employeeId =
           data['employeeId'] as String? ?? data['senderEmployeeId'] as String?;
       if (employeeId != null && employeeId.isNotEmpty) {
@@ -823,10 +823,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final isLoading = _profileLoading || _loadingInitialMessage;
 
     return AppShell(
-      title: _role == AppUserRole.admin
-          ? 'Admin Notifications'
-          : 'Notifications',
-      child: _role == AppUserRole.admin
+      title: _role.isAdminLike ? 'Admin Notifications' : 'Notifications',
+      child: _role.isAdminLike
           ? _buildAdminView(isLoading)
           : _buildEmployeeView(isLoading),
     );

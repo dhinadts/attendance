@@ -62,7 +62,7 @@ class _NotificationEmployeeDetailScreenState
     Map<String, dynamic>? employee;
     String? employeeUid;
 
-    if (role == AppUserRole.admin) {
+    if (role.isAdminLike) {
       final employeeId = widget.employeeId?.trim();
       if (employeeId != null && employeeId.isNotEmpty) {
         final profile = await _firestore
@@ -320,7 +320,7 @@ class _NotificationEmployeeDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final title = _role == AppUserRole.admin
+    final title = _role.isAdminLike
         ? 'Employee Notifications'
         : 'My Notifications';
 

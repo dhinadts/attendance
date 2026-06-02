@@ -93,7 +93,7 @@ class FcmNotificationService {
     if (user == null) return;
 
     final role = await _authRoleService.currentRole();
-    if (role == AppUserRole.admin) {
+    if (role?.isAdminLike == true) {
       _startAdminRequestForegroundListener();
     }
 
@@ -115,7 +115,7 @@ class FcmNotificationService {
 
     if (!kIsWeb) {
       await _messaging.subscribeToTopic('team_all');
-      if (role == AppUserRole.admin) {
+      if (role?.isAdminLike == true) {
         await _messaging.subscribeToTopic('admin_all');
       }
     }
@@ -162,7 +162,7 @@ class FcmNotificationService {
 
       final messageId = decoded['messageId'] as String?;
       final role = await _authRoleService.currentRole();
-      final messageRoute = role == AppUserRole.admin
+      final messageRoute = role?.isAdminLike == true
           ? '/admin-notifications'
           : '/notifications';
       _openRouteOrStore(
@@ -173,7 +173,7 @@ class FcmNotificationService {
     } catch (_) {
       // fallback
       final role = await _authRoleService.currentRole();
-      final route = role == AppUserRole.admin
+      final route = role?.isAdminLike == true
           ? '/admin-notifications'
           : '/notifications';
       _openRouteOrStore(
@@ -192,7 +192,7 @@ class FcmNotificationService {
     }
 
     final role = await _authRoleService.currentRole();
-    final messageRoute = role == AppUserRole.admin
+    final messageRoute = role?.isAdminLike == true
         ? '/admin-notifications'
         : '/notifications';
     final messageId = message.data['messageId'] as String?;
@@ -412,7 +412,7 @@ class FcmNotificationService {
     final topics = sendToAllTeams
         ? ['team_all']
         : normalizedTeams.map(topicForTeam).toList();
-    if (senderRole == AppUserRole.employee && !topics.contains('admin_all')) {
+    if (!senderRole.isAdminLike && !topics.contains('admin_all')) {
       topics.add('admin_all');
     }
     final nowIst = DateTime.now()
@@ -431,7 +431,7 @@ class FcmNotificationService {
       'targetTeam': sendToAllTeams ? 'all' : normalizedTeams.join(', '),
       'targetTeams': sendToAllTeams ? <String>[] : normalizedTeams,
       'topics': topics,
-      'type': senderRole == AppUserRole.employee
+      'type': !senderRole.isAdminLike
           ? 'employee_message'
           : 'team_message',
       'createdAt': FieldValue.serverTimestamp(),
@@ -455,7 +455,7 @@ class FcmNotificationService {
 
   Future<String?> routeForNotificationData(Map<String, dynamic> data) async {
     final role = await _authRoleService.currentRole();
-    final isAdmin = role == AppUserRole.admin;
+    final isAdmin = role?.isAdminLike == true;
     final messageId = data['messageId'] as String?;
 
     if (isAdmin) {
@@ -481,7 +481,7 @@ class FcmNotificationService {
   ) async {
     final user = _auth.currentUser;
     final role = await _authRoleService.currentRole();
-    final isAdmin = role == AppUserRole.admin;
+    final isAdmin = role?.isAdminLike == true;
     final type = data['type'] as String?;
 
     if ((isAdmin || user == null) && type == 'leave_request') {
@@ -540,7 +540,7 @@ class FcmNotificationService {
   String? consumePendingRouteFor(AppUserRole role) {
     final route = _pendingRouteAfterLogin;
     if (route == null) return null;
-    if (route.startsWith('/admin') && role != AppUserRole.admin) {
+    if (route.startsWith('/admin') && !role.isAdminLike) {
       _pendingRouteAfterLogin = null;
       return null;
     }

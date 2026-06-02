@@ -9,7 +9,14 @@ import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  const AuthScreen({
+    super.key,
+    this.initialSignup = false,
+    this.adminCreateMode = false,
+  });
+
+  final bool initialSignup;
+  final bool adminCreateMode;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -26,11 +33,34 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _isSignup = false;
   bool _isLoading = false;
   bool _isResettingPassword = false;
+  bool _canAssignPrivilegedRoles = false;
   String _selectedTeam = OrganizationOptions.teams.first;
   String _selectedEmployeeRole = OrganizationOptions.employeeRoles.last;
+  AppUserRole _selectedSignupRole = AppUserRole.employee;
   String? _error;
   String? _notice;
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _isSignup = widget.initialSignup;
+    _loadRoleAssignmentAccess();
+  }
+
+  Future<void> _loadRoleAssignmentAccess() async {
+    final role = await _auth.currentRole();
+    if (!mounted) return;
+    setState(() {
+      _canAssignPrivilegedRoles = role?.canAssignRoles == true;
+      if (!_canAssignPrivilegedRoles) {
+        _selectedSignupRole = AppUserRole.employee;
+      }
+      if (widget.adminCreateMode && !_canAssignPrivilegedRoles) {
+        _error = 'Only admin or partial admin users can create accounts';
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -43,6 +73,12 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _submit() async {
+    if (widget.adminCreateMode && !_canAssignPrivilegedRoles) {
+      setState(() {
+        _error = 'Only admin or partial admin users can create accounts';
+      });
+      return;
+    }
     setState(() {
       _isLoading = true;
       _error = null;
@@ -54,7 +90,9 @@ class _AuthScreenState extends State<AuthScreen> {
           ? await _auth.signUp(
               email: _emailController.text,
               password: _passwordController.text,
-              role: AppUserRole.employee,
+              role: _canAssignPrivilegedRoles
+                  ? _selectedSignupRole
+                  : AppUserRole.employee,
               firstName: _firstNameController.text,
               lastName: _lastNameController.text,
               employeeId: _employeeIdController.text,
@@ -67,11 +105,17 @@ class _AuthScreenState extends State<AuthScreen> {
             );
 
       if (!mounted) return;
+      if (widget.adminCreateMode) {
+        _clearSignupFields();
+        setState(() {
+          _notice = '${role.label} account created successfully';
+        });
+        return;
+      }
       final pendingRoute = FcmNotificationService.instance
           .consumePendingRouteFor(role);
       context.go(
-        pendingRoute ??
-            (role == AppUserRole.admin ? '/admin-dashboard' : '/dashboard'),
+        pendingRoute ?? (role.isAdminLike ? '/admin-dashboard' : '/dashboard'),
       );
     } catch (error) {
       if (!mounted) return;
@@ -81,6 +125,16 @@ class _AuthScreenState extends State<AuthScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _clearSignupFields() {
+    _emailController.clear();
+    _passwordController.clear();
+    _firstNameController.clear();
+    _lastNameController.clear();
+    _employeeIdController.clear();
+    _selectedEmployeeRole = OrganizationOptions.employeeRoles.last;
+    _selectedSignupRole = AppUserRole.employee;
   }
 
   Future<void> _sendPasswordReset() async {
@@ -190,7 +244,11 @@ class _AuthScreenState extends State<AuthScreen> {
           const SizedBox(height: 52),
         ],
         Text(
-          _isSignup ? 'Create Account' : 'Welcome Back',
+          widget.adminCreateMode
+              ? 'Create User Access'
+              : _isSignup
+              ? 'Create Account'
+              : 'Welcome Back',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             color: IndustrialColors.onSurface,
             fontSize: compact ? 26 : 30,
@@ -200,7 +258,9 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 8),
         Text(
           _isSignup
-              ? 'Create employee workspace access'
+              ? (_canAssignPrivilegedRoles
+                    ? 'Create employee, partial admin, or admin access'
+                    : 'Create employee workspace access')
               : 'Sign in to access attendance workspace',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: IndustrialColors.onSurfaceVariant,
@@ -232,6 +292,35 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
         if (_isSignup) ...[
+          if (_canAssignPrivilegedRoles) ...[
+            const SizedBox(height: 16),
+            DropdownButtonFormField<AppUserRole>(
+              initialValue: _selectedSignupRole,
+              decoration: _inputDecoration(
+                'Access Role',
+                Icons.admin_panel_settings_outlined,
+              ),
+              items: AppUserRole.values
+                  .map(
+                    (role) =>
+                        DropdownMenuItem(value: role, child: Text(role.label)),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _selectedSignupRole = value;
+                  if (value == AppUserRole.partialAdmin &&
+                      !OrganizationOptions.seniorEmployeeRoles.contains(
+                        _selectedEmployeeRole,
+                      )) {
+                    _selectedEmployeeRole =
+                        OrganizationOptions.seniorEmployeeRoles.first;
+                  }
+                });
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [
@@ -254,37 +343,52 @@ class _AuthScreenState extends State<AuthScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: _employeeIdController,
-            decoration: _inputDecoration('Employee ID', Icons.badge_outlined),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedTeam,
-            decoration: _inputDecoration('Team', Icons.groups_outlined),
-            items: OrganizationOptions.teams
-                .map((team) => DropdownMenuItem(value: team, child: Text(team)))
-                .toList(),
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() => _selectedTeam = value);
-            },
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedEmployeeRole,
-            decoration: _inputDecoration(
-              'Employee Role',
-              Icons.engineering_outlined,
+          if (_selectedSignupRole != AppUserRole.admin ||
+              !_canAssignPrivilegedRoles)
+            TextField(
+              controller: _employeeIdController,
+              decoration: _inputDecoration('Employee ID', Icons.badge_outlined),
             ),
-            items: OrganizationOptions.employeeRoles
-                .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-                .toList(),
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() => _selectedEmployeeRole = value);
-            },
-          ),
+          if (_selectedSignupRole != AppUserRole.admin ||
+              !_canAssignPrivilegedRoles)
+            const SizedBox(height: 16),
+          if (_selectedSignupRole != AppUserRole.admin ||
+              !_canAssignPrivilegedRoles) ...[
+            DropdownButtonFormField<String>(
+              initialValue: _selectedTeam,
+              decoration: _inputDecoration('Team', Icons.groups_outlined),
+              items: OrganizationOptions.teams
+                  .map(
+                    (team) => DropdownMenuItem(value: team, child: Text(team)),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _selectedTeam = value);
+              },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedEmployeeRole,
+              decoration: _inputDecoration(
+                'Employee Role',
+                Icons.engineering_outlined,
+              ),
+              items:
+                  (_selectedSignupRole == AppUserRole.partialAdmin
+                          ? OrganizationOptions.seniorEmployeeRoles
+                          : OrganizationOptions.employeeRoles)
+                      .map(
+                        (role) =>
+                            DropdownMenuItem(value: role, child: Text(role)),
+                      )
+                      .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _selectedEmployeeRole = value);
+              },
+            ),
+          ],
         ],
         if (!_isSignup) ...[
           const SizedBox(height: 18),
@@ -337,10 +441,18 @@ class _AuthScreenState extends State<AuthScreen> {
                   label: _isSignup ? 'CREATE ACCOUNT' : 'LOGIN',
                   icon: _isSignup ? Icons.person_add : Icons.login,
                   isLoading: _isLoading,
-                  onPressed: _isLoading ? null : _submit,
+                  onPressed:
+                      _isLoading ||
+                          (widget.adminCreateMode && !_canAssignPrivilegedRoles)
+                      ? null
+                      : _submit,
                 )
               : FilledButton(
-                  onPressed: _isLoading ? null : _submit,
+                  onPressed:
+                      _isLoading ||
+                          (widget.adminCreateMode && !_canAssignPrivilegedRoles)
+                      ? null
+                      : _submit,
                   style: FilledButton.styleFrom(
                     backgroundColor: IndustrialColors.primary,
                     foregroundColor: IndustrialColors.onPrimary,
@@ -364,29 +476,30 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
         ),
         const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              _isSignup ? 'Already registered?' : 'New user?',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: IndustrialColors.onSurfaceVariant,
+        if (!widget.adminCreateMode)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _isSignup ? 'Already registered?' : 'New user?',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: IndustrialColors.onSurfaceVariant,
+                ),
               ),
-            ),
-            TextButton(
-              onPressed: _isLoading
-                  ? null
-                  : () {
-                      setState(() {
-                        _isSignup = !_isSignup;
-                        _error = null;
-                        _notice = null;
-                      });
-                    },
-              child: Text(_isSignup ? 'Login' : 'Create account'),
-            ),
-          ],
-        ),
+              TextButton(
+                onPressed: _isLoading
+                    ? null
+                    : () {
+                        setState(() {
+                          _isSignup = !_isSignup;
+                          _error = null;
+                          _notice = null;
+                        });
+                      },
+                child: Text(_isSignup ? 'Login' : 'Create account'),
+              ),
+            ],
+          ),
         if (!compact) ...[
           const SizedBox(height: 28),
           Container(

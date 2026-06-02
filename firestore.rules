@@ -22,7 +22,13 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return signedIn() && (role() == 'admin' || role() == 'ADMIN');
+      return signedIn() && (
+        role() == 'admin'
+        || role() == 'ADMIN'
+        || role() == 'partialAdmin'
+        || role() == 'partial_admin'
+        || role() == 'PARTIAL_ADMIN'
+      );
     }
 
     function employeeId() {
@@ -43,8 +49,9 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow create: if signedIn() && request.auth.uid == uid
-        && request.resource.data.role == 'employee';
+      allow create: if isAdmin()
+        || (signedIn() && request.auth.uid == uid
+          && request.resource.data.role == 'employee');
       allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.employeeId == resource.data.employeeId
@@ -255,7 +262,13 @@ service cloud.firestore {
     }
 
     function appIsAdmin(appId) {
-      return signedIn() && (appRole(appId) == 'admin' || appRole(appId) == 'ADMIN');
+      return signedIn() && (
+        appRole(appId) == 'admin'
+        || appRole(appId) == 'ADMIN'
+        || appRole(appId) == 'partialAdmin'
+        || appRole(appId) == 'partial_admin'
+        || appRole(appId) == 'PARTIAL_ADMIN'
+      );
     }
 
     function appEmployeeId(appId) {
@@ -276,8 +289,9 @@ service cloud.firestore {
 
       match /users/{uid} {
         allow read: if signedIn() && (request.auth.uid == uid || appIsAdmin(appId));
-        allow create: if signedIn() && request.auth.uid == uid
-          && request.resource.data.role == 'employee';
+        allow create: if appIsAdmin(appId)
+          || (signedIn() && request.auth.uid == uid
+            && request.resource.data.role == 'employee');
         allow update: if signedIn() && request.auth.uid == uid
           && request.resource.data.role == resource.data.role
           && request.resource.data.employeeId == resource.data.employeeId
