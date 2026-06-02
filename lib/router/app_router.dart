@@ -69,7 +69,8 @@ final appRouter = GoRouter(
       return isLogin ? null : '/login';
     }
 
-    final role = await _authRoleService.currentRole();
+    final access = await _authRoleService.currentAccess();
+    final role = access?.role;
     final isAdminRoute = path.startsWith('/admin');
     final isEmployeeRoute = _employeeOnlyRoutes.contains(path);
 
@@ -83,6 +84,17 @@ final appRouter = GoRouter(
 
     if (role?.isAdminLike != true && isAdminRoute) {
       return '/dashboard';
+    }
+
+    if (role == AppUserRole.partialAdmin) {
+      if (_leaveApprovalRoutes.contains(path) &&
+          access?.canApproveLeave != true) {
+        return '/admin-dashboard';
+      }
+      if (_salaryManagementRoutes.contains(path) &&
+          access?.canManageSalary != true) {
+        return '/admin-dashboard';
+      }
     }
 
     return null;
@@ -278,3 +290,7 @@ const _employeeOnlyRoutes = {
   '/settings',
   '/exit-company',
 };
+
+const _leaveApprovalRoutes = {'/admin-leave-approval', '/admin-leave-requests'};
+
+const _salaryManagementRoutes = {'/admin-salary'};

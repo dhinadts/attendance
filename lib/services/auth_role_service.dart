@@ -53,6 +53,20 @@ AppUserRole appUserRoleFromValue(Object? value) {
   }
 }
 
+class AppUserAccess {
+  const AppUserAccess({
+    required this.role,
+    required this.canApproveLeave,
+    required this.canManageSalary,
+  });
+
+  final AppUserRole role;
+  final bool canApproveLeave;
+  final bool canManageSalary;
+
+  bool get isAdminLike => role.isAdminLike;
+}
+
 class AuthRoleService {
   AuthRoleService({FirebaseAuth? auth, FirebaseFirestore? firestore})
     : _auth = auth ?? FirebaseAuth.instance,
@@ -72,6 +86,32 @@ class AuthRoleService {
   Future<AppUserRole> roleForUser(String uid) async {
     final doc = await _firestore.appCollection('users').doc(uid).get();
     return appUserRoleFromValue(doc.data()?['role']);
+  }
+
+  Future<AppUserAccess> accessForUser(String uid) async {
+    final doc = await _firestore.appCollection('users').doc(uid).get();
+    final data = doc.data() ?? {};
+    final role = appUserRoleFromValue(data['role']);
+    final permissions = data['permissions'] as Map<String, dynamic>? ?? {};
+    final canApproveLeave =
+        role == AppUserRole.admin ||
+        data['canApproveLeave'] == true ||
+        permissions['approveLeave'] == true;
+    final canManageSalary =
+        role == AppUserRole.admin ||
+        data['canManageSalary'] == true ||
+        permissions['manageSalary'] == true;
+    return AppUserAccess(
+      role: role,
+      canApproveLeave: canApproveLeave,
+      canManageSalary: canManageSalary,
+    );
+  }
+
+  Future<AppUserAccess?> currentAccess() async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+    return accessForUser(user.uid);
   }
 
   Future<AppUserRole> signIn({
@@ -95,6 +135,8 @@ class AuthRoleService {
     required String employeeId,
     String department = '',
     String employeeRole = 'EMPLOYEE',
+    bool canApproveLeave = false,
+    bool canManageSalary = false,
   }) async {
     final creator = _auth.currentUser;
     final creatorRole = creator == null ? null : await currentRole();
@@ -154,6 +196,9 @@ class AuthRoleService {
       final user = credential.user!;
       final roleName = role.storageValue;
       final displayName = '$firstName $lastName'.trim();
+      final allowLeaveApproval = role == AppUserRole.admin || canApproveLeave;
+      final allowSalaryManagement =
+          role == AppUserRole.admin || canManageSalary;
       await user.updateDisplayName(displayName);
 
       await _firestore.appCollection('users').doc(user.uid).set({
@@ -169,6 +214,12 @@ class AuthRoleService {
         'displayName': displayName,
         'department': department.trim(),
         'employeeRole': employeeRole.trim(),
+        'canApproveLeave': allowLeaveApproval,
+        'canManageSalary': allowSalaryManagement,
+        'permissions': {
+          'approveLeave': allowLeaveApproval,
+          'manageSalary': allowSalaryManagement,
+        },
         'createdAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 

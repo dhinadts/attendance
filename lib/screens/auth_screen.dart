@@ -34,6 +34,8 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _isLoading = false;
   bool _isResettingPassword = false;
   bool _canAssignPrivilegedRoles = false;
+  bool _canApproveLeave = false;
+  bool _canManageSalary = false;
   String _selectedTeam = OrganizationOptions.teams.first;
   String _selectedEmployeeRole = OrganizationOptions.employeeRoles.last;
   AppUserRole _selectedSignupRole = AppUserRole.employee;
@@ -98,6 +100,8 @@ class _AuthScreenState extends State<AuthScreen> {
               employeeId: _employeeIdController.text,
               department: _selectedTeam,
               employeeRole: _selectedEmployeeRole,
+              canApproveLeave: _effectiveCanApproveLeave,
+              canManageSalary: _effectiveCanManageSalary,
             )
           : await _auth.signIn(
               email: _emailController.text,
@@ -135,6 +139,33 @@ class _AuthScreenState extends State<AuthScreen> {
     _employeeIdController.clear();
     _selectedEmployeeRole = OrganizationOptions.employeeRoles.last;
     _selectedSignupRole = AppUserRole.employee;
+    _canApproveLeave = false;
+    _canManageSalary = false;
+  }
+
+  bool get _showPermissionControls =>
+      _canAssignPrivilegedRoles && _selectedSignupRole.isAdminLike;
+
+  bool get _effectiveCanApproveLeave =>
+      _selectedSignupRole == AppUserRole.admin || _canApproveLeave;
+
+  bool get _effectiveCanManageSalary =>
+      _selectedSignupRole == AppUserRole.admin || _canManageSalary;
+
+  void _applyRoleDefaults(AppUserRole role) {
+    _selectedSignupRole = role;
+    if (role == AppUserRole.admin) {
+      _canApproveLeave = true;
+      _canManageSalary = true;
+      return;
+    }
+    if (role == AppUserRole.employee) {
+      _canApproveLeave = false;
+      _canManageSalary = false;
+      return;
+    }
+    _canApproveLeave = true;
+    _canManageSalary = false;
   }
 
   Future<void> _sendPasswordReset() async {
@@ -309,7 +340,7 @@ class _AuthScreenState extends State<AuthScreen> {
               onChanged: (value) {
                 if (value == null) return;
                 setState(() {
-                  _selectedSignupRole = value;
+                  _applyRoleDefaults(value);
                   if (value == AppUserRole.partialAdmin &&
                       !OrganizationOptions.seniorEmployeeRoles.contains(
                         _selectedEmployeeRole,
@@ -320,6 +351,30 @@ class _AuthScreenState extends State<AuthScreen> {
                 });
               },
             ),
+            if (_showPermissionControls) ...[
+              const SizedBox(height: 12),
+              _buildPermissionSwitch(
+                title: 'Approve Leave',
+                subtitle: 'Can review, approve, and reject leave requests',
+                icon: Icons.event_available_outlined,
+                value: _effectiveCanApproveLeave,
+                enabled: _selectedSignupRole != AppUserRole.admin,
+                onChanged: (value) {
+                  setState(() => _canApproveLeave = value);
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildPermissionSwitch(
+                title: 'Manage Salaries',
+                subtitle: 'Can upload and manage salary records',
+                icon: Icons.payments_outlined,
+                value: _effectiveCanManageSalary,
+                enabled: _selectedSignupRole != AppUserRole.admin,
+                onChanged: (value) {
+                  setState(() => _canManageSalary = value);
+                },
+              ),
+            ],
           ],
           const SizedBox(height: 16),
           Row(
@@ -526,6 +581,32 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildPermissionSwitch({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool value,
+    required bool enabled,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: IndustrialColors.outlineVariant),
+      ),
+      child: SwitchListTile(
+        value: value,
+        onChanged: enabled ? onChanged : null,
+        secondary: Icon(icon, color: IndustrialColors.primary),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(subtitle),
+        contentPadding: EdgeInsets.zero,
+      ),
     );
   }
 

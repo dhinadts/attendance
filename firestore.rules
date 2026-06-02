@@ -31,6 +31,26 @@ service cloud.firestore {
       );
     }
 
+    function isFullAdmin() {
+      return signedIn() && (role() == 'admin' || role() == 'ADMIN');
+    }
+
+    function canApproveLeave() {
+      return isFullAdmin()
+        || (isAdmin()
+          && (userDoc().data.canApproveLeave == true
+            || (userDoc().data.permissions != null
+              && userDoc().data.permissions.approveLeave == true)));
+    }
+
+    function canManageSalary() {
+      return isFullAdmin()
+        || (isAdmin()
+          && (userDoc().data.canManageSalary == true
+            || (userDoc().data.permissions != null
+              && userDoc().data.permissions.manageSalary == true)));
+    }
+
     function employeeId() {
       return hasUserDoc() ? userDoc().data.employeeId : null;
     }
@@ -135,11 +155,11 @@ service cloud.firestore {
         || (signedIn() && resource.data.employeeId == employeeId());
       allow create: if signedIn()
         && request.resource.data.employeeId == employeeId();
-      allow update: if isAdmin()
+      allow update: if canApproveLeave()
         || (signedIn() && resource.data.employeeId == employeeId()
           && request.resource.data.employeeId == resource.data.employeeId
           && resource.data.status in ['requested_leave', 'rejected']);
-      allow delete: if isAdmin();
+      allow delete: if canApproveLeave();
     }
 
     match /attendance_mark_requests/{requestId} {
@@ -153,13 +173,13 @@ service cloud.firestore {
     match /salary_records/{recordId} {
       allow read: if isAdmin()
         || (signedIn() && resource.data.employeeId == employeeId());
-      allow create, update: if isAdmin();
-      allow delete: if isAdmin();
+      allow create, update: if canManageSalary();
+      allow delete: if canManageSalary();
     }
 
     match /salary_structures/{employeeIdValue} {
       allow read: if isAdmin() || ownsEmployee(employeeIdValue);
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if canManageSalary();
     }
 
     match /exit_requests/{requestId} {
@@ -271,6 +291,29 @@ service cloud.firestore {
       );
     }
 
+    function appIsFullAdmin(appId) {
+      return signedIn() && (
+        appRole(appId) == 'admin'
+        || appRole(appId) == 'ADMIN'
+      );
+    }
+
+    function appCanApproveLeave(appId) {
+      return appIsFullAdmin(appId)
+        || (appIsAdmin(appId)
+          && (appUserDoc(appId).data.canApproveLeave == true
+            || (appUserDoc(appId).data.permissions != null
+              && appUserDoc(appId).data.permissions.approveLeave == true)));
+    }
+
+    function appCanManageSalary(appId) {
+      return appIsFullAdmin(appId)
+        || (appIsAdmin(appId)
+          && (appUserDoc(appId).data.canManageSalary == true
+            || (appUserDoc(appId).data.permissions != null
+              && appUserDoc(appId).data.permissions.manageSalary == true)));
+    }
+
     function appEmployeeId(appId) {
       return hasAppUserDoc(appId) ? appUserDoc(appId).data.employeeId : null;
     }
@@ -331,11 +374,11 @@ service cloud.firestore {
           || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
         allow create: if signedIn()
           && request.resource.data.employeeId == appEmployeeId(appId);
-        allow update: if appIsAdmin(appId)
+        allow update: if appCanApproveLeave(appId)
           || (signedIn()
             && resource.data.employeeId == appEmployeeId(appId)
             && request.resource.data.employeeId == resource.data.employeeId);
-        allow delete: if appIsAdmin(appId);
+        allow delete: if appCanApproveLeave(appId);
       }
 
       match /attendance_records/{attendanceId} {
@@ -384,12 +427,12 @@ service cloud.firestore {
       match /salary_records/{recordId} {
         allow read: if appIsAdmin(appId)
           || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
-        allow create, update, delete: if appIsAdmin(appId);
+        allow create, update, delete: if appCanManageSalary(appId);
       }
 
       match /salary_structures/{employeeIdValue} {
         allow read: if appIsAdmin(appId) || appOwnsEmployee(appId, employeeIdValue);
-        allow create, update, delete: if appIsAdmin(appId);
+        allow create, update, delete: if appCanManageSalary(appId);
       }
 
       match /exit_requests/{requestId} {
