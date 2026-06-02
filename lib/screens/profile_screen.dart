@@ -6,7 +6,6 @@ import '../services/attendance_session_service.dart';
 import '../services/fcm_notification_service.dart';
 import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/employee_bottom_nav.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
@@ -130,7 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return AppShell(
       title: 'Profile',
-      bottomNavigationBar: const EmployeeBottomNav(currentIndex: 5),
+      bottomNavigationBar: null,
       child: DefaultTabController(
         length: 2,
         child: Column(

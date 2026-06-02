@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -50,6 +51,10 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
     try {
       final adminReason = _reasonController.text.trim();
       final leaveDocId = '${widget.employeeId}_${widget.date}';
+      final decisionFields = _decisionFields(
+        approved: approved,
+        adminReason: adminReason,
+      );
 
       // 1. Load employee profile to fetch metadata
       final profileSnap = await _firestore
@@ -83,6 +88,7 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
         'status': approved ? 'approved_leave' : 'rejected_leave',
         'adminReason': adminReason,
         'respondedAt': FieldValue.serverTimestamp(),
+        ...decisionFields,
       }, SetOptions(merge: true));
 
       // 4. Merge details into attendance collection immediately
@@ -112,8 +118,10 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
         'reason': adminReason.isEmpty
             ? (approved ? 'Approved by Admin' : 'Declined by Admin')
             : adminReason,
+        'adminReason': adminReason,
         'loginDateIst': widget.date,
         'updatedAt': FieldValue.serverTimestamp(),
+        ...decisionFields,
       }, SetOptions(merge: true));
 
       // 5. Build push notification back to the employee
@@ -130,9 +138,10 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
         final notifyMsg = {
           'title': title,
           'body': body,
-          'senderUid': 'admin',
+          'senderUid': decisionFields['decisionByUid'] ?? 'admin',
+          'senderEmail': decisionFields['decisionByEmail'],
           'senderRole': 'admin',
-          'senderName': 'Admin Portal',
+          'senderName': decisionFields['decisionByName'],
           'targetType': 'employee',
           'recipientUid': employeeUid,
           'type': 'leave_response',
@@ -184,6 +193,47 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
     }
   }
 
+  Map<String, dynamic> _decisionFields({
+    required bool approved,
+    required String adminReason,
+  }) {
+    final admin = FirebaseAuth.instance.currentUser;
+    final adminEmail = admin?.email ?? '';
+    final displayName = admin?.displayName?.trim();
+    final adminName = displayName == null || displayName.isEmpty
+        ? (adminEmail.isEmpty ? 'Admin' : adminEmail)
+        : displayName;
+    final decisionAtIst = DateTime.now()
+        .toUtc()
+        .add(const Duration(hours: 5, minutes: 30))
+        .toIso8601String();
+    final status = approved ? 'approved_leave' : 'rejected_leave';
+
+    return {
+      'decision': approved ? 'approved' : 'rejected',
+      'decisionStatus': status,
+      'decisionReason': adminReason,
+      'decisionByUid': admin?.uid,
+      'decisionByEmail': adminEmail,
+      'decisionByName': adminName,
+      'decisionAt': FieldValue.serverTimestamp(),
+      'decisionAtIst': decisionAtIst,
+      if (approved) ...{
+        'approvedByUid': admin?.uid,
+        'approvedByEmail': adminEmail,
+        'approvedByName': adminName,
+        'approvedAt': FieldValue.serverTimestamp(),
+        'approvedAtIst': decisionAtIst,
+      } else ...{
+        'rejectedByUid': admin?.uid,
+        'rejectedByEmail': adminEmail,
+        'rejectedByName': adminName,
+        'rejectedAt': FieldValue.serverTimestamp(),
+        'rejectedAtIst': decisionAtIst,
+      },
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final leaveDocId = '${widget.employeeId}_${widget.date}';
@@ -218,6 +268,10 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
               leaveData['reason'] as String? ?? 'No reason provided';
           final currentStatus =
               leaveData['status'] as String? ?? 'requested_leave';
+          final isCompleted =
+              currentStatus.contains('approved') ||
+              currentStatus.contains('rejected');
+          final isApproved = currentStatus.contains('approved');
 
           return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
             stream: _firestore
@@ -395,28 +449,62 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
                               ),
                             ],
                           ),
+                          if (isCompleted) ...[
+                            const Divider(height: 20),
+                            _detailRow(
+                              isApproved ? 'Approved by:' : 'Rejected by:',
+                              _decisionBy(leaveData, approved: isApproved),
+                            ),
+                            const SizedBox(height: 6),
+                            _detailRow(
+                              isApproved ? 'Approved at:' : 'Rejected at:',
+                              _decisionAt(leaveData, approved: isApproved),
+                            ),
+                            if (_decisionReason(leaveData).isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              _detailRow(
+                                isApproved
+                                    ? 'Approval note:'
+                                    : 'Rejection reason:',
+                                _decisionReason(leaveData),
+                              ),
+                            ],
+                          ],
                         ],
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Action Input
-                    Text(
-                      'Admin Response Reason',
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontSize: 18, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _reasonController,
-                      maxLines: 3,
-                      enabled: !_isProcessing,
-                      decoration: const InputDecoration(
-                        hintText: 'Enter approval note or rejection reason...',
-                        labelText: 'Response Reason / Note',
+                    if (isCompleted)
+                      const Center(
+                        child: StatusChip(
+                          label: 'Leave already reviewed',
+                          type: StatusChipType.neutral,
+                        ),
+                      )
+                    else ...[
+                      // Action Input
+                      Text(
+                        'Admin Response Reason',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _reasonController,
+                        maxLines: 3,
+                        enabled: !_isProcessing,
+                        decoration: const InputDecoration(
+                          hintText:
+                              'Enter approval note or rejection reason...',
+                          labelText: 'Response Reason / Note',
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
                     if (_statusMessage != null) ...[
                       Center(
@@ -436,33 +524,34 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
                     ],
 
                     // Action Buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: PrimaryActionButton(
-                            label: 'DECLINE',
-                            icon: Icons.close,
-                            isLoading: _isProcessing,
-                            style: ActionButtonStyle.tertiary,
-                            onPressed: _isProcessing
-                                ? null
-                                : () => _processLeave(false),
+                    if (!isCompleted)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: PrimaryActionButton(
+                              label: 'DECLINE',
+                              icon: Icons.close,
+                              isLoading: _isProcessing,
+                              style: ActionButtonStyle.tertiary,
+                              onPressed: _isProcessing
+                                  ? null
+                                  : () => _processLeave(false),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: PrimaryActionButton(
-                            label: 'APPROVE',
-                            icon: Icons.check,
-                            isLoading: _isProcessing,
-                            style: ActionButtonStyle.primary,
-                            onPressed: _isProcessing
-                                ? null
-                                : () => _processLeave(true),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: PrimaryActionButton(
+                              label: 'APPROVE',
+                              icon: Icons.check,
+                              isLoading: _isProcessing,
+                              style: ActionButtonStyle.primary,
+                              onPressed: _isProcessing
+                                  ? null
+                                  : () => _processLeave(true),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                   ],
                 ),
               );
@@ -471,5 +560,65 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
         },
       ),
     );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: IndustrialColors.onSurfaceVariant,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _decisionBy(Map<String, dynamic> data, {required bool approved}) {
+    final value = approved
+        ? data['approvedByName'] ??
+              data['approvedByEmail'] ??
+              data['decisionByName'] ??
+              data['decisionByEmail']
+        : data['rejectedByName'] ??
+              data['rejectedByEmail'] ??
+              data['decisionByName'] ??
+              data['decisionByEmail'];
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? 'Admin' : text;
+  }
+
+  String _decisionAt(Map<String, dynamic> data, {required bool approved}) {
+    final value = approved
+        ? data['approvedAtIst'] ??
+              data['decisionAtIst'] ??
+              data['respondedAtIst'] ??
+              data['respondedAt']
+        : data['rejectedAtIst'] ??
+              data['decisionAtIst'] ??
+              data['respondedAtIst'] ??
+              data['respondedAt'];
+    if (value is Timestamp) {
+      return value.toDate().toLocal().toString().split('.').first;
+    }
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? '-' : text.replaceFirst('T', ' ').split('.').first;
+  }
+
+  String _decisionReason(Map<String, dynamic> data) {
+    return (data['adminReason'] ?? data['decisionReason'] ?? '')
+        .toString()
+        .trim();
   }
 }

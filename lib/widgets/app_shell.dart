@@ -50,12 +50,14 @@ class _AppShellState extends State<AppShell> {
       '/admin-export-reports',
       '/admin-exit-requests',
       '/admin-salary',
+      '/admin-tasks',
       '/admin-settings',
       '/admin-profile',
       '/admin-create-user',
       '/dashboard',
       '/attendance-details',
       '/attendance-log',
+      '/tasks',
       '/salary',
       '/exit-company',
       '/profile',
@@ -141,6 +143,14 @@ class _AppShellState extends State<AppShell> {
                           icon: const Icon(Icons.chat_bubble_outline),
                           onPressed: () => context.go(
                             isAdminPath ? '/admin-messages' : '/messages',
+                          ),
+                          color: IndustrialColors.primary,
+                        ),
+                        IconButton(
+                          tooltip: 'Settings',
+                          icon: const Icon(Icons.settings_outlined),
+                          onPressed: () => context.go(
+                            isAdminPath ? '/admin-settings' : '/settings',
                           ),
                           color: IndustrialColors.primary,
                         ),
@@ -570,6 +580,8 @@ class _AdminTopBar extends StatelessWidget {
         return 'Leave Requests';
       case '/admin-salary':
         return 'Payroll';
+      case '/admin-tasks':
+        return 'Tasks';
       case '/admin-export-reports':
         return 'Export Reports';
       case '/admin-exit-requests':
@@ -584,6 +596,8 @@ class _AdminTopBar extends StatelessWidget {
         return 'Create User';
       case '/admin-settings':
         return 'Settings';
+      case '/tasks':
+        return 'Tasks';
       default:
         return fallback;
     }
@@ -602,6 +616,7 @@ class _AppDrawer extends StatelessWidget {
       _DrawerItem('Admin Dashboard', Icons.dashboard, '/admin-dashboard'),
       _DrawerItem('Attendance Logs', Icons.groups, '/admin-attendance'),
       _DrawerItem('Payroll', Icons.payments, '/admin-salary'),
+      _DrawerItem('Tasks', Icons.task_alt, '/admin-tasks'),
       _DrawerItem('Exit Requests', Icons.exit_to_app, '/admin-exit-requests'),
       _DrawerItem('Notifications', Icons.notifications, '/admin-notifications'),
       _DrawerItem('Messages', Icons.chat_bubble_outline, '/admin-messages'),
@@ -621,6 +636,7 @@ class _AppDrawer extends StatelessWidget {
         Icons.calendar_month,
         '/attendance-details',
       ),
+      _DrawerItem('Tasks', Icons.task_alt, '/tasks'),
       _DrawerItem('Salary Download', Icons.receipt_long, '/salary'),
       _DrawerItem('Exit Company', Icons.exit_to_app, '/exit-company'),
       _DrawerItem('Notifications', Icons.notifications, '/notifications'),

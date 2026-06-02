@@ -269,6 +269,7 @@ class _AttendanceDetailsScreenState extends State<AttendanceDetailsScreen> {
     final leaveStatus = leaveData?['status'] as String?;
     final hasOpenLeave =
         leaveStatus == 'requested_leave' || leaveStatus == 'approved_leave';
+    final hasLeaveRequest = leaveData != null;
 
     return IndustrialCard(
       child: Column(
@@ -290,6 +291,10 @@ class _AttendanceDetailsScreenState extends State<AttendanceDetailsScreen> {
           if ((leaveData?['reason'] as String?)?.trim().isNotEmpty == true) ...[
             const SizedBox(height: 8),
             Text('Reason: ${leaveData!['reason']}'),
+          ],
+          if (hasLeaveRequest) ...[
+            const SizedBox(height: 12),
+            _buildLeaveDecisionSummary(leaveData),
           ],
           const SizedBox(height: 14),
           Row(
@@ -314,6 +319,87 @@ class _AttendanceDetailsScreenState extends State<AttendanceDetailsScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLeaveDecisionSummary(Map<String, dynamic> leaveData) {
+    final status = leaveData['status'] as String? ?? 'requested_leave';
+    final approved = status.contains('approved');
+    final rejected = status.contains('rejected');
+    final isPending =
+        status == 'requested_leave' || status == 'pending' || status.isEmpty;
+    final statusType = approved
+        ? StatusChipType.success
+        : (rejected ? StatusChipType.alert : StatusChipType.pending);
+    final decisionBy = _decisionBy(leaveData, approved: approved);
+    final decisionAt = _decisionAt(leaveData, approved: approved);
+    final adminReason = _adminDecisionReason(leaveData);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: statusType == StatusChipType.alert
+            ? IndustrialColors.error.withValues(alpha: 0.08)
+            : IndustrialColors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: IndustrialColors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Leave request',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              StatusChip(label: status.replaceAll('_', ' '), type: statusType),
+            ],
+          ),
+          if (isPending) ...[
+            const SizedBox(height: 8),
+            const Text('Waiting for admin approval.'),
+          ] else ...[
+            const SizedBox(height: 8),
+            _leaveMetaLine(
+              approved ? 'Approved by' : 'Rejected by',
+              decisionBy,
+            ),
+            _leaveMetaLine(
+              approved ? 'Approved at' : 'Rejected at',
+              decisionAt,
+            ),
+            if (adminReason.isNotEmpty)
+              _leaveMetaLine(
+                approved ? 'Approval note' : 'Rejection reason',
+                adminReason,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _leaveMetaLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: RichText(
+        text: TextSpan(
+          style: Theme.of(context).textTheme.bodyMedium,
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            TextSpan(text: value),
+          ],
+        ),
       ),
     );
   }
@@ -465,6 +551,43 @@ class _AttendanceDetailsScreenState extends State<AttendanceDetailsScreen> {
     return '${value.year.toString().padLeft(4, '0')}-'
         '${value.month.toString().padLeft(2, '0')}-'
         '${value.day.toString().padLeft(2, '0')}';
+  }
+
+  String _decisionBy(Map<String, dynamic> data, {required bool approved}) {
+    final value = approved
+        ? data['approvedByName'] ??
+              data['approvedByEmail'] ??
+              data['decisionByName'] ??
+              data['decisionByEmail']
+        : data['rejectedByName'] ??
+              data['rejectedByEmail'] ??
+              data['decisionByName'] ??
+              data['decisionByEmail'];
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? 'Admin' : text;
+  }
+
+  String _decisionAt(Map<String, dynamic> data, {required bool approved}) {
+    final value = approved
+        ? data['approvedAtIst'] ??
+              data['decisionAtIst'] ??
+              data['respondedAtIst'] ??
+              data['respondedAt']
+        : data['rejectedAtIst'] ??
+              data['decisionAtIst'] ??
+              data['respondedAtIst'] ??
+              data['respondedAt'];
+    if (value is Timestamp) {
+      return value.toDate().toLocal().toString().split('.').first;
+    }
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? '-' : text.replaceFirst('T', ' ').split('.').first;
+  }
+
+  String _adminDecisionReason(Map<String, dynamic> data) {
+    return (data['adminReason'] ?? data['decisionReason'] ?? '')
+        .toString()
+        .trim();
   }
 
   DateTime _defaultSelectedDateFor(DateTime month) {

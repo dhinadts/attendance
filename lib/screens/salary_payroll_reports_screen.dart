@@ -24,7 +24,7 @@ class SalaryPayrollReportsScreen extends ConsumerWidget {
 
     return AppShell(
       title: 'Salary',
-      bottomNavigationBar: const EmployeeBottomNav(currentIndex: 3),
+      bottomNavigationBar: const EmployeeBottomNav(currentIndex: 4),
       child: profileAsync.when(
         skipLoadingOnRefresh: false,
         skipLoadingOnReload: false,

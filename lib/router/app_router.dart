@@ -23,6 +23,7 @@ import '../screens/salary_payroll_reports_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/startup_screen.dart';
 import '../screens/team_messages_screen.dart';
+import '../screens/task_board_screen.dart';
 import '../screens/admin_employees_screen.dart';
 import '../screens/admin_employee_detail_screen.dart';
 import '../screens/admin_export_reports_screen.dart';
@@ -198,6 +199,11 @@ final appRouter = GoRouter(
       builder: (context, state) => const AdminSalaryScreen(),
     ),
     GoRoute(
+      path: '/admin-tasks',
+      name: 'adminTasks',
+      builder: (context, state) => const TaskBoardScreen(adminMode: true),
+    ),
+    GoRoute(
       path: '/attendance',
       name: 'attendance',
       builder: (context, state) => const AttendanceGpsTrackingScreen(),
@@ -216,6 +222,11 @@ final appRouter = GoRouter(
       path: '/salary',
       name: 'salary',
       builder: (context, state) => const SalaryPayrollReportsScreen(),
+    ),
+    GoRoute(
+      path: '/tasks',
+      name: 'tasks',
+      builder: (context, state) => const TaskBoardScreen(adminMode: false),
     ),
     GoRoute(
       path: '/profile',
@@ -287,6 +298,7 @@ const _employeeOnlyRoutes = {
   '/attendance',
   '/attendance-details',
   '/attendance-log',
+  '/tasks',
   '/salary',
   '/profile',
   '/messages',

@@ -43,7 +43,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return AppShell(
       title: 'Settings',
       bottomNavigationBar: isAdmin
-          ? const AdminBottomNav(currentIndex: 3)
+          ? const AdminBottomNav(currentIndex: 4)
           : null,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

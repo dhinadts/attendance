@@ -12,6 +12,7 @@ class AdminBottomNav extends StatelessWidget {
     '/admin-dashboard',
     '/admin-employees',
     '/admin-salary',
+    '/admin-tasks',
     '/admin-settings',
   ];
 
@@ -36,6 +37,7 @@ class AdminBottomNav extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Admin'),
           BottomNavigationBarItem(icon: Icon(Icons.groups), label: 'Employees'),
           BottomNavigationBarItem(icon: Icon(Icons.payments), label: 'Payroll'),
+          BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Tasks'),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
             label: 'Settings',

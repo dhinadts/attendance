@@ -83,7 +83,7 @@ class _ExitCompanyScreenState extends State<ExitCompanyScreen> {
   Widget build(BuildContext context) {
     return AppShell(
       title: 'Exit Company',
-      bottomNavigationBar: const EmployeeBottomNav(currentIndex: 4),
+      bottomNavigationBar: const EmployeeBottomNav(currentIndex: 5),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

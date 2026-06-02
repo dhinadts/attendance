@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -129,7 +130,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         : (profile?.displayName ?? 'Employee');
 
     return AppShell(
-      title: 'dhinadts',
+      title: 'WorkSync Pro',
       bottomNavigationBar: EmployeeBottomNav(
         currentIndex: 0,
         attendanceAlert: _outsideOfficeSession,
@@ -178,22 +179,24 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 Expanded(
                   child: _quickCard(
                     context,
-                    'Exit Request',
-                    Icons.exit_to_app,
-                    () => context.go('/exit-company'),
+                    'Tasks',
+                    Icons.task_alt,
+                    () => context.go('/tasks'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _quickCard(
                     context,
-                    'Profile',
-                    Icons.person,
-                    () => context.go('/profile'),
+                    'Exit Request',
+                    Icons.exit_to_app,
+                    () => context.go('/exit-company'),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            _buildEmployeeActivityPanel(context),
           ],
         ),
       ),
@@ -338,6 +341,208 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           Icon(icon, color: IndustrialColors.primary, size: 30),
           const SizedBox(height: 8),
           Text(label, textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmployeeActivityPanel(BuildContext context) {
+    final profile = _profile;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (profile == null) {
+      return const IndustrialCard(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .appCollection('leave_requests')
+          .where('employeeId', isEqualTo: profile.employeeId)
+          .snapshots(),
+      builder: (context, leaveSnapshot) {
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .appCollection('salary_records')
+              .where('employeeId', isEqualTo: profile.employeeId)
+              .snapshots(),
+          builder: (context, salarySnapshot) {
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .appCollection('team_messages')
+                  .snapshots(),
+              builder: (context, messageSnapshot) {
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .appCollection('tasks')
+                      .where(
+                        'assignedToEmployeeId',
+                        isEqualTo: profile.employeeId,
+                      )
+                      .snapshots(),
+                  builder: (context, taskSnapshot) {
+                    final activities = <Map<String, dynamic>>[];
+                    activities.addAll(
+                      (leaveSnapshot.data?.docs ?? [])
+                          .where((doc) {
+                            final status = (doc.data()['status'] ?? '')
+                                .toString();
+                            return status.contains('approved') ||
+                                status.contains('rejected');
+                          })
+                          .map((doc) {
+                            final data = doc.data();
+                            final status = (data['status'] ?? '')
+                                .toString()
+                                .replaceAll('_', ' ');
+                            return {
+                              'title': 'Leave $status',
+                              'body':
+                                  '${data['date'] ?? '-'} by ${data['decisionByName'] ?? data['approvedByName'] ?? data['rejectedByName'] ?? 'Admin'}',
+                              'type': status.contains('approved')
+                                  ? StatusChipType.success
+                                  : StatusChipType.alert,
+                              'icon': Icons.event_available,
+                              'sort':
+                                  (data['decisionAtIst'] ??
+                                          data['approvedAtIst'] ??
+                                          data['rejectedAtIst'] ??
+                                          data['date'] ??
+                                          '')
+                                      .toString(),
+                            };
+                          }),
+                    );
+                    activities.addAll(
+                      (salarySnapshot.data?.docs ?? []).map((doc) {
+                        final data = doc.data();
+                        return {
+                          'title': 'Salary generated',
+                          'body':
+                              '${data['monthKey'] ?? data['month'] ?? '-'} ${data['generatedAtIst'] ?? data['uploadedAtIst'] ?? ''}',
+                          'type': StatusChipType.success,
+                          'icon': Icons.receipt_long,
+                          'sort':
+                              (data['generatedAtIst'] ??
+                                      data['uploadedAtIst'] ??
+                                      data['createdAtIst'] ??
+                                      '')
+                                  .toString(),
+                        };
+                      }),
+                    );
+                    activities.addAll(
+                      (messageSnapshot.data?.docs ?? [])
+                          .where((doc) {
+                            final data = doc.data();
+                            final topics = data['topics'];
+                            final teamMatch =
+                                data['team'] == profile.department ||
+                                data['department'] == profile.department ||
+                                data['teamId'] == profile.department ||
+                                (topics is List &&
+                                    topics.contains(profile.department));
+                            return data['recipientUid'] == currentUid ||
+                                data['employeeId'] == profile.employeeId ||
+                                data['targetType'] == 'all' ||
+                                teamMatch;
+                          })
+                          .map((doc) {
+                            final data = doc.data();
+                            return {
+                              'title': (data['title'] ?? 'Push notification')
+                                  .toString(),
+                              'body': (data['body'] ?? '').toString(),
+                              'type': StatusChipType.neutral,
+                              'icon': Icons.notifications_active,
+                              'sort': (data['createdAtIst'] ?? '').toString(),
+                            };
+                          }),
+                    );
+                    activities.addAll(
+                      (taskSnapshot.data?.docs ?? []).map((doc) {
+                        final data = doc.data();
+                        return {
+                          'title': 'Task: ${data['ticketKey'] ?? 'TASK'}',
+                          'body':
+                              '${data['title'] ?? 'Assigned task'} - ${data['status'] ?? 'todo'}',
+                          'type': (data['status'] ?? '') == 'done'
+                              ? StatusChipType.success
+                              : StatusChipType.pending,
+                          'icon': Icons.task_alt,
+                          'sort':
+                              (data['updatedAtIst'] ??
+                                      data['createdAtIst'] ??
+                                      '')
+                                  .toString(),
+                        };
+                      }),
+                    );
+                    activities.sort(
+                      (a, b) =>
+                          (b['sort'] as String).compareTo(a['sort'] as String),
+                    );
+                    final visible = activities.take(6).toList();
+
+                    return IndustrialCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'My Updates',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 12),
+                          if (visible.isEmpty)
+                            const StatusChip(
+                              label: 'No updates yet',
+                              type: StatusChipType.neutral,
+                            )
+                          else
+                            ...visible.map(_employeeActivityRow),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _employeeActivityRow(Map<String, dynamic> activity) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(
+            activity['icon'] as IconData,
+            color: IndustrialColors.primary,
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  activity['title'] as String,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  activity['body'] as String,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          StatusChip(label: 'NEW', type: activity['type'] as StatusChipType),
         ],
       ),
     );

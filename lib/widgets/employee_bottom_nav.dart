@@ -17,9 +17,9 @@ class EmployeeBottomNav extends StatelessWidget {
     '/dashboard',
     '/attendance-details',
     '/attendance-log',
+    '/tasks',
     '/salary',
     '/exit-company',
-    '/profile',
   ];
 
   @override
@@ -65,16 +65,16 @@ class EmployeeBottomNav extends StatelessWidget {
           ),
           const BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Log'),
           const BottomNavigationBarItem(
+            icon: Icon(Icons.task_alt),
+            label: 'Tasks',
+          ),
+          const BottomNavigationBarItem(
             icon: Icon(Icons.receipt_long),
             label: 'Salary',
           ),
           const BottomNavigationBarItem(
             icon: Icon(Icons.exit_to_app),
             label: 'Exit',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
           ),
         ],
       ),

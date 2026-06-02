@@ -186,6 +186,25 @@ service cloud.firestore {
       allow create, update, delete: if canManageSalary();
     }
 
+    match /tasks/{taskId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.assignedToEmployeeId == employeeId());
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (signedIn()
+          && resource.data.assignedToEmployeeId == employeeId()
+          && request.resource.data.assignedToEmployeeId == resource.data.assignedToEmployeeId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'latestScrumSummary',
+            'latestBlocker',
+            'latestHours',
+            'scrumReports',
+            'updatedAt',
+            'updatedAtIst'
+          ]));
+    }
+
     match /exit_requests/{requestId} {
       allow read: if isAdmin()
         || (signedIn() && resource.data.employeeId == employeeId());
@@ -441,6 +460,25 @@ service cloud.firestore {
       match /salary_structures/{employeeIdValue} {
         allow read: if appIsAdmin(appId) || appOwnsEmployee(appId, employeeIdValue);
         allow create, update, delete: if appCanManageSalary(appId);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.assignedToEmployeeId == appEmployeeId(appId));
+        allow create, delete: if appIsAdmin(appId);
+        allow update: if appIsAdmin(appId)
+          || (signedIn()
+            && resource.data.assignedToEmployeeId == appEmployeeId(appId)
+            && request.resource.data.assignedToEmployeeId == resource.data.assignedToEmployeeId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status',
+              'latestScrumSummary',
+              'latestBlocker',
+              'latestHours',
+              'scrumReports',
+              'updatedAt',
+              'updatedAtIst'
+            ]));
       }
 
       match /exit_requests/{requestId} {

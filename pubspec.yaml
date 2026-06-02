@@ -31,6 +31,8 @@ dependencies:
   path_provider: ^2.1.5
   device_info_plus: ^12.4.0
   shared_preferences: ^2.5.5
+  file_picker: ^10.3.7
+  excel: ^4.0.6
   
 dependency_overrides:
   lints: ^3.0.0
