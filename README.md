@@ -346,7 +346,7 @@ lib/widgets/admin_bottom_nav.dart
 lib/widgets/employee_bottom_nav.dart
 lib/screens/owner_dashboard_screen.dart
 lib/screens/employee_dashboard_screen.dart
-lib/screens/task_board_screen.dart
+lib/features/tasks/presentation/screens/task_board_screen.dart
 lib/screens/admin_leave_requests_screen.dart
 lib/screens/admin_leave_approval_screen.dart
 lib/screens/attendance_details_screen.dart
