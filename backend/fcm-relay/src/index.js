@@ -140,10 +140,19 @@ function messageDataFor(data, messageId) {
       type: String(data.type || ""),
       targetType: String(data.targetType || ""),
       targetTeam: String(data.targetTeam || ""),
+      targetTeams: Array.isArray(data.targetTeams)
+        ? data.targetTeams.join(", ")
+        : String(data.targetTeams || ""),
       senderRole: String(data.senderRole || ""),
       senderUid: String(data.senderUid || ""),
       senderName: String(data.senderName || ""),
+      senderEmployeeId: String(data.senderEmployeeId || ""),
+      recipientUid: String(data.recipientUid || ""),
+      recipientUids: Array.isArray(data.recipientUids)
+        ? data.recipientUids.join(", ")
+        : String(data.recipientUids || ""),
       employeeId: String(data.employeeId || ""),
+      department: String(data.department || ""),
       date: String(data.date || ""),
       requestId: String(data.requestId || ""),
       status: String(data.status || ""),
@@ -154,9 +163,20 @@ function messageDataFor(data, messageId) {
       priority: "high",
       notification: {
         channelId: ANDROID_NOTIFICATION_CHANNEL_ID,
-        priority: "high",
-        defaultSound: true,
+        notificationPriority: "PRIORITY_MAX",
+        sound: "default",
         clickAction: "FLUTTER_NOTIFICATION_CLICK",
+      },
+    },
+    apns: {
+      headers: {
+        "apns-priority": "10",
+      },
+      payload: {
+        aps: {
+          sound: "default",
+          badge: 1,
+        },
       },
     },
   };
@@ -332,6 +352,33 @@ function startHttpServer() {
   app.get("/health", (_request, response) => {
     response.status(200).send("ok");
   });
+  app.post("/api/fcm/send", async (request, response) => {
+    try {
+      requireApiKey(request);
+      const message = buildFcmOutboxMessage(request.body || {});
+      const messageRef = await firestore.collection("team_messages").add({
+        ...message,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      await firestore.collection("fcm_outbox").doc(messageRef.id).set({
+        ...message,
+        messageId: messageRef.id,
+        status: "pending",
+        delivery: "external_fcm_relay_api",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      response.status(202).json({
+        ok: true,
+        messageId: messageRef.id,
+        status: "pending",
+      });
+    } catch (error) {
+      response.status(error.statusCode || 400).json({
+        ok: false,
+        error: error.message || String(error),
+      });
+    }
+  });
   app.post("/api/payroll/upload", async (request, response) => {
     try {
       requireApiKey(request);
@@ -371,6 +418,51 @@ function startHttpServer() {
   return app.listen(PORT, () => {
     console.log(`attendance-fcm-relay listening on ${PORT}`);
   });
+}
+
+function buildFcmOutboxMessage(body) {
+  const title = String(body.title || "").trim();
+  const messageBody = String(body.body || "").trim();
+  if (!title) throw new Error("title is required");
+  if (!messageBody) throw new Error("body is required");
+
+  const targetTeams = Array.isArray(body.targetTeams)
+    ? body.targetTeams.map((team) => String(team).trim()).filter(Boolean)
+    : [];
+  const topics = Array.isArray(body.topics)
+    ? body.topics.map((topic) => String(topic).trim()).filter(Boolean)
+    : [];
+  const recipientUids = Array.isArray(body.recipientUids)
+    ? body.recipientUids.map((uid) => String(uid).trim()).filter(Boolean)
+    : [];
+  const recipientUid = String(body.recipientUid || "").trim();
+  if (recipientUid) recipientUids.push(recipientUid);
+
+  if (topics.length === 0 && recipientUids.length === 0) {
+    throw new Error("At least one topic, recipientUid, or recipientUids entry is required");
+  }
+
+  const createdAtIst = new Date(Date.now() + 19800000).toISOString();
+  return {
+    title,
+    body: messageBody,
+    senderUid: String(body.senderUid || "backend_api").trim(),
+    senderEmail: String(body.senderEmail || "").trim(),
+    senderRole: String(body.senderRole || "admin").trim(),
+    senderName: String(body.senderName || "Admin").trim(),
+    senderEmployeeId: String(body.senderEmployeeId || "").trim(),
+    targetType: String(body.targetType || (targetTeams.length > 0 ? "teams" : "direct")).trim(),
+    targetTeam: String(body.targetTeam || (targetTeams.length === 1 ? targetTeams[0] : targetTeams.join(", "))).trim(),
+    targetTeams,
+    topics: [...new Set(topics)],
+    recipientUids: [...new Set(recipientUids)],
+    type: String(body.type || "team_message").trim(),
+    employeeId: String(body.employeeId || "").trim(),
+    department: String(body.department || "").trim(),
+    date: String(body.date || "").trim(),
+    requestId: String(body.requestId || "").trim(),
+    createdAtIst,
+  };
 }
 
 function requireApiKey(request) {

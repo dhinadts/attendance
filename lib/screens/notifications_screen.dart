@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../constants/organization_options.dart';
 import '../services/attendance_session_service.dart';
 import '../services/auth_role_service.dart';
 import '../services/fcm_notification_service.dart';
@@ -191,6 +192,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (!isRead) {
       _markRead(messageId);
     }
+
+    if (_role == AppUserRole.admin) {
+      final employeeId =
+          data['employeeId'] as String? ?? data['senderEmployeeId'] as String?;
+      if (employeeId != null && employeeId.isNotEmpty) {
+        if (mounted) {
+          context.go(
+            '/admin-notifications/employee?employeeId=${Uri.encodeComponent(employeeId)}&messageId=${Uri.encodeComponent(messageId)}&open=1',
+          );
+        }
+        return;
+      }
+    }
+
     final actionRoute = await FcmNotificationService.instance
         .actionRouteForNotificationData({...data, 'messageId': messageId});
     if (!mounted) return;
@@ -332,6 +347,476 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     };
   }
 
+  Widget _buildEmployeeHeader() {
+    if (_profile == null) return const SizedBox.shrink();
+
+    final name = _profile?.employeeName ?? '';
+    final dept = _profile?.department ?? '';
+    final role = _profile?.role ?? 'EMPLOYEE';
+    final empId = _profile?.employeeId ?? '';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: IndustrialColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: IndustrialColors.outlineVariant, width: 1),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: IndustrialColors.primary,
+            foregroundColor: Colors.white,
+            child: Text(
+              name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'E',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: IndustrialColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$role | Code: $empId',
+                  style: const TextStyle(
+                    color: IndustrialColors.onSurfaceVariant,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: IndustrialColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'TEAM: ${dept.toUpperCase()}',
+                    style: const TextStyle(
+                      color: IndustrialColors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmployeeView(bool isLoading) {
+    return Stack(
+      children: [
+        Column(
+          children: [
+            _buildEmployeeHeader(),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _messagesStream(),
+                builder: (context, messageSnapshot) {
+                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: _readsStream(),
+                    builder: (context, readSnapshot) {
+                      final readIds = (readSnapshot.data?.docs ?? [])
+                          .map((doc) => doc.data()['messageId'] as String?)
+                          .whereType<String>()
+                          .toSet();
+                      final notifications = (messageSnapshot.data?.docs ?? [])
+                          .where((doc) => _isRelevant(doc.data()))
+                          .toList();
+
+                      if (notifications.isEmpty && !isLoading) {
+                        return const Center(
+                          child: StatusChip(
+                            label: 'No notifications yet',
+                            type: StatusChipType.neutral,
+                          ),
+                        );
+                      }
+
+                      return ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: notifications.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final doc = notifications[index];
+                          final data = doc.data();
+                          final isRead = readIds.contains(doc.id);
+                          final isSelected = widget.initialMessageId == doc.id;
+                          return IndustrialCard(
+                            highlighted: !isRead || isSelected,
+                            onTap: () =>
+                                _openNotification(doc.id, data, isRead),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  isRead
+                                      ? Icons.notifications_none
+                                      : Icons.notifications_active,
+                                  color: isRead
+                                      ? IndustrialColors.onSurfaceVariant
+                                      : IndustrialColors.primary,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        data['title'] as String? ??
+                                            'Notification',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        data['body'] as String? ?? '',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 6,
+                                        children: [
+                                          Text(
+                                            data['createdAtIst'] as String? ??
+                                                '',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: IndustrialColors
+                                                      .onSurfaceVariant,
+                                                ),
+                                          ),
+                                          StatusChip(
+                                            label: _targetLabel(data),
+                                            type: StatusChipType.neutral,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (!isRead)
+                                  const StatusChip(
+                                    label: 'NEW',
+                                    type: StatusChipType.success,
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        if (isLoading)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              minHeight: 3,
+              backgroundColor: Colors.transparent,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAdminView(bool isLoading) {
+    return Stack(
+      children: [
+        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('employee_profiles')
+              .snapshots(),
+          builder: (context, employeesSnapshot) {
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _messagesStream(),
+              builder: (context, messageSnapshot) {
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _readsStream(),
+                  builder: (context, readSnapshot) {
+                    final employeeDocs = employeesSnapshot.data?.docs ?? [];
+                    final messageDocs = messageSnapshot.data?.docs ?? [];
+                    final readIds = (readSnapshot.data?.docs ?? [])
+                        .map((doc) => doc.data()['messageId'] as String?)
+                        .whereType<String>()
+                        .toSet();
+
+                    final profilesByEmployeeId =
+                        <String, Map<String, dynamic>>{};
+                    final employeesByTeam =
+                        <String, List<Map<String, dynamic>>>{};
+                    for (final doc in employeeDocs) {
+                      final data = doc.data();
+                      final employeeId =
+                          (data['employeeId'] as String?)?.trim() ?? doc.id;
+                      final team =
+                          (data['department'] as String?)
+                              ?.trim()
+                              .toUpperCase() ??
+                          'GENERAL';
+                      final profile = {
+                        ...data,
+                        'employeeId': employeeId,
+                        'department': team,
+                      };
+                      profilesByEmployeeId[employeeId] = profile;
+                      employeesByTeam.putIfAbsent(team, () => []).add(profile);
+                    }
+
+                    for (final team in OrganizationOptions.teams) {
+                      employeesByTeam.putIfAbsent(team.toUpperCase(), () => []);
+                    }
+
+                    final relevantMessages = messageDocs.where(
+                      (doc) => _isRelevant(doc.data()),
+                    );
+                    final unreadByTeam = <String, int>{};
+                    var generalUnread = 0;
+                    var generalCount = 0;
+                    for (final doc in relevantMessages) {
+                      final data = doc.data();
+                      final isUnread = !readIds.contains(doc.id);
+                      final employeeId =
+                          (data['employeeId'] as String?)?.trim().isNotEmpty ==
+                              true
+                          ? (data['employeeId'] as String).trim()
+                          : (data['senderEmployeeId'] as String?)?.trim();
+                      final profile = employeeId == null
+                          ? null
+                          : profilesByEmployeeId[employeeId];
+                      final team = (profile?['department'] as String?)
+                          ?.trim()
+                          .toUpperCase();
+                      if (team == null || team.isEmpty) {
+                        generalCount++;
+                        if (isUnread) generalUnread++;
+                        continue;
+                      }
+                      if (isUnread) {
+                        unreadByTeam[team] = (unreadByTeam[team] ?? 0) + 1;
+                      }
+                    }
+
+                    final teamsList = employeesByTeam.keys.toList()..sort();
+
+                    return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        IndustrialCard(
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.notifications,
+                                color: IndustrialColors.primary,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Team Notification Directory',
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Open a team, choose an employee, then inspect sent and received notifications.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: IndustrialColors
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        if (generalCount > 0)
+                          IndustrialCard(
+                            onTap: () {
+                              QueryDocumentSnapshot<Map<String, dynamic>>?
+                              firstGeneral;
+                              for (final doc in relevantMessages) {
+                                final data = doc.data();
+                                final employeeId =
+                                    data['employeeId'] as String? ??
+                                    data['senderEmployeeId'] as String?;
+                                if (employeeId == null ||
+                                    employeeId.trim().isEmpty) {
+                                  firstGeneral = doc;
+                                  break;
+                                }
+                              }
+                              if (firstGeneral != null) {
+                                _openNotification(
+                                  firstGeneral.id,
+                                  firstGeneral.data(),
+                                  readIds.contains(firstGeneral.id),
+                                );
+                              }
+                            },
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.campaign,
+                                  color: IndustrialColors.primary,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'General Broadcasts',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text('$generalCount messages'),
+                                    ],
+                                  ),
+                                ),
+                                StatusChip(
+                                  label: generalUnread > 0
+                                      ? '$generalUnread new'
+                                      : 'cleared',
+                                  type: generalUnread > 0
+                                      ? StatusChipType.success
+                                      : StatusChipType.neutral,
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (generalCount > 0) const SizedBox(height: 12),
+                        ...teamsList.map((teamName) {
+                          final employees = employeesByTeam[teamName] ?? [];
+                          final unread = unreadByTeam[teamName] ?? 0;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: IndustrialCard(
+                              onTap: () => context.go(
+                                '/admin-notifications/team?team=${Uri.encodeComponent(teamName)}',
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: IndustrialColors.primary
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.groups,
+                                      color: IndustrialColors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          teamName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${employees.length} employees',
+                                          style: const TextStyle(
+                                            color: IndustrialColors
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  StatusChip(
+                                    label: unread > 0 ? '$unread new' : 'open',
+                                    type: unread > 0
+                                        ? StatusChipType.success
+                                        : StatusChipType.neutral,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.chevron_right,
+                                    color: IndustrialColors.onSurfaceVariant,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
+        if (isLoading)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              minHeight: 3,
+              backgroundColor: Colors.transparent,
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLoading = _profileLoading || _loadingInitialMessage;
@@ -340,122 +825,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       title: _role == AppUserRole.admin
           ? 'Admin Notifications'
           : 'Notifications',
-      child: Stack(
-        children: [
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: _messagesStream(),
-            builder: (context, messageSnapshot) {
-              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: _readsStream(),
-                builder: (context, readSnapshot) {
-                  final readIds = (readSnapshot.data?.docs ?? [])
-                      .map((doc) => doc.data()['messageId'] as String?)
-                      .whereType<String>()
-                      .toSet();
-                  final notifications = (messageSnapshot.data?.docs ?? [])
-                      .where((doc) => _isRelevant(doc.data()))
-                      .toList();
-
-                  if (notifications.isEmpty && !isLoading) {
-                    return const Center(
-                      child: StatusChip(
-                        label: 'No notifications yet',
-                        type: StatusChipType.neutral,
-                      ),
-                    );
-                  }
-
-                  return ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: notifications.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final doc = notifications[index];
-                      final data = doc.data();
-                      final isRead = readIds.contains(doc.id);
-                      final isSelected = widget.initialMessageId == doc.id;
-                      return IndustrialCard(
-                        highlighted: !isRead || isSelected,
-                        onTap: () => _openNotification(doc.id, data, isRead),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              isRead
-                                  ? Icons.notifications_none
-                                  : Icons.notifications_active,
-                              color: isRead
-                                  ? IndustrialColors.onSurfaceVariant
-                                  : IndustrialColors.primary,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    data['title'] as String? ?? 'Notification',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    data['body'] as String? ?? '',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 6,
-                                    children: [
-                                      Text(
-                                        data['createdAtIst'] as String? ?? '',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: IndustrialColors
-                                                  .onSurfaceVariant,
-                                            ),
-                                      ),
-                                      StatusChip(
-                                        label: _targetLabel(data),
-                                        type: StatusChipType.neutral,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (!isRead)
-                              const StatusChip(
-                                label: 'NEW',
-                                type: StatusChipType.success,
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-              );
-            },
-          ),
-          if (isLoading)
-            const Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: LinearProgressIndicator(
-                minHeight: 3,
-                backgroundColor: Colors.transparent,
-              ),
-            ),
-        ],
-      ),
+      child: _role == AppUserRole.admin
+          ? _buildAdminView(isLoading)
+          : _buildEmployeeView(isLoading),
     );
   }
 }

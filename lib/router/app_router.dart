@@ -17,6 +17,8 @@ import '../screens/exit_company_screen.dart';
 import '../screens/owner_dashboard_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/notifications_screen.dart';
+import '../screens/notification_employee_detail_screen.dart';
+import '../screens/notification_team_screen.dart';
 import '../screens/salary_payroll_reports_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/startup_screen.dart';
@@ -230,6 +232,21 @@ final appRouter = GoRouter(
       path: '/admin-notifications',
       name: 'adminNotifications',
       builder: (context, state) => NotificationsScreen(
+        initialMessageId: state.uri.queryParameters['messageId'],
+        autoOpen: state.uri.queryParameters['open'] == '1',
+      ),
+    ),
+    GoRoute(
+      path: '/admin-notifications/team',
+      name: 'adminNotificationTeam',
+      builder: (context, state) =>
+          NotificationTeamScreen(team: state.uri.queryParameters['team'] ?? ''),
+    ),
+    GoRoute(
+      path: '/admin-notifications/employee',
+      name: 'adminNotificationEmployee',
+      builder: (context, state) => NotificationEmployeeDetailScreen(
+        employeeId: state.uri.queryParameters['employeeId'],
         initialMessageId: state.uri.queryParameters['messageId'],
         autoOpen: state.uri.queryParameters['open'] == '1',
       ),

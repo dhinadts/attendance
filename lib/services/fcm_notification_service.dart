@@ -251,6 +251,7 @@ class FcmNotificationService {
           'messageId': data['messageId'] ?? '',
           'type': data['type'] ?? '',
           'employeeId': data['employeeId'] ?? '',
+          'senderEmployeeId': data['senderEmployeeId'] ?? '',
           'date': data['date'] ?? '',
           'requestId': data['requestId'] ?? '',
         }),
@@ -455,6 +456,19 @@ class FcmNotificationService {
     final role = await _authRoleService.currentRole();
     final isAdmin = role == AppUserRole.admin;
     final messageId = data['messageId'] as String?;
+
+    if (isAdmin) {
+      final employeeId =
+          data['employeeId'] as String? ?? data['senderEmployeeId'] as String?;
+      if (employeeId != null && employeeId.isNotEmpty) {
+        final encodedEmployeeId = Uri.encodeComponent(employeeId);
+        if (messageId == null || messageId.isEmpty) {
+          return '/admin-notifications/employee?employeeId=$encodedEmployeeId';
+        }
+        return '/admin-notifications/employee?employeeId=$encodedEmployeeId&messageId=${Uri.encodeComponent(messageId)}&open=1';
+      }
+    }
+
     final route = isAdmin ? '/admin-notifications' : '/notifications';
     return messageId == null || messageId.isEmpty
         ? route
