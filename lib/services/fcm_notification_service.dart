@@ -162,19 +162,23 @@ class FcmNotificationService {
       final messageId = decoded['messageId'] as String?;
       final role = await _authRoleService.currentRole();
       final messageRoute = role == AppUserRole.admin
-          ? '/admin-messages'
-          : '/messages';
+          ? '/admin-notifications'
+          : '/notifications';
       _openRouteOrStore(
         messageId == null || messageId.isEmpty
             ? messageRoute
-            : '$messageRoute?messageId=$messageId',
+            : '$messageRoute?messageId=${Uri.encodeComponent(messageId)}&open=1',
       );
     } catch (_) {
       // fallback
       final role = await _authRoleService.currentRole();
-      final route = role == AppUserRole.admin ? '/admin-messages' : '/messages';
+      final route = role == AppUserRole.admin
+          ? '/admin-notifications'
+          : '/notifications';
       _openRouteOrStore(
-        payload.contains('/') ? payload : '$route?messageId=$payload',
+        payload.contains('/')
+            ? payload
+            : '$route?messageId=${Uri.encodeComponent(payload)}&open=1',
       );
     }
   }
@@ -188,11 +192,13 @@ class FcmNotificationService {
 
     final role = await _authRoleService.currentRole();
     final messageRoute = role == AppUserRole.admin
-        ? '/admin-messages'
-        : '/messages';
+        ? '/admin-notifications'
+        : '/notifications';
     final messageId = message.data['messageId'] as String?;
     _openRouteOrStore(
-      messageId == null ? messageRoute : '$messageRoute?messageId=$messageId',
+      messageId == null || messageId.isEmpty
+          ? messageRoute
+          : '$messageRoute?messageId=${Uri.encodeComponent(messageId)}&open=1',
     );
   }
 
@@ -206,6 +212,8 @@ class FcmNotificationService {
       data: message.data,
       source: 'foreground',
     );
+
+    await _handleRemoteMessageTap(message);
 
     if (messageId != null &&
         messageId.isNotEmpty &&
@@ -222,6 +230,7 @@ class FcmNotificationService {
       body: body,
       data: message.data,
       onOpen: () => _handleRemoteMessageTap(message),
+      showInAppDialog: false,
     );
   }
 
@@ -231,6 +240,7 @@ class FcmNotificationService {
     required String body,
     required Map<String, dynamic> data,
     required VoidCallback onOpen,
+    bool showInAppDialog = true,
   }) async {
     if (!kIsWeb) {
       await _localNotifications.show(
@@ -257,6 +267,8 @@ class FcmNotificationService {
         ),
       );
     }
+
+    if (!showInAppDialog) return;
 
     final context = navigatorKey.currentContext;
     if (context == null || !context.mounted) return;
@@ -440,6 +452,18 @@ class FcmNotificationService {
   static String topicForTeam(String team) => _topicForTeam(team);
 
   Future<String?> routeForNotificationData(Map<String, dynamic> data) async {
+    final role = await _authRoleService.currentRole();
+    final isAdmin = role == AppUserRole.admin;
+    final messageId = data['messageId'] as String?;
+    final route = isAdmin ? '/admin-notifications' : '/notifications';
+    return messageId == null || messageId.isEmpty
+        ? route
+        : '$route?messageId=${Uri.encodeComponent(messageId)}&open=1';
+  }
+
+  Future<String?> actionRouteForNotificationData(
+    Map<String, dynamic> data,
+  ) async {
     final user = _auth.currentUser;
     final role = await _authRoleService.currentRole();
     final isAdmin = role == AppUserRole.admin;

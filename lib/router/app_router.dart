@@ -216,7 +216,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/notifications',
       name: 'notifications',
-      builder: (context, state) => const NotificationsScreen(),
+      builder: (context, state) => NotificationsScreen(
+        initialMessageId: state.uri.queryParameters['messageId'],
+        autoOpen: state.uri.queryParameters['open'] == '1',
+      ),
     ),
     GoRoute(
       path: '/admin-messages',
@@ -226,7 +229,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/admin-notifications',
       name: 'adminNotifications',
-      builder: (context, state) => const NotificationsScreen(),
+      builder: (context, state) => NotificationsScreen(
+        initialMessageId: state.uri.queryParameters['messageId'],
+        autoOpen: state.uri.queryParameters['open'] == '1',
+      ),
     ),
     GoRoute(
       path: '/exit-company',

@@ -12,7 +12,14 @@ import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({
+    super.key,
+    this.initialMessageId,
+    this.autoOpen = false,
+  });
+
+  final String? initialMessageId;
+  final bool autoOpen;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -23,6 +30,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final _authRoleService = AuthRoleService();
   AppUserRole _role = AppUserRole.employee;
   EmployeeProfile? _profile;
+  String? _openedInitialMessageId;
 
   @override
   void initState() {
@@ -114,17 +122,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (!isRead) {
       _markRead(messageId);
     }
-    final type = data['type'] as String?;
-    if (_role == AppUserRole.admin &&
-        (type == 'leave_request' ||
-            type == 'attendance_mark_request' ||
-            type == 'exit_request')) {
-      final route = await FcmNotificationService.instance
-          .routeForNotificationData({...data, 'messageId': messageId});
-      if (!mounted || route == null) return;
-      context.go(route);
-      return;
-    }
+    final actionRoute = await FcmNotificationService.instance
+        .actionRouteForNotificationData({...data, 'messageId': messageId});
+    if (!mounted) return;
+
+    final targetLabel = _targetLabel(data);
+    final createdAt = data['createdAtIst'] as String? ?? '';
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -136,32 +139,106 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           children: [
             Text(
               data['title'] as String? ?? 'Notification',
-              style: Theme.of(context).textTheme.headlineSmall,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: IndustrialColors.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-            const SizedBox(height: 8),
-            StatusChip(
-              label: data['targetTeam'] as String? ?? 'all',
-              type: StatusChipType.neutral,
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                StatusChip(label: targetLabel, type: StatusChipType.neutral),
+                if (!isRead)
+                  const StatusChip(label: 'NEW', type: StatusChipType.success),
+              ],
             ),
-            const SizedBox(height: 16),
-            Text(data['body'] as String? ?? ''),
             const SizedBox(height: 16),
             Text(
-              '${data['senderName'] ?? data['senderRole'] ?? '-'} | ${data['createdAtIst'] ?? '-'}',
+              data['body'] as String? ?? '',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '${data['senderName'] ?? data['senderRole'] ?? '-'} | $createdAt',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: IndustrialColors.onSurfaceVariant,
               ),
             ),
+            if (actionRoute != null) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    context.go(actionRoute);
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(_actionLabel(data)),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
+  void _maybeOpenInitialNotification(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> notifications,
+    Set<String> readIds,
+  ) {
+    final messageId = widget.initialMessageId;
+    if (!widget.autoOpen ||
+        messageId == null ||
+        messageId.isEmpty ||
+        _openedInitialMessageId == messageId) {
+      return;
+    }
+
+    QueryDocumentSnapshot<Map<String, dynamic>>? target;
+    for (final doc in notifications) {
+      if (doc.id == messageId) {
+        target = doc;
+        break;
+      }
+    }
+    if (target == null) return;
+
+    _openedInitialMessageId = messageId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _openNotification(target!.id, target.data(), readIds.contains(target.id));
+    });
+  }
+
+  String _targetLabel(Map<String, dynamic> data) {
+    final targetTeam = data['targetTeam'] as String?;
+    if (targetTeam != null && targetTeam.trim().isNotEmpty) return targetTeam;
+    final targetTeams = (data['targetTeams'] as List?)?.whereType<String>();
+    if (targetTeams != null && targetTeams.isNotEmpty) {
+      return targetTeams.join(', ');
+    }
+    return data['targetType'] as String? ?? 'all';
+  }
+
+  String _actionLabel(Map<String, dynamic> data) {
+    return switch (data['type'] as String?) {
+      'leave_request' => 'Open Leave Request',
+      'attendance_mark_request' => 'Open Attendance Request',
+      'exit_request' => 'Open Exit Request',
+      _ => 'Open Message',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      title: 'Notifications',
+      title: _role == AppUserRole.admin
+          ? 'Admin Notifications'
+          : 'Notifications',
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _messagesStream(),
         builder: (context, messageSnapshot) {
@@ -175,6 +252,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               final notifications = (messageSnapshot.data?.docs ?? [])
                   .where((doc) => _isRelevant(doc.data()))
                   .toList();
+              _maybeOpenInitialNotification(notifications, readIds);
 
               if (notifications.isEmpty) {
                 return const Center(
@@ -194,8 +272,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   final doc = notifications[index];
                   final data = doc.data();
                   final isRead = readIds.contains(doc.id);
+                  final isSelected = widget.initialMessageId == doc.id;
                   return IndustrialCard(
-                    highlighted: !isRead,
+                    highlighted: !isRead || isSelected,
                     onTap: () => _openNotification(doc.id, data, isRead),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,16 +301,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               const SizedBox(height: 6),
                               Text(
                                 data['body'] as String? ?? '',
-                                maxLines: 3,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 8),
-                              Text(
-                                data['createdAtIst'] as String? ?? '',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: IndustrialColors.onSurfaceVariant,
-                                    ),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                children: [
+                                  Text(
+                                    data['createdAtIst'] as String? ?? '',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color:
+                                              IndustrialColors.onSurfaceVariant,
+                                        ),
+                                  ),
+                                  StatusChip(
+                                    label: _targetLabel(data),
+                                    type: StatusChipType.neutral,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
