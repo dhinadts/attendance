@@ -431,9 +431,7 @@ class FcmNotificationService {
       'targetTeam': sendToAllTeams ? 'all' : normalizedTeams.join(', '),
       'targetTeams': sendToAllTeams ? <String>[] : normalizedTeams,
       'topics': topics,
-      'type': !senderRole.isAdminLike
-          ? 'employee_message'
-          : 'team_message',
+      'type': !senderRole.isAdminLike ? 'employee_message' : 'team_message',
       'createdAt': FieldValue.serverTimestamp(),
       'createdAtIst': nowIst,
     };
@@ -457,6 +455,19 @@ class FcmNotificationService {
     final role = await _authRoleService.currentRole();
     final isAdmin = role?.isAdminLike == true;
     final messageId = data['messageId'] as String?;
+    final type = data['type'] as String?;
+
+    if (!isAdmin && type == 'task_assigned') {
+      return '/tasks';
+    }
+
+    if (!isAdmin && type == 'salary_generated') {
+      return '/salary';
+    }
+
+    if (!isAdmin && type == 'leave_response') {
+      return '/attendance-details';
+    }
 
     if (isAdmin) {
       final employeeId =

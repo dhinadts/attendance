@@ -393,8 +393,8 @@ function publicTask(taskId, data) {
   return { id: taskId, ...data };
 }
 
-async function maybeNotifyTaskAssignment(firestore, task, notify) {
-  if (notify === false || !task.assignedToUid) return null;
+async function maybeNotifyTaskAssignment(firestore, task) {
+  if (!task.assignedToUid) return null;
   return queueNotification(
     firestore,
     {
@@ -1090,7 +1090,6 @@ function startHttpServer() {
     const notification = await maybeNotifyTaskAssignment(
       firestore,
       record,
-      request.body?.notify,
     );
     response.status(201).json({
       ok: true,
@@ -1125,10 +1124,8 @@ function startHttpServer() {
     }
     await batch.commit();
 
-    if (request.body?.notify === true) {
-      for (const task of created) {
-        await maybeNotifyTaskAssignment(firestore, task, true);
-      }
+    for (const task of created) {
+      await maybeNotifyTaskAssignment(firestore, task);
     }
 
     response.status(201).json({ ok: true, count: created.length, tasks: created });

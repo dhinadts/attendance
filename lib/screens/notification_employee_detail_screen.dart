@@ -145,11 +145,12 @@ class _NotificationEmployeeDetailScreenState
         targetTeams?.contains(department) == true;
   }
 
-  bool _messageIsSentByEmployee(Map<String, dynamic> data) {
-    final employeeId = (_employee?['employeeId'] as String?)?.trim();
-    return employeeId != null &&
-        employeeId.isNotEmpty &&
-        data['senderEmployeeId'] == employeeId;
+  bool _messageIsOutgoing(Map<String, dynamic> data) {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    return data['senderUid'] == user.uid ||
+        ((data['senderEmail'] as String?)?.trim().toLowerCase() ==
+            user.email?.trim().toLowerCase());
   }
 
   Future<void> _markRead(String messageId) async {
@@ -352,7 +353,7 @@ class _NotificationEmployeeDetailScreenState
                       final doc = messages[index - 1];
                       final data = doc.data();
                       final isRead = readIds.contains(doc.id);
-                      final sentByEmployee = _messageIsSentByEmployee(data);
+                      final isOutgoing = _messageIsOutgoing(data);
                       return IndustrialCard(
                         highlighted:
                             !isRead || widget.initialMessageId == doc.id,
@@ -361,10 +362,10 @@ class _NotificationEmployeeDetailScreenState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Icon(
-                              sentByEmployee
-                                  ? Icons.north_east
-                                  : Icons.south_west,
-                              color: sentByEmployee
+                              isOutgoing
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
+                              color: isOutgoing
                                   ? IndustrialColors.tertiary
                                   : IndustrialColors.primary,
                             ),
@@ -391,10 +392,8 @@ class _NotificationEmployeeDetailScreenState
                                     runSpacing: 6,
                                     children: [
                                       StatusChip(
-                                        label: sentByEmployee
-                                            ? 'sent'
-                                            : 'received',
-                                        type: sentByEmployee
+                                        label: isOutgoing ? 'sent' : 'received',
+                                        type: isOutgoing
                                             ? StatusChipType.pending
                                             : StatusChipType.neutral,
                                       ),

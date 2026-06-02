@@ -344,8 +344,33 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       'leave_request' => 'Open Leave Request',
       'attendance_mark_request' => 'Open Attendance Request',
       'exit_request' => 'Open Exit Request',
+      'task_assigned' => 'Open Task',
+      'salary_generated' => 'Open Salary',
+      'leave_response' => 'Open Attendance',
       _ => 'Open Message',
     };
+  }
+
+  bool _isOutgoing(Map<String, dynamic> data) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    return data['senderUid'] == user.uid ||
+        ((data['senderEmail'] as String?)?.trim().toLowerCase() ==
+            user.email?.trim().toLowerCase());
+  }
+
+  IconData _directionIcon(Map<String, dynamic> data) {
+    return _isOutgoing(data) ? Icons.arrow_upward : Icons.arrow_downward;
+  }
+
+  Color _directionColor(Map<String, dynamic> data) {
+    return _isOutgoing(data)
+        ? IndustrialColors.tertiary
+        : IndustrialColors.primary;
+  }
+
+  String _directionLabel(Map<String, dynamic> data) {
+    return _isOutgoing(data) ? 'sent' : 'received';
   }
 
   Widget _buildEmployeeHeader() {
@@ -471,12 +496,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Icon(
-                                  isRead
-                                      ? Icons.notifications_none
-                                      : Icons.notifications_active,
+                                  _directionIcon(data),
                                   color: isRead
                                       ? IndustrialColors.onSurfaceVariant
-                                      : IndustrialColors.primary,
+                                      : _directionColor(data),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -512,6 +535,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                                   color: IndustrialColors
                                                       .onSurfaceVariant,
                                                 ),
+                                          ),
+                                          StatusChip(
+                                            label: _directionLabel(data),
+                                            type: _isOutgoing(data)
+                                                ? StatusChipType.pending
+                                                : StatusChipType.neutral,
                                           ),
                                           StatusChip(
                                             label: _targetLabel(data),

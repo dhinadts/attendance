@@ -391,18 +391,22 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
         ? _profile!.displayName
         : (user?.email ?? 'Admin');
     final docRef = _firestore.appCollection('tasks').doc();
-    await docRef.set({
-      'ticketKey': payload.ticketKey.trim().isEmpty
-          ? 'DTS-${docRef.id.substring(0, 5).toUpperCase()}'
-          : payload.ticketKey.trim(),
+    final ticketKey = payload.ticketKey.trim().isEmpty
+        ? 'DTS-${docRef.id.substring(0, 5).toUpperCase()}'
+        : payload.ticketKey.trim();
+    final record = {
+      'id': docRef.id,
+      'ticketKey': ticketKey,
       'title': payload.title.trim(),
       'description': payload.description.trim(),
       'team': payload.team.trim(),
+      'teamId': payload.team.trim(),
       'priority': payload.priority,
       'status': 'todo',
-      'assignedToEmployeeId': payload.employeeId,
-      'assignedToName': payload.employeeName,
+      'assignedToEmployeeId': payload.employeeId.trim(),
+      'assignedToName': payload.employeeName.trim(),
       'assignedByUid': user?.uid,
+      'assignedByEmail': user?.email,
       'assignedByName': assigner,
       'assignedByRole': _profile?.role ?? _access?.role.label ?? 'ADMIN',
       'scrumReports': [],
@@ -410,7 +414,113 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
       'createdAtIst': nowIst,
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedAtIst': nowIst,
+    };
+    final recipientUid = await _uidForEmployeeId(payload.employeeId);
+    final batch = _firestore.batch();
+    batch.set(docRef, record);
+    _queueTaskAssignmentPush(
+      batch,
+      taskId: docRef.id,
+      ticketKey: ticketKey,
+      title: payload.title,
+      employeeId: payload.employeeId,
+      employeeName: payload.employeeName,
+      team: payload.team,
+      recipientUid: recipientUid,
+      assignedByName: assigner,
+      assignedByRole: _profile?.role ?? _access?.role.label ?? 'ADMIN',
+      createdAtIst: nowIst,
+    );
+    await batch.commit();
+  }
+
+  Future<String?> _uidForEmployeeId(String employeeId) async {
+    final snapshot = await _firestore
+        .appCollection('users')
+        .where('employeeId', isEqualTo: employeeId.trim())
+        .limit(1)
+        .get();
+    return snapshot.docs.isEmpty ? null : snapshot.docs.first.id;
+  }
+
+  void _queueTaskAssignmentPush(
+    WriteBatch batch, {
+    required String taskId,
+    required String ticketKey,
+    required String title,
+    required String employeeId,
+    required String employeeName,
+    required String team,
+    required String? recipientUid,
+    required String assignedByName,
+    required String assignedByRole,
+    required String createdAtIst,
+  }) {
+    final user = _auth.currentUser;
+    final messageRef = _firestore.appCollection('team_messages').doc();
+    final message = {
+      'title': 'New Task Assigned',
+      'body': '$ticketKey - ${title.trim()}',
+      'senderUid': user?.uid,
+      'senderEmail': user?.email,
+      'senderRole': assignedByRole,
+      'senderName': assignedByName,
+      'targetType': 'employee',
+      'recipientUid': recipientUid,
+      'recipientUids': recipientUid == null ? <String>[] : [recipientUid],
+      'employeeId': employeeId.trim(),
+      'employeeName': employeeName.trim(),
+      'department': team.trim(),
+      'targetTeam': team.trim(),
+      'type': 'task_assigned',
+      'taskId': taskId,
+      'ticketKey': ticketKey,
+      'route': '/tasks',
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdAtIst': createdAtIst,
+    };
+    batch.set(messageRef, message);
+    batch.set(_firestore.appCollection('fcm_outbox').doc(messageRef.id), {
+      ...message,
+      'messageId': messageRef.id,
+      'status': 'pending',
+      'delivery': 'cloud_function',
+      'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Map<String, dynamic> _taskRecord({
+    required String taskId,
+    required _TaskPayload payload,
+    required String ticketKey,
+    required String assignedByName,
+    required String assignedByRole,
+    required String createdAtIst,
+  }) {
+    final user = _auth.currentUser;
+    return {
+      'id': taskId,
+      'ticketKey': payload.ticketKey.trim().isEmpty
+          ? ticketKey
+          : payload.ticketKey.trim(),
+      'title': payload.title.trim(),
+      'description': payload.description.trim(),
+      'team': payload.team.trim(),
+      'teamId': payload.team.trim(),
+      'priority': payload.priority,
+      'status': 'todo',
+      'assignedToEmployeeId': payload.employeeId.trim(),
+      'assignedToName': payload.employeeName.trim(),
+      'assignedByUid': user?.uid,
+      'assignedByEmail': user?.email,
+      'assignedByName': assignedByName,
+      'assignedByRole': assignedByRole,
+      'scrumReports': [],
+      'createdAt': FieldValue.serverTimestamp(),
+      'createdAtIst': createdAtIst,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedAtIst': createdAtIst,
+    };
   }
 
   Future<void> _importTasks() async {
@@ -450,7 +560,8 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
               ? payload.team
               : (employee?['department'] ?? 'TECH').toString(),
         );
-        _setTaskInBatch(batch, enriched);
+        final recipientUid = await _uidForEmployeeId(enriched.employeeId);
+        _setTaskInBatch(batch, enriched, recipientUid: recipientUid);
       }
       await batch.commit();
       if (!mounted) return;
@@ -557,7 +668,11 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
     return 'medium';
   }
 
-  void _setTaskInBatch(WriteBatch batch, _TaskPayload payload) {
+  void _setTaskInBatch(
+    WriteBatch batch,
+    _TaskPayload payload, {
+    required String? recipientUid,
+  }) {
     final nowIst = DateTime.now()
         .toUtc()
         .add(const Duration(hours: 5, minutes: 30))
@@ -566,27 +681,35 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
     final assigner = _profile?.displayName.trim().isNotEmpty == true
         ? _profile!.displayName
         : (user?.email ?? 'Admin');
+    final assignedByRole = _profile?.role ?? _access?.role.label ?? 'ADMIN';
     final docRef = _firestore.appCollection('tasks').doc();
-    batch.set(docRef, {
-      'ticketKey': payload.ticketKey.trim().isEmpty
-          ? 'DTS-${docRef.id.substring(0, 5).toUpperCase()}'
-          : payload.ticketKey.trim(),
-      'title': payload.title.trim(),
-      'description': payload.description.trim(),
-      'team': payload.team.trim(),
-      'priority': payload.priority,
-      'status': 'todo',
-      'assignedToEmployeeId': payload.employeeId.trim(),
-      'assignedToName': payload.employeeName.trim(),
-      'assignedByUid': user?.uid,
-      'assignedByName': assigner,
-      'assignedByRole': _profile?.role ?? _access?.role.label ?? 'ADMIN',
-      'scrumReports': [],
-      'createdAt': FieldValue.serverTimestamp(),
-      'createdAtIst': nowIst,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedAtIst': nowIst,
-    });
+    final ticketKey = payload.ticketKey.trim().isEmpty
+        ? 'DTS-${docRef.id.substring(0, 5).toUpperCase()}'
+        : payload.ticketKey.trim();
+    batch.set(
+      docRef,
+      _taskRecord(
+        taskId: docRef.id,
+        payload: payload,
+        ticketKey: ticketKey,
+        assignedByName: assigner,
+        assignedByRole: assignedByRole,
+        createdAtIst: nowIst,
+      ),
+    );
+    _queueTaskAssignmentPush(
+      batch,
+      taskId: docRef.id,
+      ticketKey: ticketKey,
+      title: payload.title,
+      employeeId: payload.employeeId,
+      employeeName: payload.employeeName,
+      team: payload.team,
+      recipientUid: recipientUid,
+      assignedByName: assigner,
+      assignedByRole: assignedByRole,
+      createdAtIst: nowIst,
+    );
   }
 
   Future<void> _showScrumDialog(
