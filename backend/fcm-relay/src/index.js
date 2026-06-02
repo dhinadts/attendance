@@ -5,6 +5,10 @@ const PORT = Number(process.env.PORT || 8080);
 const DRY_RUN = process.env.FCM_RELAY_DRY_RUN === "true";
 const OUTBOX_LIMIT = Number(process.env.FCM_OUTBOX_LIMIT || 25);
 const ANDROID_NOTIFICATION_CHANNEL_ID = "team_messages_heads_up";
+const MAX_RETRY_ATTEMPTS = Number(process.env.FCM_MAX_RETRY_ATTEPTS || 2);
+const BACKOFF_BASE_SECONDS = Number(process.env.FCM_BACKOFF_BASE_SECONDS || 30);
+const MAX_BACKOFF_SECONDS = Number(process.env.FCM_MAX_BACKOFF_SECONDS || 86400);
+const METRICS_ENABLED = process.env.FCM_METRICS_ENABLED === "true";
 
 function parseServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
@@ -65,11 +69,29 @@ function chunk(array, size) {
   return chunks;
 }
 
+function logInfo(message, meta) {
+  console.info(new Date().toISOString(), message, meta || "");
+}
+
+function logError(message, meta) {
+  console.error(new Date().toISOString(), message, meta || "");
+}
+
+function calculateNextRetrySeconds(retryCount) {
+  try {
+    const secs = BACKOFF_BASE_SECONDS * Math.pow(2, Math.max(0, retryCount - 1));
+    return Math.min(Math.max(Math.floor(secs), BACKOFF_BASE_SECONDS), MAX_BACKOFF_SECONDS);
+  } catch (e) {
+    return BACKOFF_BASE_SECONDS;
+  }
+}
+
 async function tokensForRecipientUids(firestore, recipientUids) {
   const uniqueUids = [...new Set((recipientUids || []).filter(Boolean))];
   const tokens = [];
 
-  for (const uidChunk of chunk(uniqueUids, 30)) {
+  // Firestore 'in' queries support up to 10 elements — chunk accordingly.
+  for (const uidChunk of chunk(uniqueUids, 10)) {
     const snapshot = await firestore
       .collection("fcm_tokens")
       .where("uid", "in", uidChunk)
@@ -149,15 +171,22 @@ async function claimOutboxDocument(firestore, docRef) {
     const status = data.status || "pending";
     if (status !== "pending" && status !== "retry") return null;
 
-    transaction.set(
-      docRef,
-      {
-        status: "processing",
-        processingStartedAt: admin.firestore.FieldValue.serverTimestamp(),
-        processor: "external_fcm_relay",
-      },
-      { merge: true },
-    );
+    // If a retry is scheduled in the future, skip claiming until then.
+    const retryAt = data.retryAt;
+    if (retryAt && typeof retryAt.toMillis === "function") {
+      const retryMs = retryAt.toMillis();
+      if (retryMs > Date.now()) {
+        // not yet time to retry
+        return null;
+      }
+    }
+
+    const processingData = {
+      status: "processing",
+      processingStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+      processor: "external_fcm_relay",
+    };
+    transaction.set(docRef, processingData, { merge: true });
     return data;
   });
 }
@@ -185,40 +214,73 @@ async function processOutboxDocument(firestore, docRef) {
   }
 
   const responses = [];
-  for (const topic of uniqueTopics) {
-    const response = DRY_RUN
-      ? `dry-run-topic-${topic}`
-      : await messaging.send({ ...payload, topic });
-    responses.push({ topic, response });
-  }
+  try {
+    // increment attempted metric
+    if (METRICS_ENABLED) {
+      await firestore
+        .collection("fcm_metrics")
+        .doc("summary")
+        .set({ messagesAttempted: admin.firestore.FieldValue.increment(1) }, { merge: true });
+    }
 
-  for (const tokenChunk of chunk(tokens, 500)) {
-    const response = DRY_RUN
-      ? {
-          successCount: tokenChunk.length,
-          failureCount: 0,
-          dryRun: true,
-        }
-      : await messaging.sendEachForMulticast({
-          ...payload,
-          tokens: tokenChunk,
-        });
-    responses.push({
-      tokenCount: tokenChunk.length,
-      successCount: response.successCount,
-      failureCount: response.failureCount,
-    });
-  }
+    for (const topic of uniqueTopics) {
+      logInfo("sending topic", { topic, messageId: docRef.id });
+      const response = DRY_RUN ? `dry-run-topic-${topic}` : await messaging.send({ ...payload, topic });
+      responses.push({ topic, response });
+    }
 
-  await docRef.set(
-    {
-      status: "sent",
-      responses,
-      processedAt: admin.firestore.FieldValue.serverTimestamp(),
-      processor: "external_fcm_relay",
-    },
-    { merge: true },
-  );
+    for (const tokenChunk of chunk(tokens, 500)) {
+      logInfo("sending multicast", { tokenCount: tokenChunk.length, messageId: docRef.id });
+      const response = DRY_RUN
+        ? {
+            successCount: tokenChunk.length,
+            failureCount: 0,
+            dryRun: true,
+          }
+        : await messaging.sendEachForMulticast({ ...payload, tokens: tokenChunk });
+      responses.push({ tokenCount: tokenChunk.length, successCount: response.successCount, failureCount: response.failureCount });
+    }
+
+    // success
+    await docRef.set(
+      {
+        status: "sent",
+        responses,
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        processor: "external_fcm_relay",
+      },
+      { merge: true },
+    );
+
+    // metrics: increment sent count
+    if (METRICS_ENABLED) {
+      const totalSuccess = responses.reduce((sum, r) => sum + (r.successCount || 0), 0);
+      await firestore
+        .collection("fcm_metrics")
+        .doc("summary")
+        .set({ messagesSent: admin.firestore.FieldValue.increment(totalSuccess) }, { merge: true });
+    }
+  } catch (error) {
+    logError("Failed to process outbox document", { id: docRef.id, error: error.message || String(error) });
+
+    // schedule retry with exponential backoff
+    const currentRetryCount = Number(data.retryCount || 0) + 1;
+    const nextDelaySecs = calculateNextRetrySeconds(currentRetryCount);
+    const nextRetryAt = admin.firestore.Timestamp.fromDate(new Date(Date.now() + nextDelaySecs * 1000));
+    const willRetry = currentRetryCount <= MAX_RETRY_ATTEMPTS;
+
+    await docRef.set(
+      {
+        status: willRetry ? "retry" : "failed",
+        error: error.message || String(error),
+        retryCount: currentRetryCount,
+        retryAt: willRetry ? nextRetryAt : admin.firestore.FieldValue.delete(),
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        processor: "external_fcm_relay",
+      },
+      { merge: true },
+    );
+  }
 }
 
 function startOutboxListener(firestore) {

@@ -136,6 +136,17 @@ The relay updates `fcm_outbox/{messageId}`:
 
 If sending fails, the document becomes `retry` and the listener will attempt it again.
 
+## Retry & Metrics (new)
+
+The relay supports configurable retry/backoff and optional simple metrics. New environment variables:
+
+- `FCM_MAX_RETRY_ATTEMPTS` (default `5`) — maximum retry attempts before marking a job `failed`.
+- `FCM_BACKOFF_BASE_SECONDS` (default `30`) — base backoff in seconds; retries use exponential backoff (`base * 2^(retryCount-1)`).
+- `FCM_BACKOFF_MAX_SECONDS` (default `86400`) — maximum backoff in seconds (defaults to 24 hours).
+- `FCM_METRICS_ENABLED` (default `false`) — when `true`, the relay will write simple counters to Firestore under `fcm_metrics/summary` (`messagesAttempted`, `messagesSent`).
+
+These are optional — if not set, the relay uses sensible defaults and continues working as before.
+
 ## Payroll API
 
 Admin web payroll upload can call:
