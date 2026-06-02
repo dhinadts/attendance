@@ -1,3 +1,5 @@
+#### Make it for multiple comapnies
+
 # attendance
 
 `attendance` is a Flutter-based employee attendance, salary, leave, exit-request, and team notification application built for Android-first workplace usage.
