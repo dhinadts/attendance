@@ -35,8 +35,27 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Analyze Flutter source
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        run: flutter test
+
       - name: Build Flutter Web
-        run: flutter build web --release --base-href /attendance/
+        run: |
+          DART_DEFINES=()
+          if [ -n "${FIREBASE_WEB_API_KEY}" ]; then DART_DEFINES+=(--dart-define=FIREBASE_WEB_API_KEY="${FIREBASE_WEB_API_KEY}"); fi
+          if [ -n "${FIREBASE_WEB_APP_ID}" ]; then DART_DEFINES+=(--dart-define=FIREBASE_WEB_APP_ID="${FIREBASE_WEB_APP_ID}"); fi
+          if [ -n "${FIREBASE_WEB_VAPID_KEY}" ]; then DART_DEFINES+=(--dart-define=FIREBASE_WEB_VAPID_KEY="${FIREBASE_WEB_VAPID_KEY}"); fi
+          if [ -n "${PAYROLL_API_BASE_URL}" ]; then DART_DEFINES+=(--dart-define=PAYROLL_API_BASE_URL="${PAYROLL_API_BASE_URL}"); fi
+          if [ -n "${PAYROLL_API_KEY}" ]; then DART_DEFINES+=(--dart-define=PAYROLL_API_KEY="${PAYROLL_API_KEY}"); fi
+          flutter build web --release --base-href /attendance/ "${DART_DEFINES[@]}"
+        env:
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          FIREBASE_WEB_APP_ID: ${{ secrets.FIREBASE_WEB_APP_ID }}
+          FIREBASE_WEB_VAPID_KEY: ${{ secrets.FIREBASE_WEB_VAPID_KEY }}
+          PAYROLL_API_BASE_URL: ${{ secrets.PAYROLL_API_BASE_URL }}
+          PAYROLL_API_KEY: ${{ secrets.PAYROLL_API_KEY }}
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
