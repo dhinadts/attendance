@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import '../services/attendance_session_service.dart';
 import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/industrial_card.dart';
@@ -19,6 +21,11 @@ class _AttendanceGpsTrackingScreenState
     extends State<AttendanceGpsTrackingScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
+  final _attendanceService = AttendanceSessionService();
+  bool _isCheckingOut = false;
+  String? _statusMessage;
+  StatusChipType _statusType = StatusChipType.neutral;
+  AttendanceSession? _activeSession;
 
   @override
   void initState() {
@@ -27,6 +34,7 @@ class _AttendanceGpsTrackingScreenState
       duration: const Duration(seconds: 2),
       vsync: this,
     )..repeat();
+    _refreshActiveSession();
   }
 
   @override
@@ -66,6 +74,116 @@ class _AttendanceGpsTrackingScreenState
       'DEC',
     ];
     return '${days[now.weekday % 7]}, ${months[now.month - 1]} ${now.day}, ${now.year}';
+  }
+
+  String get _sessionStatusLabel {
+    if (_activeSession == null) return 'No active session';
+    return _activeSession!.attendanceStatus == 'outside_office'
+        ? 'Reach office zone'
+        : 'Active';
+  }
+
+  String get _hoursWorked {
+    final loginAt = DateTime.tryParse(_activeSession?.loginAtIst ?? '');
+    if (loginAt == null) return '--:--';
+    final minutes = DateTime.now()
+        .toUtc()
+        .add(const Duration(hours: 5, minutes: 30))
+        .difference(loginAt)
+        .inMinutes
+        .clamp(0, AttendanceSessionService.maxOfficeSession.inMinutes);
+    final hours = minutes ~/ 60;
+    final remainder = minutes % 60;
+    return '${hours.toString().padLeft(2, '0')}:${remainder.toString().padLeft(2, '0')}';
+  }
+
+  String get _officeLocationLabel {
+    final session = _activeSession;
+    if (session == null) return 'Open face check-in to start a session';
+    return '${session.officeLatitude.toStringAsFixed(6)}, ${session.officeLongitude.toStringAsFixed(6)}';
+  }
+
+  Future<void> _refreshActiveSession() async {
+    try {
+      final session = await _attendanceService.loadActiveSession();
+      if (!mounted) return;
+      setState(() => _activeSession = session);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _activeSession = null);
+    }
+  }
+
+  Future<void> _checkOut() async {
+    if (_isCheckingOut) return;
+    setState(() {
+      _isCheckingOut = true;
+      _statusMessage = null;
+    });
+
+    try {
+      final session = await _attendanceService.loadActiveSession();
+      if (session == null) {
+        setState(() {
+          _statusMessage = 'No active attendance session found';
+          _statusType = StatusChipType.pending;
+        });
+        return;
+      }
+
+      Position? position;
+      double? distanceMeters;
+      try {
+        position = await _currentPosition();
+        distanceMeters = _attendanceService.distanceFromZone(position, session);
+      } catch (_) {
+        position = null;
+        distanceMeters = null;
+      }
+
+      await _attendanceService.closeSession(
+        session: session,
+        reason: 'manual_logout',
+        logoutPosition: position,
+        distanceMeters: distanceMeters,
+      );
+      if (!mounted) return;
+      setState(() {
+        _activeSession = null;
+        _statusMessage = 'Checked out successfully';
+        _statusType = StatusChipType.success;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = error.toString();
+        _statusType = StatusChipType.alert;
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isCheckingOut = false);
+      }
+    }
+  }
+
+  Future<Position> _currentPosition() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw StateError('Location service is disabled');
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      throw StateError('Location permission denied');
+    }
+
+    return Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best),
+    );
   }
 
   @override
@@ -182,21 +300,26 @@ class _AttendanceGpsTrackingScreenState
                                       color: IndustrialColors.secondary,
                                     ),
                                     const SizedBox(width: 8),
-                                    Text(
-                                      'Precision Textiles Hub',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            fontSize: 13,
-                                            color: IndustrialColors.onSurface,
-                                          ),
+                                    Flexible(
+                                      child: Text(
+                                        _activeSession == null
+                                            ? 'Attendance zone'
+                                            : 'Office geofence',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelLarge
+                                            ?.copyWith(
+                                              fontSize: 13,
+                                              color: IndustrialColors.onSurface,
+                                            ),
+                                      ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Industrial Sector 4, Wing B',
+                                  _officeLocationLabel,
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         fontSize: 12,
@@ -209,9 +332,15 @@ class _AttendanceGpsTrackingScreenState
                           ),
                           const SizedBox(width: 8),
                           StatusChip(
-                            label: 'Verified',
-                            type: StatusChipType.success,
-                            icon: Icons.check_circle,
+                            label: _activeSession == null
+                                ? 'Inactive'
+                                : 'Verified',
+                            type: _activeSession == null
+                                ? StatusChipType.neutral
+                                : StatusChipType.success,
+                            icon: _activeSession == null
+                                ? Icons.info_outline
+                                : Icons.check_circle,
                           ),
                         ],
                       ),
@@ -230,11 +359,22 @@ class _AttendanceGpsTrackingScreenState
               ),
               const SizedBox(height: 12),
               PrimaryActionButton(
-                label: 'CHECK OUT',
+                label: _isCheckingOut ? 'CHECKING OUT...' : 'CHECK OUT',
                 icon: Icons.logout,
                 style: ActionButtonStyle.outline,
-                onPressed: () {},
+                isLoading: _isCheckingOut,
+                onPressed: _isCheckingOut ? null : _checkOut,
               ),
+              if (_statusMessage != null) ...[
+                const SizedBox(height: 12),
+                StatusChip(
+                  label: _statusMessage!,
+                  type: _statusType,
+                  icon: _statusType == StatusChipType.success
+                      ? Icons.check_circle
+                      : Icons.info_outline,
+                ),
+              ],
               const SizedBox(height: 20),
 
               // Shift Summary Card
@@ -276,7 +416,7 @@ class _AttendanceGpsTrackingScreenState
                         Expanded(
                           child: StatCard(
                             label: 'Hours Worked',
-                            value: '06:42',
+                            value: _hoursWorked,
                             icon: Icons.schedule,
                             valueColor: IndustrialColors.primary,
                           ),
@@ -285,7 +425,7 @@ class _AttendanceGpsTrackingScreenState
                         Expanded(
                           child: StatCard(
                             label: 'Est. Overtime',
-                            value: '+01:12',
+                            value: '00:00',
                             icon: Icons.access_time,
                             valueColor: IndustrialColors.secondary,
                           ),
@@ -317,7 +457,7 @@ class _AttendanceGpsTrackingScreenState
                                   ),
                             ),
                             Text(
-                              'Active',
+                              _sessionStatusLabel,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     fontWeight: FontWeight.w600,

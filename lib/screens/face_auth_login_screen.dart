@@ -36,6 +36,7 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
   StreamSubscription<Position>? _positionSubscription;
   AttendanceSession? _activeSession;
   bool _isProcessing = false;
+  bool _isEnrolling = false;
   String _statusText = 'Camera starting...';
   StatusChipType _statusType = StatusChipType.alert;
   Position? _lastPosition;
@@ -181,12 +182,15 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
       final enrollmentCount = await _faceRecognitionService.templateCount();
       if (enrollmentCount < FaceRecognitionService.requiredTemplateCount) {
         _setStatus(
-          'Enrolling employee face samples...',
+          'Enroll employee face before marking attendance',
           StatusChipType.pending,
         );
-        final enrollmentFaces = await _captureEnrollmentFaces(face);
-        await _faceRecognitionService.enrollTemplates(enrollmentFaces);
-        _setStatus('Face enrollment completed', StatusChipType.success);
+        try {
+          await File(image.path).delete();
+        } catch (_) {
+          // Captured image is no longer needed when attendance is not marked.
+        }
+        return;
       }
 
       final recognition = await _faceRecognitionService.verify(face);
@@ -236,6 +240,50 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
+      }
+    }
+  }
+
+  Future<void> _enrollFace() async {
+    final controller = _cameraController;
+    if (_isProcessing ||
+        _isEnrolling ||
+        controller == null ||
+        !controller.value.isInitialized) {
+      return;
+    }
+
+    setState(() {
+      _isEnrolling = true;
+      _statusText = 'Starting face enrollment...';
+      _statusType = StatusChipType.pending;
+    });
+
+    String? enrollmentImagePath;
+    try {
+      final image = await controller.takePicture();
+      enrollmentImagePath = image.path;
+      final faces = await _faceDetector.processImage(
+        InputImage.fromFilePath(image.path),
+      );
+      if (faces.length != 1) {
+        throw StateError('Keep only your face inside the scanner');
+      }
+      final enrollmentFaces = await _captureEnrollmentFaces(faces.first);
+      await _faceRecognitionService.enrollTemplates(enrollmentFaces);
+      _setStatus('Face enrollment completed', StatusChipType.success);
+    } catch (error) {
+      _setStatus(error.toString(), StatusChipType.alert);
+    } finally {
+      if (enrollmentImagePath != null) {
+        try {
+          await File(enrollmentImagePath).delete();
+        } catch (_) {
+          // Enrollment source image is temporary; cleanup is best effort.
+        }
+      }
+      if (mounted) {
+        setState(() => _isEnrolling = false);
       }
     }
   }
@@ -512,7 +560,17 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
               PrimaryActionButton(
                 label: _isProcessing ? 'PROCESSING...' : 'CAPTURE ATTENDANCE',
                 icon: Icons.camera_alt,
-                onPressed: _isProcessing ? null : _captureAndMarkAttendance,
+                onPressed: _isProcessing || _isEnrolling
+                    ? null
+                    : _captureAndMarkAttendance,
+              ),
+              const SizedBox(height: 12),
+              PrimaryActionButton(
+                label: _isEnrolling ? 'ENROLLING...' : 'ENROLL FACE',
+                icon: Icons.face_retouching_natural,
+                style: ActionButtonStyle.outline,
+                isLoading: _isEnrolling,
+                onPressed: _isProcessing || _isEnrolling ? null : _enrollFace,
               ),
               const SizedBox(height: 12),
               if (_activeSession != null) ...[

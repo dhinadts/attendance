@@ -89,16 +89,21 @@ final salaryRecordsStreamProvider =
     ) {
       Query<Map<String, dynamic>> query = ref
           .watch(firestoreProvider)
-          .collection('salary_records')
-          .orderBy('monthKey', descending: true);
+          .collection('salary_records');
       final trimmedEmployeeId = employeeId?.trim();
       if (trimmedEmployeeId != null && trimmedEmployeeId.isNotEmpty) {
         query = query.where('employeeId', isEqualTo: trimmedEmployeeId);
       }
-      return query.snapshots().map(
-        (snapshot) =>
-            snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList(),
-      );
+      return query.snapshots().map((snapshot) {
+        final records = snapshot.docs
+            .map((doc) => {'id': doc.id, ...doc.data()})
+            .toList();
+        records.sort(
+          (a, b) =>
+              '${b['monthKey'] ?? ''}'.compareTo('${a['monthKey'] ?? ''}'),
+        );
+        return records;
+      });
     });
 
 class PayrollUploadDraft {

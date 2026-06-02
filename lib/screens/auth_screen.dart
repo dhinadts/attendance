@@ -25,12 +25,12 @@ class _AuthScreenState extends State<AuthScreen> {
 
   bool _isSignup = false;
   bool _isLoading = false;
-  AppUserRole _selectedRole = AppUserRole.employee;
+  bool _isResettingPassword = false;
   String _selectedTeam = OrganizationOptions.teams.first;
   String _selectedEmployeeRole = OrganizationOptions.employeeRoles.last;
   String? _error;
+  String? _notice;
   bool _obscurePassword = true;
-  bool _rememberMe = true;
 
   @override
   void dispose() {
@@ -46,6 +46,7 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _notice = null;
     });
 
     try {
@@ -53,7 +54,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ? await _auth.signUp(
               email: _emailController.text,
               password: _passwordController.text,
-              role: _selectedRole,
+              role: AppUserRole.employee,
               firstName: _firstNameController.text,
               lastName: _lastNameController.text,
               employeeId: _employeeIdController.text,
@@ -78,6 +79,29 @@ class _AuthScreenState extends State<AuthScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _sendPasswordReset() async {
+    setState(() {
+      _isResettingPassword = true;
+      _error = null;
+      _notice = null;
+    });
+
+    try {
+      await _auth.sendPasswordResetEmail(_emailController.text);
+      if (!mounted) return;
+      setState(() {
+        _notice = 'Password reset link sent to ${_emailController.text.trim()}';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isResettingPassword = false);
       }
     }
   }
@@ -176,7 +200,7 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 8),
         Text(
           _isSignup
-              ? 'Create employee or admin workspace access'
+              ? 'Create employee workspace access'
               : 'Sign in to access attendance workspace',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: IndustrialColors.onSurfaceVariant,
@@ -261,48 +285,40 @@ class _AuthScreenState extends State<AuthScreen> {
               setState(() => _selectedEmployeeRole = value);
             },
           ),
-          const SizedBox(height: 16),
-          SegmentedButton<AppUserRole>(
-            segments: const [
-              ButtonSegment(
-                value: AppUserRole.employee,
-                label: Text('Employee'),
-                icon: Icon(Icons.person),
-              ),
-              ButtonSegment(
-                value: AppUserRole.admin,
-                label: Text('Admin'),
-                icon: Icon(Icons.admin_panel_settings),
-              ),
-            ],
-            selected: {_selectedRole},
-            onSelectionChanged: (selection) {
-              setState(() => _selectedRole = selection.first);
-            },
-          ),
         ],
         if (!_isSignup) ...[
           const SizedBox(height: 18),
           Row(
             children: [
-              Checkbox(
-                value: _rememberMe,
-                onChanged: (value) {
-                  setState(() => _rememberMe = value ?? true);
-                },
-              ),
-              Text(
-                'Remember me',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: IndustrialColors.onSurfaceVariant,
+              Expanded(
+                child: Text(
+                  'Session stays signed in on this device',
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: IndustrialColors.onSurfaceVariant,
+                  ),
                 ),
               ),
-              const Spacer(),
-              TextButton(
-                onPressed: () {},
-                child: const Text('Forgot password?'),
+              TextButton.icon(
+                onPressed: _isResettingPassword ? null : _sendPasswordReset,
+                icon: _isResettingPassword
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.lock_reset),
+                label: const Text('Forgot password?'),
               ),
             ],
+          ),
+        ],
+        if (_notice != null) ...[
+          const SizedBox(height: 12),
+          StatusChip(
+            label: _notice!,
+            type: StatusChipType.success,
+            icon: Icons.check_circle_outline,
           ),
         ],
         if (_error != null) ...[
@@ -364,6 +380,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       setState(() {
                         _isSignup = !_isSignup;
                         _error = null;
+                        _notice = null;
                       });
                     },
               child: Text(_isSignup ? 'Login' : 'Create account'),

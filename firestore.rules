@@ -35,15 +35,44 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow create: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.role == 'employee';
       allow update: if signedIn() && request.auth.uid == uid
-        && request.resource.data.role == resource.data.role;
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.employeeId == resource.data.employeeId
+        && (isAdmin()
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'firstName',
+            'lastName',
+            'displayName',
+            'nickName',
+            'email',
+            'updatedAt',
+            'fcmToken',
+            'fcmUpdatedAt'
+          ]));
       allow delete: if false;
     }
 
     match /employee_profiles/{employeeIdValue} {
       allow read: if ownsEmployee(employeeIdValue) || isAdmin();
-      allow create, update: if ownsEmployee(employeeIdValue) || isAdmin();
+      allow create: if isAdmin()
+        || (ownsEmployee(employeeIdValue)
+          && request.resource.data.employeeId == employeeIdValue);
+      allow update: if isAdmin()
+        || (ownsEmployee(employeeIdValue)
+          && request.resource.data.employeeId == resource.data.employeeId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'nickName',
+            'firstName',
+            'lastName',
+            'employeeName',
+            'dateOfBirth',
+            'contactNumber',
+            'email',
+            'updatedAt',
+            'updatedAtIst'
+          ]));
       allow delete: if isAdmin();
     }
 
@@ -81,8 +110,7 @@ service cloud.firestore {
     match /salary_records/{recordId} {
       allow read: if isAdmin()
         || (signedIn() && resource.data.employeeId == employeeId());
-      allow create, update: if signedIn()
-        && request.resource.data.employeeId == employeeId();
+      allow create, update: if isAdmin();
       allow delete: if isAdmin();
     }
 

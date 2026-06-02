@@ -183,7 +183,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: _isLoaded
             ? Column(
                 children: [
-                  _field(_employeeIdController, 'Employee ID', Icons.badge),
+                  _field(
+                    _employeeIdController,
+                    'Employee ID',
+                    Icons.badge,
+                    readOnly: true,
+                  ),
                   const SizedBox(height: 12),
                   _field(_nickNameController, 'Nick Name', Icons.tag_faces),
                   const SizedBox(height: 12),
@@ -233,6 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'Joining Date (YYYY-MM-DD)',
                     Icons.event_available,
                     keyboardType: TextInputType.datetime,
+                    readOnly: true,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -247,10 +253,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               DropdownMenuItem(value: team, child: Text(team)),
                         )
                         .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() => _selectedDepartment = value);
-                    },
+                    onChanged: null,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -265,10 +268,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               DropdownMenuItem(value: role, child: Text(role)),
                         )
                         .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() => _selectedRole = value);
-                    },
+                    onChanged: null,
                   ),
                   const SizedBox(height: 20),
                   PrimaryActionButton(
@@ -402,13 +402,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String label,
     IconData icon, {
     TextInputType? keyboardType,
+    bool readOnly = false,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      readOnly: readOnly,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: IndustrialColors.primary),
+        helperText: readOnly ? 'Managed by admin' : null,
       ),
     );
   }

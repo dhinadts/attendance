@@ -73,13 +73,15 @@ class FcmNotificationService {
     final message = _pendingInitialMessage;
     if (message == null) return;
     _pendingInitialMessage = null;
-    await _saveIncomingMessage(
-      title: _titleFor(message),
-      body: _bodyFor(message),
-      data: message.data,
-      source: 'terminated',
-    );
     await _handleRemoteMessageTap(message);
+    unawaited(
+      _saveIncomingMessageBestEffort(
+        title: _titleFor(message),
+        body: _bodyFor(message),
+        data: message.data,
+        source: 'terminated',
+      ),
+    );
   }
 
   Future<void> registerCurrentUser({String? department}) async {
@@ -352,13 +354,15 @@ class FcmNotificationService {
   }
 
   Future<void> _handleOpenedFromBackground(RemoteMessage message) async {
-    await _saveIncomingMessage(
-      title: _titleFor(message),
-      body: _bodyFor(message),
-      data: message.data,
-      source: 'background_tap',
-    );
     await _handleRemoteMessageTap(message);
+    unawaited(
+      _saveIncomingMessageBestEffort(
+        title: _titleFor(message),
+        body: _bodyFor(message),
+        data: message.data,
+        source: 'background_tap',
+      ),
+    );
   }
 
   Future<void> sendTeamMessage({
@@ -567,6 +571,25 @@ class FcmNotificationService {
       'source': source,
       'receivedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  Future<void> _saveIncomingMessageBestEffort({
+    required String title,
+    required String body,
+    required Map<String, dynamic> data,
+    required String source,
+  }) async {
+    try {
+      await _saveIncomingMessage(
+        title: title,
+        body: body,
+        data: data,
+        source: source,
+      );
+    } catch (_) {
+      // Notification taps should still navigate when the optional inbox write
+      // is unavailable during app startup.
+    }
   }
 
   String _titleFor(RemoteMessage message) {

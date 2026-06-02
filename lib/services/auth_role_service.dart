@@ -47,6 +47,9 @@ class AuthRoleService {
     String department = '',
     String employeeRole = 'EMPLOYEE',
   }) async {
+    if (role == AppUserRole.admin) {
+      throw StateError('Admin accounts must be created by an authorized admin');
+    }
     if (email.trim().isEmpty || !email.trim().contains('@')) {
       throw ArgumentError('Valid email is required');
     }
@@ -120,6 +123,14 @@ class AuthRoleService {
     }
 
     return role;
+  }
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    final trimmedEmail = email.trim();
+    if (trimmedEmail.isEmpty || !trimmedEmail.contains('@')) {
+      throw ArgumentError('Enter a valid email address');
+    }
+    await _auth.sendPasswordResetEmail(email: trimmedEmail);
   }
 
   Future<void> signOut() => _auth.signOut();

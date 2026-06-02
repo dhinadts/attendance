@@ -1,30 +1,44 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:attendance/app.dart';
+import 'package:attendance/widgets/primary_action_button.dart';
+import 'package:attendance/widgets/status_chip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const WorkSyncApp());
+  testWidgets('primary action button handles taps', (tester) async {
+    var tapped = false;
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PrimaryActionButton(
+            label: 'LOGIN',
+            icon: Icons.login,
+            onPressed: () => tapped = true,
+          ),
+        ),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.tap(find.text('LOGIN'));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(tapped, isTrue);
+  });
+
+  testWidgets('status chip renders alert label and icon', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: StatusChip(
+            label: 'Login required',
+            type: StatusChipType.alert,
+            icon: Icons.error_outline,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('LOGIN REQUIRED'), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
   });
 }
