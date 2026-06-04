@@ -527,9 +527,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
         children: [
           _adminProfileOverview(email),
           const SizedBox(height: 16),
-          _sectionTitle('Professional Profile', Icons.work_history),
+          _sectionTitle('Personal Details', Icons.family_restroom),
           const SizedBox(height: 8),
-          _adminProfessionalCard(),
+          _adminPersonalCard(),
           const SizedBox(height: 16),
           _sectionTitle('Admin Controls', Icons.admin_panel_settings),
           const SizedBox(height: 8),
@@ -556,7 +556,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
             children: [
               _adminIdentityCard(email),
               const SizedBox(height: 12),
-              _adminPersonalCard(),
+              _adminProfessionalCard(),
             ],
           );
         }
@@ -566,7 +566,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
           children: [
             Expanded(flex: 2, child: _adminIdentityCard(email)),
             const SizedBox(width: 12),
-            Expanded(flex: 3, child: _adminPersonalCard()),
+            Expanded(flex: 3, child: _adminProfessionalCard()),
           ],
         );
       },
@@ -574,13 +574,50 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
   }
 
   Widget _adminIdentityCard(String email) {
+    final displayName =
+        '${_firstNameController.text} ${_lastNameController.text}'.trim();
     return IndustrialCard(
       highlighted: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle('Account Details', Icons.badge),
-          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 42,
+                backgroundColor: IndustrialColors.primary,
+                foregroundColor: Colors.white,
+                child: Text(
+                  _initials(displayName, email),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionTitle('Account Details', Icons.badge),
+                    const SizedBox(height: 8),
+                    Text(
+                      displayName.isEmpty ? 'Admin' : displayName,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$_selectedDepartment | $_selectedRole',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           _field(_firstNameController, 'First Name', Icons.person),
           const SizedBox(height: 10),
           _field(_lastNameController, 'Last Name', Icons.person_outline),
@@ -617,8 +654,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle('Personal Details', Icons.family_restroom),
-          const SizedBox(height: 12),
           _field(
             _dobController,
             'Date of Birth (YYYY-MM-DD)',
@@ -660,7 +695,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
   Widget _adminProfessionalCard() {
     return IndustrialCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _sectionTitle('Professional Profile', Icons.work_history),
+          const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _selectedDepartment,
             decoration: const InputDecoration(

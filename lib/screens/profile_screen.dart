@@ -210,9 +210,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   _profileOverview(),
                   const SizedBox(height: 16),
-                  _sectionTitle('Professional Profile', Icons.work_history),
+                  _sectionTitle('Personal Details', Icons.family_restroom),
                   const SizedBox(height: 8),
-                  _professionalCard(),
+                  _personalDetailsCard(),
                   const SizedBox(height: 16),
                   PrimaryActionButton(
                     label: _isSaving ? 'SAVING...' : 'SAVE PROFILE',
@@ -241,7 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               _identityCard(name),
               const SizedBox(height: 12),
-              _personalDetailsCard(),
+              _professionalCard(),
             ],
           );
         }
@@ -251,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Expanded(flex: 2, child: _identityCard(name)),
             const SizedBox(width: 12),
-            Expanded(flex: 3, child: _personalDetailsCard()),
+            Expanded(flex: 3, child: _professionalCard()),
           ],
         );
       },
@@ -336,8 +336,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle('Personal Details', Icons.family_restroom),
-          const SizedBox(height: 12),
           _field(_nickNameController, 'Nick Name', Icons.tag_faces),
           const SizedBox(height: 10),
           _field(
@@ -381,7 +379,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _professionalCard() {
     return IndustrialCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _sectionTitle('Professional Profile', Icons.work_history),
+          const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _selectedDepartment,
             decoration: const InputDecoration(
