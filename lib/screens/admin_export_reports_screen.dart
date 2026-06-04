@@ -527,57 +527,63 @@ class _ExportDepartmentCard extends StatelessWidget {
 
     return IndustrialCard(
       padding: EdgeInsets.zero,
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          leading: Checkbox(
-            value: teamPartiallySelected ? null : teamSelected,
-            tristate: true,
-            onChanged: employees.isEmpty || isExporting ? null : onToggleTeam,
-          ),
-          title: Text(
-            department,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          subtitle: Text(
-            selectedCount == 0
-                ? '${employees.length} employees'
-                : '$selectedCount of ${employees.length} selected',
-          ),
-          trailing: IconButton(
-            tooltip: 'Export team CSV',
-            onPressed: employees.isEmpty || isExporting ? null : onExportTeam,
-            icon: const Icon(Icons.download, size: 20),
-          ),
-          children: [
-            if (employees.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 14),
-                child: StatusChip(
-                  label: 'No employees mapped',
-                  type: StatusChipType.neutral,
-                ),
-              )
-            else
-              for (final employee in employees)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _ExportEmployeeRow(
-                    employee: employee,
-                    selected: selectedEmployeeIds.contains(
-                      _employeeId(employee),
-                    ),
-                    isExporting: isExporting,
-                    onSelected: (selected) =>
-                        onToggleEmployee(employee, selected),
-                    onExport: () => onExportEmployee(employee),
+      child: Material(
+        color: Colors.transparent,
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 8,
+            ),
+            childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            leading: Checkbox(
+              value: teamPartiallySelected ? null : teamSelected,
+              tristate: true,
+              onChanged: employees.isEmpty || isExporting ? null : onToggleTeam,
+            ),
+            title: Text(
+              department,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            subtitle: Text(
+              selectedCount == 0
+                  ? '${employees.length} employees'
+                  : '$selectedCount of ${employees.length} selected',
+            ),
+            trailing: IconButton(
+              tooltip: 'Export team CSV',
+              onPressed: employees.isEmpty || isExporting ? null : onExportTeam,
+              icon: const Icon(Icons.download, size: 20),
+            ),
+            children: [
+              if (employees.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  child: StatusChip(
+                    label: 'No employees mapped',
+                    type: StatusChipType.neutral,
                   ),
-                ),
-          ],
+                )
+              else
+                for (final employee in employees)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _ExportEmployeeRow(
+                      employee: employee,
+                      selected: selectedEmployeeIds.contains(
+                        _employeeId(employee),
+                      ),
+                      isExporting: isExporting,
+                      onSelected: (selected) =>
+                          onToggleEmployee(employee, selected),
+                      onExport: () => onExportEmployee(employee),
+                    ),
+                  ),
+            ],
+          ),
         ),
       ),
     );
