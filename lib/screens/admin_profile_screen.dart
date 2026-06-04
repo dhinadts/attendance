@@ -415,85 +415,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
 
           final userData = snapshot.data?.data() ?? {};
           final email = userData['email'] as String? ?? user.email ?? '';
-          final displayName =
-              userData['displayName'] as String? ??
-              userData['firstName'] as String? ??
-              'Admin';
-          final photoBase64 =
-              (userData['photoBase64'] as String?) ?? _photoBase64;
-          final department = userData['department'] as String? ?? 'TECH';
-          final role =
-              userData['employeeRole'] as String? ??
-              userData['role'] as String? ??
-              'CEO';
-          final imageBytes = _decodePhoto(photoBase64);
 
           return Column(
             children: [
-              // Profile Header Card
-              Container(
-                width: double.infinity,
-                color: IndustrialColors.surface,
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        CircleAvatar(
-                          radius: 50,
-                          backgroundColor: IndustrialColors.primary,
-                          backgroundImage: imageBytes == null
-                              ? null
-                              : MemoryImage(imageBytes),
-                          child: imageBytes == null
-                              ? Text(
-                                  _initials(displayName, email),
-                                  style: const TextStyle(
-                                    fontSize: 36,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: IndustrialColors.primaryContainer,
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.camera_alt,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                            onPressed: _showPhotoPicker,
-                            tooltip: 'Update Photo',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      displayName,
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    Text(
-                      '$role | $department',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 10),
-                    StatusChip(
-                      label: _status,
-                      type: _isSaving
-                          ? StatusChipType.pending
-                          : StatusChipType.success,
-                      icon: _isSaving ? Icons.sync : Icons.admin_panel_settings,
-                    ),
-                  ],
-                ),
-              ),
-
               TabBar(
                 controller: _tabController,
                 indicatorColor: IndustrialColors.primary,
@@ -576,6 +500,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
   Widget _adminIdentityCard(String email) {
     final displayName =
         '${_firstNameController.text} ${_lastNameController.text}'.trim();
+    final imageBytes = _decodePhoto(_photoBase64);
     return IndustrialCard(
       highlighted: true,
       child: Column(
@@ -584,17 +509,41 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 42,
-                backgroundColor: IndustrialColors.primary,
-                foregroundColor: Colors.white,
-                child: Text(
-                  _initials(displayName, email),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
+              Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  CircleAvatar(
+                    radius: 42,
+                    backgroundColor: IndustrialColors.primary,
+                    foregroundColor: Colors.white,
+                    backgroundImage: imageBytes == null
+                        ? null
+                        : MemoryImage(imageBytes),
+                    child: imageBytes == null
+                        ? Text(
+                            _initials(displayName, email),
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          )
+                        : null,
                   ),
-                ),
+                  Material(
+                    color: IndustrialColors.primaryContainer,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      tooltip: 'Edit photo',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(
+                        Icons.camera_alt,
+                        size: 16,
+                        color: IndustrialColors.primary,
+                      ),
+                      onPressed: _showPhotoPicker,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -611,6 +560,14 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
                     Text(
                       '$_selectedDepartment | $_selectedRole',
                       style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    StatusChip(
+                      label: _status,
+                      type: _isSaving
+                          ? StatusChipType.pending
+                          : StatusChipType.success,
+                      icon: _isSaving ? Icons.sync : Icons.admin_panel_settings,
                     ),
                   ],
                 ),
