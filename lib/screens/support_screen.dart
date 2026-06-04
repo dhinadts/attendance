@@ -1,4 +1,3 @@
-import '../widgets/app_shell.dart';
 import 'package:flutter/material.dart';
 import '../theme/industrial_theme.dart';
 import '../widgets/industrial_card.dart';
@@ -236,7 +235,7 @@ class _SupportScreenState extends State<SupportScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: IndustrialColors.surfaceVariant.withOpacity(0.3),
+              color: IndustrialColors.surfaceVariant.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -289,7 +288,7 @@ class _SupportScreenState extends State<SupportScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, size: 32, color: color),

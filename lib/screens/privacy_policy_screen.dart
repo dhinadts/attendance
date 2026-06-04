@@ -1,29 +1,13 @@
-import '../widgets/app_shell.dart';
 import 'package:flutter/material.dart';
 import '../theme/industrial_theme.dart';
 import '../widgets/industrial_card.dart';
-import 'package:attendance/utils/responsive.dart';
 
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
- double _mobileCardWidth(BuildContext context) {
-    final availableWidth = Responsive.width(context) - 44;
-    if (availableWidth < 340) return availableWidth;
-    return (availableWidth - 20) / 3;
-  }
+
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 900;
-        final cardWidth = isWide ? 143.0 : _mobileCardWidth(context);
-        final pagePadding = isWide
-            ? const EdgeInsets.fromLTRB(28, 24, 28, 32)
-            : const EdgeInsets.symmetric(horizontal: 16, vertical: 16);
-            
-      
-    
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -157,8 +141,6 @@ For privacy-related inquiries:
         ],
       ),
     );
-      }
-        );
   }
 
   Widget _buildSection({required String title, required String content}) {

@@ -49,6 +49,7 @@ jobs:
           if [ -n "${PAYROLL_API_BASE_URL}" ]; then DART_DEFINES+=(--dart-define=PAYROLL_API_BASE_URL="${PAYROLL_API_BASE_URL}"); fi
           if [ -n "${PAYROLL_API_KEY}" ]; then DART_DEFINES+=(--dart-define=PAYROLL_API_KEY="${PAYROLL_API_KEY}"); fi
           flutter build web --release --base-href /attendance/ "${DART_DEFINES[@]}"
+          cp build/web/index.html build/web/404.html
         env:
           FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
           FIREBASE_WEB_APP_ID: ${{ secrets.FIREBASE_WEB_APP_ID }}

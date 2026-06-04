@@ -111,7 +111,7 @@ class _AuthScreenState extends State<AuthScreen> {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   });
-  print('FCM token registered for user ${user.uid} with role $roleValue');
+  debugPrint('FCM token registered for user ${user.uid} with role $roleValue');
 }
 
   Future<void> _loadRoleAssignmentAccess() async {

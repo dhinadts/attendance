@@ -125,15 +125,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            IndustrialColors.primary.withOpacity(0.1),
-            IndustrialColors.primary.withOpacity(0.05),
+            IndustrialColors.primary.withValues(alpha: 0.1),
+            IndustrialColors.primary.withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: IndustrialColors.primary.withOpacity(0.3),
+          color: IndustrialColors.primary.withValues(alpha: 0.3),
         ),
       ),
       child: Row(
@@ -141,7 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: IndustrialColors.primary.withOpacity(0.2),
+              color: IndustrialColors.primary.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(
@@ -224,7 +224,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: IndustrialColors.surfaceVariant.withOpacity(0.5),
+        color: IndustrialColors.surfaceVariant.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(

@@ -354,7 +354,7 @@ onTap: () => _openEmployeeDetail(emp),                                child: Row
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 12, offset: const Offset(0, 6))],
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 6))],
                       ),
                       constraints: BoxConstraints(maxHeight: popupHeight),
                       child: SingleChildScrollView(
@@ -476,7 +476,7 @@ class _TrianglePainter extends CustomPainter {
       path.lineTo(size.width, 0);
     }
     path.close();
-    canvas.drawShadow(path, Colors.black.withOpacity(0.08), 4, false);
+    canvas.drawShadow(path, Colors.black.withValues(alpha: 0.08), 4, false);
     canvas.drawPath(path, paint);
   }
 

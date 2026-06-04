@@ -1,4 +1,3 @@
-import '../widgets/app_shell.dart';
 import 'package:flutter/material.dart';
 import '../theme/industrial_theme.dart';
 import '../widgets/industrial_card.dart';

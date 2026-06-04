@@ -48,7 +48,11 @@
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/firebase-messaging-sw.js");
+          const messagingWorkerUrl = new URL(
+            "firebase-messaging-sw.js",
+            document.baseURI
+          );
+          navigator.serviceWorker.register(messagingWorkerUrl);
         });
       }
     </script>
