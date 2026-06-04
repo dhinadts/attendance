@@ -929,63 +929,92 @@ class _NotificationBell extends StatelessWidget {
           builder: (context, messageSnapshot) {
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance
-                  .appCollection('notification_reads')
-                  .where('uid', isEqualTo: uid)
+                  .appCollection('notifications')
+                  .orderBy('createdAt', descending: true)
+                  .limit(100)
                   .snapshots(),
-              builder: (context, readSnapshot) {
-                final readIds = (readSnapshot.data?.docs ?? [])
-                    .map((doc) => doc.data()['messageId'] as String?)
-                    .whereType<String>()
-                    .toSet();
-                final unreadCount = (messageSnapshot.data?.docs ?? [])
-                    .where(
-                      (doc) => _isRelevantNotification(
-                        doc.data(),
-                        uid: uid,
-                        isAdmin: isAdmin,
-                        department: department,
-                      ),
-                    )
-                    .where((doc) => !readIds.contains(doc.id))
-                    .length;
+              builder: (context, backendSnapshot) {
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .appCollection('notification_inbox')
+                      .where('uid', isEqualTo: uid)
+                      .snapshots(),
+                  builder: (context, inboxSnapshot) {
+                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseFirestore.instance
+                          .appCollection('notification_reads')
+                          .where('uid', isEqualTo: uid)
+                          .snapshots(),
+                      builder: (context, readSnapshot) {
+                        final readIds = (readSnapshot.data?.docs ?? [])
+                            .map((doc) => doc.data()['messageId'] as String?)
+                            .whereType<String>()
+                            .toSet();
+                        final unreadCount =
+                            _notificationBadgeEntries(
+                                  teamMessages:
+                                      messageSnapshot.data?.docs ?? const [],
+                                  backendNotifications:
+                                      backendSnapshot.data?.docs ?? const [],
+                                  inboxMessages:
+                                      inboxSnapshot.data?.docs ?? const [],
+                                )
+                                .where(
+                                  (entry) => _isRelevantNotification(
+                                    entry.data,
+                                    uid: uid,
+                                    isAdmin: isAdmin,
+                                    department: department,
+                                  ),
+                                )
+                                .where((entry) => !readIds.contains(entry.id))
+                                .length;
 
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      tooltip: 'Notifications',
-                      icon: const Icon(Icons.notifications_none),
-                      color: IndustrialColors.primary,
-                      onPressed: () => context.go(
-                        isAdminPath ? '/admin-notifications' : '/notifications',
-                      ),
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 6,
-                        top: 6,
-                        child: Container(
-                          constraints: const BoxConstraints(
-                            minWidth: 18,
-                            minHeight: 18,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFBA1A1A),
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            unreadCount > 9 ? '9+' : '$unreadCount',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            IconButton(
+                              tooltip: 'Notifications',
+                              icon: const Icon(Icons.notifications_none),
+                              color: IndustrialColors.primary,
+                              onPressed: () => context.go(
+                                isAdminPath
+                                    ? '/admin-notifications'
+                                    : '/notifications',
+                              ),
                             ),
-                          ),
-                        ),
-                      ),
-                  ],
+                            if (unreadCount > 0)
+                              Positioned(
+                                right: 6,
+                                top: 6,
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 18,
+                                    minHeight: 18,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFBA1A1A),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    unreadCount > 9 ? '9+' : '$unreadCount',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    );
+                  },
                 );
               },
             );
@@ -1014,13 +1043,96 @@ class _NotificationBell extends StatelessWidget {
     }
     if (department == null || department.isEmpty) return false;
     final targetTeam = (data['targetTeam'] as String?)?.trim().toLowerCase();
-    final targetTeams = (data['targetTeams'] as List?)
-        ?.whereType<String>()
-        .map((team) => team.trim().toLowerCase())
-        .toSet();
+    final targetTeams = _stringSet(data['targetTeams']);
     return targetTeam == department ||
         targetTeams?.contains(department) == true;
   }
+
+  Set<String>? _stringSet(Object? value) {
+    if (value is List) {
+      return value
+          .whereType<String>()
+          .map((item) => item.trim().toLowerCase())
+          .where((item) => item.isNotEmpty)
+          .toSet();
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      return value
+          .split(',')
+          .map((item) => item.trim().toLowerCase())
+          .where((item) => item.isNotEmpty)
+          .toSet();
+    }
+    return null;
+  }
+
+  List<_NotificationBadgeEntry> _notificationBadgeEntries({
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> teamMessages,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>>
+    backendNotifications,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> inboxMessages,
+  }) {
+    final byKey = <String, _NotificationBadgeEntry>{};
+
+    void add(_NotificationBadgeEntry entry) {
+      final key =
+          (entry.data['messageId'] as String?)?.trim().isNotEmpty == true
+          ? entry.data['messageId'] as String
+          : entry.id;
+      byKey.putIfAbsent(key, () => entry);
+    }
+
+    for (final doc in teamMessages) {
+      add(
+        _NotificationBadgeEntry(
+          id: doc.id,
+          data: {'messageId': doc.id, ...doc.data()},
+        ),
+      );
+    }
+    for (final doc in backendNotifications) {
+      final data = doc.data();
+      final messageId = data['messageId'] as String?;
+      add(
+        _NotificationBadgeEntry(
+          id: messageId?.isNotEmpty == true ? messageId! : doc.id,
+          data: {
+            'notificationId': doc.id,
+            if (messageId?.isNotEmpty == true) 'messageId': messageId,
+            ...data,
+          },
+        ),
+      );
+    }
+    for (final doc in inboxMessages) {
+      final data = doc.data();
+      final payload = Map<String, dynamic>.from(
+        (data['data'] as Map?) ?? const <String, dynamic>{},
+      );
+      final messageId = payload['messageId'] as String?;
+      add(
+        _NotificationBadgeEntry(
+          id: messageId?.isNotEmpty == true ? messageId! : doc.id,
+          data: {
+            ...payload,
+            'messageId': messageId?.isNotEmpty == true ? messageId : doc.id,
+            'title': data['title'] ?? payload['title'],
+            'body': data['body'] ?? payload['body'],
+            'source': data['source'] ?? payload['source'],
+          },
+        ),
+      );
+    }
+
+    return byKey.values.toList();
+  }
+}
+
+class _NotificationBadgeEntry {
+  const _NotificationBadgeEntry({required this.id, required this.data});
+
+  final String id;
+  final Map<String, dynamic> data;
 }
 
 class _DrawerItem {

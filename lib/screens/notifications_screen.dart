@@ -12,7 +12,6 @@ import '../services/fcm_notification_service.dart';
 import '../services/attendance_session_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({
     super.key,
@@ -130,6 +129,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         .snapshots();
   }
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> _backendNotificationsStream() {
+    return FirebaseFirestore.instance
+        .appCollection('notifications')
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _inboxStream() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const Stream.empty();
+    return FirebaseFirestore.instance
+        .appCollection('notification_inbox')
+        .where('uid', isEqualTo: uid)
+        .snapshots();
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> _readsStream() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const Stream.empty();
@@ -163,12 +179,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (department == null || department.isEmpty) return false;
 
     final targetTeam = (data['targetTeam'] as String?)?.trim().toLowerCase();
-    final targetTeams = (data['targetTeams'] as List?)
-        ?.whereType<String>()
-        .map((team) => team.trim().toLowerCase())
-        .toSet();
+    final targetTeams = _stringSet(data['targetTeams']);
     return targetTeam == department ||
         targetTeams?.contains(department) == true;
+  }
+
+  Set<String>? _stringSet(Object? value) {
+    if (value is List) {
+      return value
+          .whereType<String>()
+          .map((item) => item.trim().toLowerCase())
+          .where((item) => item.isNotEmpty)
+          .toSet();
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      return value
+          .split(',')
+          .map((item) => item.trim().toLowerCase())
+          .where((item) => item.isNotEmpty)
+          .toSet();
+    }
+    return null;
   }
 
   Future<void> _markRead(String messageId) async {
@@ -332,7 +363,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _targetLabel(Map<String, dynamic> data) {
     final targetTeam = data['targetTeam'] as String?;
     if (targetTeam != null && targetTeam.trim().isNotEmpty) return targetTeam;
-    final targetTeams = (data['targetTeams'] as List?)?.whereType<String>();
+    final targetTeams = _stringSet(data['targetTeams']);
     if (targetTeams != null && targetTeams.isNotEmpty) {
       return targetTeams.join(', ');
     }
@@ -465,99 +496,68 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           .map((doc) => doc.data()['messageId'] as String?)
                           .whereType<String>()
                           .toSet();
-                      final notifications = (messageSnapshot.data?.docs ?? [])
-                          .where((doc) => _isRelevant(doc.data()))
-                          .toList();
+                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: _backendNotificationsStream(),
+                        builder: (context, backendSnapshot) {
+                          return StreamBuilder<
+                            QuerySnapshot<Map<String, dynamic>>
+                          >(
+                            stream: _inboxStream(),
+                            builder: (context, inboxSnapshot) {
+                              final notifications =
+                                  _combinedNotifications(
+                                        teamMessages:
+                                            messageSnapshot.data?.docs ??
+                                            const [],
+                                        backendNotifications:
+                                            backendSnapshot.data?.docs ??
+                                            const [],
+                                        inboxMessages:
+                                            inboxSnapshot.data?.docs ??
+                                            const [],
+                                      )
+                                      .where((entry) => _isRelevant(entry.data))
+                                      .toList();
 
-                      if (notifications.isEmpty && !isLoading) {
-                        return const Center(
-                          child: StatusChip(
-                            label: 'No notifications yet',
-                            type: StatusChipType.neutral,
-                          ),
-                        );
-                      }
+                              if (notifications.isEmpty && !isLoading) {
+                                return const Center(
+                                  child: StatusChip(
+                                    label: 'No notifications yet',
+                                    type: StatusChipType.neutral,
+                                  ),
+                                );
+                              }
 
-                      return ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: notifications.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final doc = notifications[index];
-                          final data = doc.data();
-                          final isRead = readIds.contains(doc.id);
-                          final isSelected = widget.initialMessageId == doc.id;
-                          return IndustrialCard(
-                            highlighted: !isRead || isSelected,
-                            onTap: () =>
-                                _openNotification(doc.id, data, isRead),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  _directionIcon(data),
-                                  color: isRead
-                                      ? IndustrialColors.onSurfaceVariant
-                                      : _directionColor(data),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        data['title'] as String? ??
-                                            'Notification',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        data['body'] as String? ?? '',
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 6,
-                                        children: [
-                                          Text(
-                                            data['createdAtIst'] as String? ??
-                                                '',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: IndustrialColors
-                                                      .onSurfaceVariant,
-                                                ),
-                                          ),
-                                          StatusChip(
-                                            label: _directionLabel(data),
-                                            type: _isOutgoing(data)
-                                                ? StatusChipType.pending
-                                                : StatusChipType.neutral,
-                                          ),
-                                          StatusChip(
-                                            label: _targetLabel(data),
-                                            type: StatusChipType.neutral,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (!isRead)
-                                  const StatusChip(
-                                    label: 'NEW',
-                                    type: StatusChipType.success,
-                                  ),
-                              ],
-                            ),
+                              return ListView.separated(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: notifications.length,
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  final entry = notifications[index];
+                                  final data = entry.data;
+                                  final isRead = readIds.contains(entry.id);
+                                  final isSelected =
+                                      widget.initialMessageId == entry.id ||
+                                      widget.initialMessageId ==
+                                          data['messageId'];
+                                  return _NotificationCard(
+                                    data: data,
+                                    isRead: isRead,
+                                    isSelected: isSelected,
+                                    directionIcon: _directionIcon(data),
+                                    directionColor: _directionColor(data),
+                                    directionLabel: _directionLabel(data),
+                                    targetLabel: _targetLabel(data),
+                                    onTap: () => _openNotification(
+                                      entry.id,
+                                      data,
+                                      isRead,
+                                    ),
+                                  );
+                                },
+                              );
+                            },
                           );
                         },
                       );
@@ -594,238 +594,318 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               stream: _messagesStream(),
               builder: (context, messageSnapshot) {
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _readsStream(),
-                  builder: (context, readSnapshot) {
-                    final employeeDocs = employeesSnapshot.data?.docs ?? [];
-                    final messageDocs = messageSnapshot.data?.docs ?? [];
-                    final readIds = (readSnapshot.data?.docs ?? [])
-                        .map((doc) => doc.data()['messageId'] as String?)
-                        .whereType<String>()
-                        .toSet();
+                  stream: _backendNotificationsStream(),
+                  builder: (context, backendSnapshot) {
+                    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _inboxStream(),
+                      builder: (context, inboxSnapshot) {
+                        return StreamBuilder<
+                          QuerySnapshot<Map<String, dynamic>>
+                        >(
+                          stream: _readsStream(),
+                          builder: (context, readSnapshot) {
+                            final employeeDocs =
+                                employeesSnapshot.data?.docs ?? [];
+                            final messageDocs =
+                                messageSnapshot.data?.docs ?? [];
+                            final readIds = (readSnapshot.data?.docs ?? [])
+                                .map(
+                                  (doc) => doc.data()['messageId'] as String?,
+                                )
+                                .whereType<String>()
+                                .toSet();
 
-                    final profilesByEmployeeId =
-                        <String, Map<String, dynamic>>{};
-                    final employeesByTeam =
-                        <String, List<Map<String, dynamic>>>{};
-                    for (final doc in employeeDocs) {
-                      final data = doc.data();
-                      final employeeId =
-                          (data['employeeId'] as String?)?.trim() ?? doc.id;
-                      final team =
-                          (data['department'] as String?)
-                              ?.trim()
-                              .toUpperCase() ??
-                          'GENERAL';
-                      final profile = {
-                        ...data,
-                        'employeeId': employeeId,
-                        'department': team,
-                      };
-                      profilesByEmployeeId[employeeId] = profile;
-                      employeesByTeam.putIfAbsent(team, () => []).add(profile);
-                    }
+                            final profilesByEmployeeId =
+                                <String, Map<String, dynamic>>{};
+                            final employeesByTeam =
+                                <String, List<Map<String, dynamic>>>{};
+                            for (final doc in employeeDocs) {
+                              final data = doc.data();
+                              final employeeId =
+                                  (data['employeeId'] as String?)?.trim() ??
+                                  doc.id;
+                              final team =
+                                  (data['department'] as String?)
+                                      ?.trim()
+                                      .toUpperCase() ??
+                                  'GENERAL';
+                              final profile = {
+                                ...data,
+                                'employeeId': employeeId,
+                                'department': team,
+                              };
+                              profilesByEmployeeId[employeeId] = profile;
+                              employeesByTeam
+                                  .putIfAbsent(team, () => [])
+                                  .add(profile);
+                            }
 
-                    for (final team in OrganizationOptions.teams) {
-                      employeesByTeam.putIfAbsent(team.toUpperCase(), () => []);
-                    }
+                            for (final team in OrganizationOptions.teams) {
+                              employeesByTeam.putIfAbsent(
+                                team.toUpperCase(),
+                                () => [],
+                              );
+                            }
 
-                    final relevantMessages = messageDocs.where(
-                      (doc) => _isRelevant(doc.data()),
-                    );
-                    final unreadByTeam = <String, int>{};
-                    var generalUnread = 0;
-                    var generalCount = 0;
-                    for (final doc in relevantMessages) {
-                      final data = doc.data();
-                      final isUnread = !readIds.contains(doc.id);
-                      final employeeId =
-                          (data['employeeId'] as String?)?.trim().isNotEmpty ==
-                              true
-                          ? (data['employeeId'] as String).trim()
-                          : (data['senderEmployeeId'] as String?)?.trim();
-                      final profile = employeeId == null
-                          ? null
-                          : profilesByEmployeeId[employeeId];
-                      final team = (profile?['department'] as String?)
-                          ?.trim()
-                          .toUpperCase();
-                      if (team == null || team.isEmpty) {
-                        generalCount++;
-                        if (isUnread) generalUnread++;
-                        continue;
-                      }
-                      if (isUnread) {
-                        unreadByTeam[team] = (unreadByTeam[team] ?? 0) + 1;
-                      }
-                    }
-
-                    final teamsList = employeesByTeam.keys.toList()..sort();
-
-                    return ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        IndustrialCard(
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.notifications,
-                                color: IndustrialColors.primary,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Team Notification Directory',
-                                      style: TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Open a team, choose an employee, then inspect sent and received notifications.',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: IndustrialColors
-                                                .onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        if (generalCount > 0)
-                          IndustrialCard(
-                            onTap: () {
-                              QueryDocumentSnapshot<Map<String, dynamic>>?
-                              firstGeneral;
-                              for (final doc in relevantMessages) {
-                                final data = doc.data();
-                                final employeeId =
-                                    data['employeeId'] as String? ??
-                                    data['senderEmployeeId'] as String?;
-                                if (employeeId == null ||
-                                    employeeId.trim().isEmpty) {
-                                  firstGeneral = doc;
-                                  break;
-                                }
+                            final relevantMessages =
+                                _combinedNotifications(
+                                      teamMessages: messageDocs,
+                                      backendNotifications:
+                                          backendSnapshot.data?.docs ??
+                                          const [],
+                                      inboxMessages:
+                                          inboxSnapshot.data?.docs ?? const [],
+                                    )
+                                    .where((entry) => _isRelevant(entry.data))
+                                    .toList();
+                            final unreadByTeam = <String, int>{};
+                            var generalUnread = 0;
+                            var generalCount = 0;
+                            for (final entry in relevantMessages) {
+                              final data = entry.data;
+                              final isUnread = !readIds.contains(entry.id);
+                              final employeeId =
+                                  (data['employeeId'] as String?)
+                                          ?.trim()
+                                          .isNotEmpty ==
+                                      true
+                                  ? (data['employeeId'] as String).trim()
+                                  : (data['senderEmployeeId'] as String?)
+                                        ?.trim();
+                              final profile = employeeId == null
+                                  ? null
+                                  : profilesByEmployeeId[employeeId];
+                              final team = (profile?['department'] as String?)
+                                  ?.trim()
+                                  .toUpperCase();
+                              if (team == null || team.isEmpty) {
+                                generalCount++;
+                                if (isUnread) generalUnread++;
+                                continue;
                               }
-                              if (firstGeneral != null) {
-                                _openNotification(
-                                  firstGeneral.id,
-                                  firstGeneral.data(),
-                                  readIds.contains(firstGeneral.id),
-                                );
+                              if (isUnread) {
+                                unreadByTeam[team] =
+                                    (unreadByTeam[team] ?? 0) + 1;
                               }
-                            },
-                            child: Row(
+                            }
+
+                            final teamsList = employeesByTeam.keys.toList()
+                              ..sort();
+
+                            return ListView(
+                              padding: const EdgeInsets.all(16),
                               children: [
-                                const Icon(
-                                  Icons.campaign,
-                                  color: IndustrialColors.primary,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                IndustrialCard(
+                                  child: Row(
                                     children: [
-                                      const Text(
-                                        'General Broadcasts',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 16,
+                                      const Icon(
+                                        Icons.notifications,
+                                        color: IndustrialColors.primary,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Team Notification Directory',
+                                              style: TextStyle(
+                                                fontSize: 17,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Open a team, choose an employee, then inspect sent and received notifications.',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: IndustrialColors
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text('$generalCount messages'),
                                     ],
                                   ),
                                 ),
-                                StatusChip(
-                                  label: generalUnread > 0
-                                      ? '$generalUnread new'
-                                      : 'cleared',
-                                  type: generalUnread > 0
-                                      ? StatusChipType.success
-                                      : StatusChipType.neutral,
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (generalCount > 0) const SizedBox(height: 12),
-                        ...teamsList.map((teamName) {
-                          final employees = employeesByTeam[teamName] ?? [];
-                          final unread = unreadByTeam[teamName] ?? 0;
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: IndustrialCard(
-                              onTap: () => context.go(
-                                '/admin-notifications/team?team=${Uri.encodeComponent(teamName)}',
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: IndustrialColors.primary
-                                          .withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.groups,
-                                      color: IndustrialColors.primary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                const SizedBox(height: 12),
+                                if (generalCount > 0)
+                                  IndustrialCard(
+                                    onTap: () {
+                                      _NotificationEntry? firstGeneral;
+                                      for (final entry in relevantMessages) {
+                                        final data = entry.data;
+                                        final employeeId =
+                                            data['employeeId'] as String? ??
+                                            data['senderEmployeeId'] as String?;
+                                        if (employeeId == null ||
+                                            employeeId.trim().isEmpty) {
+                                          firstGeneral = entry;
+                                          break;
+                                        }
+                                      }
+                                      if (firstGeneral != null) {
+                                        _openNotification(
+                                          firstGeneral.id,
+                                          firstGeneral.data,
+                                          readIds.contains(firstGeneral.id),
+                                        );
+                                      }
+                                    },
+                                    child: Row(
                                       children: [
-                                        Text(
-                                          teamName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 16,
+                                        const Icon(
+                                          Icons.campaign,
+                                          color: IndustrialColors.primary,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'General Broadcasts',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text('$generalCount messages'),
+                                            ],
                                           ),
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${employees.length} employees',
-                                          style: const TextStyle(
-                                            color: IndustrialColors
-                                                .onSurfaceVariant,
-                                          ),
+                                        StatusChip(
+                                          label: generalUnread > 0
+                                              ? '$generalUnread new'
+                                              : 'cleared',
+                                          type: generalUnread > 0
+                                              ? StatusChipType.success
+                                              : StatusChipType.neutral,
                                         ),
                                       ],
                                     ),
                                   ),
-                                  StatusChip(
-                                    label: unread > 0 ? '$unread new' : 'open',
-                                    type: unread > 0
-                                        ? StatusChipType.success
-                                        : StatusChipType.neutral,
+                                if (generalCount > 0)
+                                  const SizedBox(height: 12),
+                                if (relevantMessages.isNotEmpty) ...[
+                                  Text(
+                                    'All Push Notifications',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w800),
                                   ),
-                                  const SizedBox(width: 8),
-                                  const Icon(
-                                    Icons.chevron_right,
-                                    color: IndustrialColors.onSurfaceVariant,
+                                  const SizedBox(height: 10),
+                                  ...relevantMessages.take(25).map((entry) {
+                                    final data = entry.data;
+                                    final isRead = readIds.contains(entry.id);
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _NotificationCard(
+                                        data: data,
+                                        isRead: isRead,
+                                        isSelected:
+                                            widget.initialMessageId == entry.id,
+                                        directionIcon: _directionIcon(data),
+                                        directionColor: _directionColor(data),
+                                        directionLabel: _directionLabel(data),
+                                        targetLabel: _targetLabel(data),
+                                        onTap: () => _openNotification(
+                                          entry.id,
+                                          data,
+                                          isRead,
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                  const SizedBox(height: 8),
+                                  Divider(
+                                    color: IndustrialColors.outlineVariant,
                                   ),
+                                  const SizedBox(height: 12),
                                 ],
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
+                                ...teamsList.map((teamName) {
+                                  final employees =
+                                      employeesByTeam[teamName] ?? [];
+                                  final unread = unreadByTeam[teamName] ?? 0;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: IndustrialCard(
+                                      onTap: () => context.go(
+                                        '/admin-notifications/team?team=${Uri.encodeComponent(teamName)}',
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: IndustrialColors.primary
+                                                  .withValues(alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: const Icon(
+                                              Icons.groups,
+                                              color: IndustrialColors.primary,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  teamName,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '${employees.length} employees',
+                                                  style: const TextStyle(
+                                                    color: IndustrialColors
+                                                        .onSurfaceVariant,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          StatusChip(
+                                            label: unread > 0
+                                                ? '$unread new'
+                                                : 'open',
+                                            type: unread > 0
+                                                ? StatusChipType.success
+                                                : StatusChipType.neutral,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Icon(
+                                            Icons.chevron_right,
+                                            color: IndustrialColors
+                                                .onSurfaceVariant,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            );
+                          },
+                        );
+                      },
                     );
                   },
                 );
@@ -847,6 +927,82 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  List<_NotificationEntry> _combinedNotifications({
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> teamMessages,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>>
+    backendNotifications,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> inboxMessages,
+  }) {
+    final byKey = <String, _NotificationEntry>{};
+
+    void addEntry(_NotificationEntry entry) {
+      final key =
+          (entry.data['messageId'] as String?)?.trim().isNotEmpty == true
+          ? entry.data['messageId'] as String
+          : entry.id;
+      byKey.putIfAbsent(key, () => entry);
+    }
+
+    for (final doc in teamMessages) {
+      addEntry(
+        _NotificationEntry(
+          id: doc.id,
+          data: {'messageId': doc.id, ...doc.data()},
+        ),
+      );
+    }
+
+    for (final doc in backendNotifications) {
+      final data = doc.data();
+      final messageId = data['messageId'] as String?;
+      addEntry(
+        _NotificationEntry(
+          id: messageId?.isNotEmpty == true ? messageId! : doc.id,
+          data: {
+            'notificationId': doc.id,
+            if (messageId?.isNotEmpty == true) 'messageId': messageId,
+            ...data,
+          },
+        ),
+      );
+    }
+
+    for (final doc in inboxMessages) {
+      final data = doc.data();
+      final payload = Map<String, dynamic>.from(
+        (data['data'] as Map?) ?? const <String, dynamic>{},
+      );
+      final messageId = payload['messageId'] as String?;
+      addEntry(
+        _NotificationEntry(
+          id: messageId?.isNotEmpty == true ? messageId! : doc.id,
+          data: {
+            ...payload,
+            'messageId': messageId?.isNotEmpty == true ? messageId : doc.id,
+            'title': data['title'] ?? payload['title'],
+            'body': data['body'] ?? payload['body'],
+            'source': data['source'] ?? payload['source'],
+          },
+        ),
+      );
+    }
+
+    final entries = byKey.values.toList();
+    entries.sort(
+      (a, b) => _createdLabel(b.data).compareTo(_createdLabel(a.data)),
+    );
+    return entries;
+  }
+
+  static String _createdLabel(Map<String, dynamic> data) {
+    return (data['createdAtIst'] ??
+            data['receivedAtIst'] ??
+            data['createdAt'] ??
+            data['receivedAt'] ??
+            '')
+        .toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLoading = _profileLoading || _loadingInitialMessage;
@@ -857,7 +1013,100 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       child: _role.isAdminLike
           ? _buildAdminView(isLoading)
           : _buildEmployeeView(isLoading),
-          
+    );
+  }
+}
+
+class _NotificationEntry {
+  const _NotificationEntry({required this.id, required this.data});
+
+  final String id;
+  final Map<String, dynamic> data;
+}
+
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({
+    required this.data,
+    required this.isRead,
+    required this.isSelected,
+    required this.directionIcon,
+    required this.directionColor,
+    required this.directionLabel,
+    required this.targetLabel,
+    required this.onTap,
+  });
+
+  final Map<String, dynamic> data;
+  final bool isRead;
+  final bool isSelected;
+  final IconData directionIcon;
+  final Color directionColor;
+  final String directionLabel;
+  final String targetLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IndustrialCard(
+      highlighted: !isRead || isSelected,
+      onTap: onTap,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            directionIcon,
+            color: isRead ? IndustrialColors.onSurfaceVariant : directionColor,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  data['title'] as String? ?? 'Notification',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  data['body'] as String? ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    Text(
+                      _NotificationsScreenState._createdLabel(data),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: IndustrialColors.onSurfaceVariant,
+                      ),
+                    ),
+                    StatusChip(
+                      label: directionLabel,
+                      type: directionLabel == 'sent'
+                          ? StatusChipType.pending
+                          : StatusChipType.neutral,
+                    ),
+                    StatusChip(
+                      label: targetLabel,
+                      type: StatusChipType.neutral,
+                    ),
+                    if ((data['type'] as String?)?.trim().isNotEmpty == true)
+                      StatusChip(
+                        label: data['type'] as String,
+                        type: StatusChipType.pending,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (!isRead)
+            const StatusChip(label: 'NEW', type: StatusChipType.success),
+        ],
+      ),
     );
   }
 }
