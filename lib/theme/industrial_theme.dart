@@ -21,6 +21,10 @@ class IndustrialColors {
   static const Color onTertiary = Color(0xFFFFFFFF);
   static const Color onTertiaryContainer = Color(0xFF92400E);
 
+  // Success / Warning aliases used across the app
+  static const Color success = Color(0xFF16A34A); // Green for success
+  static const Color warning = tertiary; // Alias to tertiary (amber)
+
   // Surface colors
   static const Color surface = Color(0xFFFFFFFF); // Clean white card background
   static const Color surfaceContainer = Color(0xFFF0F4EF); // Sage-gray tinted surface

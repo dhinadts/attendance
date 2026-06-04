@@ -6,9 +6,9 @@ import '../services/app_firestore.dart';
 import '../widgets/industrial_card.dart';
 import '../widgets/primary_action_button.dart';
 import '../constants/organization_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/fcm_notification_service.dart';
 import '../services/attendance_session_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -234,23 +234,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final name = _employeeName;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 760;
-        if (compact) {
+        final max = constraints.maxWidth;
+        // Narrow screens: stack identity, professional, personal
+        if (max < 900) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _identityCard(name),
+              const SizedBox(height: 12),
+              _sectionTitle('Personal Details', Icons.family_restroom),
+              const SizedBox(height: 8),
+              _personalDetailsCard(),
               const SizedBox(height: 12),
               _professionalCard(),
             ],
           );
         }
 
+        // Wide screens: show all three columns in one row
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Employee details (identity)
             Expanded(flex: 2, child: _identityCard(name)),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
+
+            // Personal details
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionTitle('Personal Details', Icons.family_restroom),
+                  const SizedBox(height: 8),
+                  _personalDetailsCard(),
+                ],
+              ),
+            ),
+            SizedBox(width: 12),
+
+            // Professional details
             Expanded(flex: 3, child: _professionalCard()),
           ],
         );
@@ -306,26 +329,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _field(_firstNameController, 'First Name', Icons.person),
-          const SizedBox(height: 10),
-          _field(_lastNameController, 'Last Name', Icons.person_outline),
-          const SizedBox(height: 10),
-          _field(_employeeIdController, 'Employee ID / Code', Icons.badge),
-          const SizedBox(height: 10),
-          _field(
-            _emailController,
-            'Employee Email',
-            Icons.email,
-            keyboardType: TextInputType.emailAddress,
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final w = constraints.maxWidth;
+              if (w >= 520) {
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _miniInfoTile(
+                            'Phone',
+                            _contactController.text,
+                            Icons.phone,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: _miniInfoTile(
+                            'Joining',
+                            _joiningDateController.text,
+                            Icons.event_available,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _miniInfoTile(
+                            'Department',
+                            _selectedDepartment,
+                            Icons.business,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: _miniInfoTile(
+                            'Role',
+                            _selectedRole,
+                            Icons.engineering,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  _miniInfoTile('Phone', _contactController.text, Icons.phone),
+                  const SizedBox(height: 8),
+                  _miniInfoTile(
+                    'Joining',
+                    _joiningDateController.text,
+                    Icons.event_available,
+                  ),
+                  const SizedBox(height: 8),
+                  _miniInfoTile(
+                    'Department',
+                    _selectedDepartment,
+                    Icons.business,
+                  ),
+                  const SizedBox(height: 8),
+                  _miniInfoTile('Role', _selectedRole, Icons.engineering),
+                ],
+              );
+            },
           ),
-          const SizedBox(height: 10),
-          _field(
-            _contactController,
-            'Employee Phone',
-            Icons.phone,
-            keyboardType: TextInputType.phone,
-          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -584,6 +660,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: IndustrialColors.primary),
+      ),
+    );
+  }
+
+  Widget _miniInfoTile(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withAlpha(20)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: IndustrialColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: IndustrialColors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value.isNotEmpty ? value : 'Not set',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
