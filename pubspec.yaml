@@ -50,6 +50,6 @@ flutter:
 
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
   image_path: assets/branding/app_logo.png
   min_sdk_android: 23
