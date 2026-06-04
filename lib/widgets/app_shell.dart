@@ -372,8 +372,12 @@ class _AdminSideMenu extends StatelessWidget {
           child: Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: IndustrialColors.primary, borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.verified_user, color: IndustrialColors.onPrimary),
+            decoration: BoxDecoration(
+              color: IndustrialColors.primary, 
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF34D399), width: 1.5),
+            ),
+            child: const Icon(Icons.shield_outlined, color: Color(0xFF34D399), size: 18),
           ),
         ),
         const Divider(height: 1, color: IndustrialColors.outlineVariant),
@@ -398,15 +402,19 @@ class _AdminSideMenu extends StatelessWidget {
               Container(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(color: IndustrialColors.primary, borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.verified_user, color: IndustrialColors.onPrimary),
+                decoration: BoxDecoration(
+                  color: IndustrialColors.primary, 
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF34D399), width: 1.5),
+                ),
+                child: const Icon(Icons.shield_outlined, color: Color(0xFF34D399), size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('attendance', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: IndustrialColors.onSurface, fontWeight: FontWeight.w800)),
+                    Text('DhinaDTS', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: IndustrialColors.onSurface, fontWeight: FontWeight.w800)),
                     Text('Admin workspace', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: IndustrialColors.onSurfaceVariant)),
                   ],
                 ),
@@ -746,7 +754,7 @@ class _AppDrawer extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(20),
               child: Text(
-                'attendance',
+                'DhinaDTS',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: IndustrialColors.primary,
                   fontWeight: FontWeight.w800,

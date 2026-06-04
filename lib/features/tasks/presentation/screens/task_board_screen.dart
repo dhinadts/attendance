@@ -13,6 +13,7 @@ import 'package:attendance/services/auth_role_service.dart';
 import 'package:attendance/widgets/employee_bottom_nav.dart';
 import 'package:attendance/widgets/primary_action_button.dart';
 import 'package:attendance/services/attendance_session_service.dart';
+import 'package:attendance/widgets/fade_in_slide.dart';
 
 
 class TaskBoardScreen extends StatefulWidget {
@@ -170,7 +171,14 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
                         ),
                       )
                     else
-                      ...tasks.map((doc) => _taskCard(doc.id, doc.data())),
+                      ...tasks.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final doc = entry.value;
+                        return FadeInSlide(
+                          delay: Duration(milliseconds: idx * 80),
+                          child: _taskCard(doc.id, doc.data()),
+                        );
+                      }),
                     const SizedBox(height: 80),
                   ],
                 );

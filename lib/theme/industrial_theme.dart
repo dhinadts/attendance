@@ -1,52 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class IndustrialColors {
   // Primary colors
-  static const Color primary = Color(0xFF00288E);
-  static const Color primaryContainer = Color(0xFF1E40AF);
+  static const Color primary = Color(0xFF0A5C36); // Deep forest green - SaaS Primary
+  static const Color primaryContainer = Color(0xFFE2F0E7); // Soft sage container
   static const Color onPrimary = Color(0xFFFFFFFF);
-  static const Color onPrimaryContainer = Color(0xFFA8B8FF);
+  static const Color onPrimaryContainer = Color(0xFF063A20);
 
   // Secondary colors
-  static const Color secondary = Color(0xFF006D30);
-  static const Color secondaryContainer = Color(0xFF92F5A4);
+  static const Color secondary = Color(0xFF0D9488); // Teal accent - SaaS Secondary
+  static const Color secondaryContainer = Color(0xFFCCFBF1); // Mint/teal container
   static const Color onSecondary = Color(0xFFFFFFFF);
-  static const Color onSecondaryContainer = Color(0xFF007233);
+  static const Color onSecondaryContainer = Color(0xFF115E59);
 
-  // Tertiary colors (Error/Alert)
-  static const Color tertiary = Color(0xFF700006);
-  static const Color tertiaryContainer = Color(0xFF9B000C);
+  // Tertiary colors (Alert/Warning/Pending)
+  static const Color tertiary = Color(0xFFD97706); // Amber/orange for warnings/pending
+  static const Color tertiaryContainer = Color(0xFFFEF3C7);
   static const Color onTertiary = Color(0xFFFFFFFF);
-  static const Color onTertiaryContainer = Color(0xFFFFA398);
+  static const Color onTertiaryContainer = Color(0xFF92400E);
 
   // Surface colors
-  static const Color surface = Color(0xFFF8F9FF);
-  static const Color surfaceContainer = Color(0xFFE6EEFF);
-  static const Color surfaceContainerLow = Color(0xFFEFF4FF);
-  static const Color surfaceContainerHigh = Color(0xFFDEE9FC);
-  static const Color surfaceContainerHighest = Color(0xFFD9E3F6);
+  static const Color surface = Color(0xFFFFFFFF); // Clean white card background
+  static const Color surfaceContainer = Color(0xFFF0F4EF); // Sage-gray tinted surface
+  static const Color surfaceContainerLow = Color(0xFFF5F8F4);
+  static const Color surfaceContainerHigh = Color(0xFFE5EDE3);
+  static const Color surfaceContainerHighest = Color(0xFFD9E5D7);
   static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
-  static const Color surfaceDim = Color(0xFFD0DBED);
-  static const Color surfaceBright = Color(0xFFF8F9FF);
-  static const Color surfaceVariant = Color(0xFFE6EEFF);
-  static const Color onSurface = Color(0xFF121C2A);
-  static const Color onSurfaceVariant = Color(0xFF444653);
+  static const Color surfaceDim = Color(0xFFE2ECE0);
+  static const Color surfaceBright = Color(0xFFF7F9F6);
+  static const Color surfaceVariant = Color(0xFFEFF3EE);
+  static const Color onSurface = Color(0xFF122118); // Deep forest green-black text
+  static const Color onSurfaceVariant = Color(0xFF43534A); // Slate sage text
 
   // Background
-  static const Color background = Color(0xFFF8F9FF);
-  static const Color onBackground = Color(0xFF121C2A);
+  static const Color background = Color(0xFFF7F9F6); // Soft eco-cream/off-white background
+  static const Color onBackground = Color(0xFF122118);
 
   // Other colors
-  static const Color outline = Color(0xFF757684);
-  static const Color outlineVariant = Color(0xFFC4C5D5);
-  static const Color error = Color(0xFFBA1A1A);
+  static const Color outline = Color(0xFFD0DCD0); // Clean sage border
+  static const Color outlineVariant = Color(0xFFE6EFE6);
+  static const Color error = Color(0xFFBE123C); // Rose/Red for errors
   static const Color onError = Color(0xFFFFFFFF);
 
   // Inverse colors
-  static const Color inverseSurface = Color(0xFF27313F);
-  static const Color inverseOnSurface = Color(0xFFEAF1FF);
-  static const Color inversePrimary = Color(0xFFB8C4FF);
+  static const Color inverseSurface = Color(0xFF22332A);
+  static const Color inverseOnSurface = Color(0xFFEAF5EF);
+  static const Color inversePrimary = Color(0xFFA2DFBE);
 }
 
 class IndustrialTheme {
@@ -59,11 +60,11 @@ class IndustrialTheme {
       hoverColor: Colors.transparent,
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: _NoPageTransitionsBuilder(),
-          TargetPlatform.iOS: _NoPageTransitionsBuilder(),
-          TargetPlatform.macOS: _NoPageTransitionsBuilder(),
-          TargetPlatform.windows: _NoPageTransitionsBuilder(),
-          TargetPlatform.linux: _NoPageTransitionsBuilder(),
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+          TargetPlatform.linux: ZoomPageTransitionsBuilder(),
         },
       ),
       brightness: Brightness.light,
@@ -241,20 +242,5 @@ class IndustrialTheme {
         expansionAnimationStyle: AnimationStyle.noAnimation,
       ),
     );
-  }
-}
-
-class _NoPageTransitionsBuilder extends PageTransitionsBuilder {
-  const _NoPageTransitionsBuilder();
-
-  @override
-  Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    return child;
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
 import '../widgets/industrial_card.dart';
+import '../widgets/fade_in_slide.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/employee_bottom_nav.dart';
 import '../widgets/primary_action_button.dart';
@@ -141,63 +142,84 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Welcome $welcomeName',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
+            FadeInSlide(
+              delay: Duration.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome $welcomeName',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildSessionStatusChip(),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            _buildSessionStatusChip(),
             const SizedBox(height: 20),
-            _buildTodayAttendanceCard(context),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _quickCard(
-                    context,
-                    'Calendar',
-                    Icons.calendar_month,
-                    () => context.go('/attendance-details'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _quickCard(
-                    context,
-                    'Salary',
-                    Icons.receipt_long,
-                    () => context.go('/salary'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _quickCard(
-                    context,
-                    'Tasks',
-                    Icons.task_alt,
-                    () => context.go('/tasks'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _quickCard(
-                    context,
-                    'Exit Request',
-                    Icons.exit_to_app,
-                    () => context.go('/exit-company'),
-                  ),
-                ),
-              ],
+            FadeInSlide(
+              delay: const Duration(milliseconds: 150),
+              child: _buildTodayAttendanceCard(context),
             ),
             const SizedBox(height: 16),
-            _buildEmployeeActivityPanel(context),
+            FadeInSlide(
+              delay: const Duration(milliseconds: 300),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _quickCard(
+                          context,
+                          'Calendar',
+                          Icons.calendar_month,
+                          () => context.go('/attendance-details'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _quickCard(
+                          context,
+                          'Salary',
+                          Icons.receipt_long,
+                          () => context.go('/salary'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _quickCard(
+                          context,
+                          'Tasks',
+                          Icons.task_alt,
+                          () => context.go('/tasks'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _quickCard(
+                          context,
+                          'Exit Request',
+                          Icons.exit_to_app,
+                          () => context.go('/exit-company'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            FadeInSlide(
+              delay: const Duration(milliseconds: 450),
+              child: _buildEmployeeActivityPanel(context),
+            ),
           ],
         ),
       ),

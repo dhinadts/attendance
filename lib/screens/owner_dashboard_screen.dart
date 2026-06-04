@@ -6,6 +6,7 @@ import '../services/app_firestore.dart';
 import '../theme/industrial_theme.dart';
 import '../widgets/section_header.dart';
 import '../widgets/industrial_card.dart';
+import '../widgets/fade_in_slide.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/admin_bottom_nav.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -47,157 +48,175 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'MONDAY, OCT 23',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontSize: 12,
-                      color: IndustrialColors.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: () {
-              debugPrint('Admin Portal tapped ${Responsive.width(context)}');
-
-                      // Handle tap event
-                    },
-                    child: Text(
-                      'Admin Portal',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: IndustrialColors.onSurface,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'DhinaDTS IT Solutions and Support (OPC) Private Limited.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontSize: 14,
-                      color: IndustrialColors.onSurfaceVariant,
+                  FadeInSlide(
+                    delay: Duration.zero,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'MONDAY, OCT 23',
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontSize: 12,
+                            color: IndustrialColors.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        GestureDetector(
+                          onTap: () {
+                            debugPrint('Admin Portal tapped ${Responsive.width(context)}');
+                          },
+                          child: Text(
+                            'Admin Portal',
+                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: IndustrialColors.onSurface,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'DhinaDTS IT Solutions and Support (OPC) Private Limited.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 14,
+                            color: IndustrialColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _buildSummaryCard(context, isWide: isWide),
+                  FadeInSlide(
+                    delay: const Duration(milliseconds: 150),
+                    child: _buildSummaryCard(context, isWide: isWide),
+                  ),
                   const SizedBox(height: 20),
-                  SectionHeader(title: 'Quick Actions'),
-                  const SizedBox(height: 12),
-                  Builder(builder: (context) {
-                    final desiredActionHeight = 110.0;
-                    final actions = [
-                      _buildActionButton(
-                        context,
-                        'Mark Attendance',
-                        Icons.how_to_reg,
-                        IndustrialColors.primaryContainer,
-                        IndustrialColors.onPrimary,
-                        () => context.go('/admin-mark-attendance'),
-                        width: cardWidth,
-                        height: desiredActionHeight,
-                      ),
-                      _buildActionButton(
-                        context,
-                        'Payroll',
-                        Icons.payments,
-                        IndustrialColors.surfaceContainerHigh,
-                        IndustrialColors.primary,
-                        () => context.go('/admin-salary'),
-                        width: cardWidth,
-                        height: desiredActionHeight,
-                      ),
-                      _buildActionButton(
-                        context,
-                        'Leaves',
-                        Icons.event_available,
-                        IndustrialColors.surfaceContainerHigh,
-                        IndustrialColors.primary,
-                        () => context.go('/admin-leave-requests'),
-                        width: cardWidth,
-                        height: desiredActionHeight,
-                      ),
-                      _buildActionButton(
-                        context,
-                        'Tasks',
-                        Icons.task_alt,
-                        IndustrialColors.surfaceContainerHigh,
-                        IndustrialColors.primary,
-                        () => context.go('/admin-tasks'),
-                        width: cardWidth,
-                        height: desiredActionHeight,
-                      ),
-                      _buildActionButton(
-                        context,
-                        'Push',
-                        Icons.notifications,
-                        IndustrialColors.surfaceContainerHigh,
-                        IndustrialColors.primary,
-                        () => context.go('/admin-notifications'),
-                        width: cardWidth,
-                        height: desiredActionHeight,
-                      ),
-                      _buildActionButton(
-                        context,
-                        'Messages',
-                        Icons.chat_bubble_outline,
-                        IndustrialColors.surfaceContainerHigh,
-                        IndustrialColors.primary,
-                        () => context.go('/admin-messages'),
-                        width: cardWidth,
-                        height: desiredActionHeight,
-                      ),
-                      _buildActionButton(
-                        context,
-                        'Reports',
-                        Icons.ios_share,
-                        IndustrialColors.surfaceContainerHigh,
-                        IndustrialColors.primary,
-                        () => context.go('/admin-export-reports'),
-                        width: cardWidth,
-                        height: desiredActionHeight,
-                      ),
-                    ];
+                  FadeInSlide(
+                    delay: const Duration(milliseconds: 300),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SectionHeader(title: 'Quick Actions'),
+                        const SizedBox(height: 12),
+                        Builder(builder: (context) {
+                          final desiredActionHeight = 110.0;
+                          final actions = [
+                            _buildActionButton(
+                              context,
+                              'Mark Attendance',
+                              Icons.how_to_reg,
+                              IndustrialColors.primaryContainer,
+                              IndustrialColors.onPrimary,
+                              () => context.go('/admin-mark-attendance'),
+                              width: cardWidth,
+                              height: desiredActionHeight,
+                            ),
+                            _buildActionButton(
+                              context,
+                              'Payroll',
+                              Icons.payments,
+                              IndustrialColors.surfaceContainerHigh,
+                              IndustrialColors.primary,
+                              () => context.go('/admin-salary'),
+                              width: cardWidth,
+                              height: desiredActionHeight,
+                            ),
+                            _buildActionButton(
+                              context,
+                              'Leaves',
+                              Icons.event_available,
+                              IndustrialColors.surfaceContainerHigh,
+                              IndustrialColors.primary,
+                              () => context.go('/admin-leave-requests'),
+                              width: cardWidth,
+                              height: desiredActionHeight,
+                            ),
+                            _buildActionButton(
+                              context,
+                              'Tasks',
+                              Icons.task_alt,
+                              IndustrialColors.surfaceContainerHigh,
+                              IndustrialColors.primary,
+                              () => context.go('/admin-tasks'),
+                              width: cardWidth,
+                              height: desiredActionHeight,
+                            ),
+                            _buildActionButton(
+                              context,
+                              'Push',
+                              Icons.notifications,
+                              IndustrialColors.surfaceContainerHigh,
+                              IndustrialColors.primary,
+                              () => context.go('/admin-notifications'),
+                              width: cardWidth,
+                              height: desiredActionHeight,
+                            ),
+                            _buildActionButton(
+                              context,
+                              'Messages',
+                              Icons.chat_bubble_outline,
+                              IndustrialColors.surfaceContainerHigh,
+                              IndustrialColors.primary,
+                              () => context.go('/admin-messages'),
+                              width: cardWidth,
+                              height: desiredActionHeight,
+                            ),
+                            _buildActionButton(
+                              context,
+                              'Reports',
+                              Icons.ios_share,
+                              IndustrialColors.surfaceContainerHigh,
+                              IndustrialColors.primary,
+                              () => context.go('/admin-export-reports'),
+                              width: cardWidth,
+                              height: desiredActionHeight,
+                            ),
+                          ];
 
-                    final isWeb = Responsive.isDesktop(context);
-                    final isTablet = Responsive.isTablet(context);
+                          final isWeb = Responsive.isDesktop(context);
+                          final isTablet = Responsive.isTablet(context);
 
-                    if (isWeb) {
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 4),
-                            ...actions.map((w) => Padding(padding: const EdgeInsets.only(right: 10), child: w)),
-                          ],
-                        ),
-                      );
-                    }
+                          if (isWeb) {
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  const SizedBox(width: 4),
+                                  ...actions.map((w) => Padding(padding: const EdgeInsets.only(right: 10), child: w)),
+                                ],
+                              ),
+                            );
+                          }
 
-                    if (isTablet) {
-                      return Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: actions,
-                      );
-                    }
+                          if (isTablet) {
+                            return Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: actions,
+                            );
+                          }
 
-                    // Mobile: arrange into two rows using Grid with two rows => columns = ceil(n/2)
-                    final cols = (actions.length / 2).ceil();
-                    // keep quick-action tiles uniform height across screens
-                    final childAspectRatio = cardWidth / desiredActionHeight;
-                    return GridView.count(
-                      crossAxisCount: cols,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                      childAspectRatio: childAspectRatio,
-                      children: actions,
-                    );
-                  }),
+                          final cols = (actions.length / 2).ceil();
+                          final childAspectRatio = cardWidth / desiredActionHeight;
+                          return GridView.count(
+                            crossAxisCount: cols,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: childAspectRatio,
+                            children: actions,
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 28),
-                  _buildRecentActivitySection(context),
+                  FadeInSlide(
+                    delay: const Duration(milliseconds: 450),
+                    child: _buildRecentActivitySection(context),
+                  ),
                   const SizedBox(height: 32),
                 ],
               ),

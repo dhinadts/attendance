@@ -1,5 +1,6 @@
 import '../widgets/status_chip.dart';
 import 'package:flutter/material.dart';
+import '../widgets/industrial_card.dart';
 import '../theme/industrial_theme.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_role_service.dart';
@@ -275,7 +276,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9F3),
+      backgroundColor: IndustrialColors.background,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -283,10 +284,13 @@ class _AuthScreenState extends State<AuthScreen> {
             if (!isWebLayout) {
               return Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 460),
-                    child: _buildAuthForm(context, compact: true),
+                    child: IndustrialCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+                      child: _buildAuthForm(context, compact: true),
+                    ),
                   ),
                 ),
               );
@@ -326,7 +330,7 @@ class _AuthScreenState extends State<AuthScreen> {
         if (!compact) ...[
           Row(
             children: [
-              _buildLogoMark(size: 48),
+              const _FloatingLogo(size: 48),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -403,111 +407,120 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ),
         ),
-        if (_isSignup) ...[
-          const SizedBox(height: 16),
-          Row(
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOutCubic,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: TextField(
-                  controller: _firstNameController,
-                  decoration: _inputDecoration('First Name', Icons.person),
+              if (_isSignup) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _firstNameController,
+                        decoration: _inputDecoration('First Name', Icons.person),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _lastNameController,
+                        decoration: _inputDecoration(
+                          'Last Name',
+                          Icons.person_outline,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _lastNameController,
-                  decoration: _inputDecoration(
-                    'Last Name',
-                    Icons.person_outline,
+                const SizedBox(height: 16),
+                if (_selectedSignupRole != SignupRole.admin ||
+                    !_canAssignPrivilegedRoles)
+                  TextField(
+                    controller: _employeeIdController,
+                    decoration: _inputDecoration('Employee ID', Icons.badge_outlined),
                   ),
+                if (_selectedSignupRole != SignupRole.admin ||
+                    !_canAssignPrivilegedRoles)
+                  const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedTeam,
+                  decoration: _inputDecoration('Team', Icons.groups_outlined),
+                  items: OrganizationOptions.teams
+                      .map((team) => DropdownMenuItem(value: team, child: Text(team)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _selectedTeam = value);
+                  },
                 ),
-              ),
+                if (_allowRoleSelection) ...[
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<SignupRole>(
+                    initialValue: _selectedSignupRole,
+                    decoration: _inputDecoration(
+                      'Role',
+                      Icons.admin_panel_settings_outlined,
+                    ),
+                    items: SignupRole.values
+                        .map(
+                          (role) =>
+                              DropdownMenuItem(value: role, child: Text(role.label)),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _selectSignupRole(value);
+                      });
+                    },
+                  ),
+                  if (_showPermissionControls) ...[
+                    const SizedBox(height: 12),
+                    _buildPermissionSwitch(
+                      title: 'Approve Leave',
+                      subtitle: 'Can review, approve, and reject leave requests',
+                      icon: Icons.event_available_outlined,
+                      value: _effectiveCanApproveLeave,
+                      enabled: _selectedSignupRole != SignupRole.admin,
+                      onChanged: (value) {
+                        setState(() => _canApproveLeave = value);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _buildPermissionSwitch(
+                      title: 'Manage Salaries',
+                      subtitle: 'Can upload and manage salary records',
+                      icon: Icons.payments_outlined,
+                      value: _effectiveCanManageSalary,
+                      enabled: _selectedSignupRole != SignupRole.admin,
+                      onChanged: (value) {
+                        setState(() => _canManageSalary = value);
+                      },
+                    ),
+                  ],
+                ],
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedEmployeeRole,
+                  decoration: _inputDecoration(
+                    'Employee Role',
+                    Icons.engineering_outlined,
+                  ),
+                  items: _selectedSignupRole.allowedRoles
+                      .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _selectedEmployeeRole = value);
+                  },
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 16),
-          if (_selectedSignupRole != SignupRole.admin ||
-              !_canAssignPrivilegedRoles)
-            TextField(
-              controller: _employeeIdController,
-              decoration: _inputDecoration('Employee ID', Icons.badge_outlined),
-            ),
-          if (_selectedSignupRole != SignupRole.admin ||
-              !_canAssignPrivilegedRoles)
-            const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedTeam,
-            decoration: _inputDecoration('Team', Icons.groups_outlined),
-            items: OrganizationOptions.teams
-                .map((team) => DropdownMenuItem(value: team, child: Text(team)))
-                .toList(),
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() => _selectedTeam = value);
-            },
-          ),
-          if (_allowRoleSelection) ...[
-            const SizedBox(height: 16),
-            DropdownButtonFormField<SignupRole>(
-              initialValue: _selectedSignupRole,
-              decoration: _inputDecoration(
-                'Role',
-                Icons.admin_panel_settings_outlined,
-              ),
-              items: SignupRole.values
-                  .map(
-                    (role) =>
-                        DropdownMenuItem(value: role, child: Text(role.label)),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _selectSignupRole(value);
-                });
-              },
-            ),
-            if (_showPermissionControls) ...[
-              const SizedBox(height: 12),
-              _buildPermissionSwitch(
-                title: 'Approve Leave',
-                subtitle: 'Can review, approve, and reject leave requests',
-                icon: Icons.event_available_outlined,
-                value: _effectiveCanApproveLeave,
-                enabled: _selectedSignupRole != SignupRole.admin,
-                onChanged: (value) {
-                  setState(() => _canApproveLeave = value);
-                },
-              ),
-              const SizedBox(height: 10),
-              _buildPermissionSwitch(
-                title: 'Manage Salaries',
-                subtitle: 'Can upload and manage salary records',
-                icon: Icons.payments_outlined,
-                value: _effectiveCanManageSalary,
-                enabled: _selectedSignupRole != SignupRole.admin,
-                onChanged: (value) {
-                  setState(() => _canManageSalary = value);
-                },
-              ),
-            ],
-          ],
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedEmployeeRole,
-            decoration: _inputDecoration(
-              'Employee Role',
-              Icons.engineering_outlined,
-            ),
-            items: _selectedSignupRole.allowedRoles
-                .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-                .toList(),
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() => _selectedEmployeeRole = value);
-            },
-          ),
-        ],
+        ),
         if (!_isSignup) ...[
           const SizedBox(height: 18),
           Row(
@@ -675,7 +688,16 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildBrandPanel(BuildContext context) {
     return Container(
-      color: const Color(0xFFF0F4ED),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFFE2F0E7), // Soft Sage Tint
+            Color(0xFFF7F9F6), // Eco Background
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final shortScreen = constraints.maxHeight < 720;
@@ -693,7 +715,7 @@ class _AuthScreenState extends State<AuthScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildLogoMark(size: logoSize),
+                  _FloatingLogo(size: logoSize),
                   const SizedBox(height: 22),
                   Text(
                     'DHINADTS ATTENDANCE',
@@ -759,14 +781,14 @@ class _AuthScreenState extends State<AuthScreen> {
                       vertical: shortScreen ? 10 : 14,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF5BA77D),
-                      borderRadius: BorderRadius.circular(6),
+                      color: IndustrialColors.primary,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       'DHINADTS',
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(
-                            color: const Color(0xFFFFD88A),
+                            color: IndustrialColors.onPrimary,
                             fontSize: shortScreen ? 22 : null,
                             fontWeight: FontWeight.w900,
                           ),
@@ -784,7 +806,7 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget _buildMobileLogo(BuildContext context) {
     return Column(
       children: [
-        _buildLogoMark(size: 96),
+        const _FloatingLogo(size: 96),
         const SizedBox(height: 14),
         Text(
           'dhinadts',
@@ -803,40 +825,6 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildLogoMark({required double size}) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: IndustrialColors.primary,
-        borderRadius: BorderRadius.circular(size * 0.14),
-        border: Border.all(color: const Color(0xFFE3B633), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: IndustrialColors.primary.withValues(alpha: 0.18),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Icon(
-            Icons.shield_outlined,
-            color: const Color(0xFFE3B633),
-            size: size * 0.68,
-          ),
-          Icon(
-            Icons.view_module,
-            color: IndustrialColors.onPrimary,
-            size: size * 0.22,
-          ),
-        ],
-      ),
     );
   }
 
@@ -862,6 +850,78 @@ class _AuthScreenState extends State<AuthScreen> {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: IndustrialColors.primary, width: 1.4),
+      ),
+    );
+  }
+}
+
+class _FloatingLogo extends StatefulWidget {
+  final double size;
+  const _FloatingLogo({required this.size});
+
+  @override
+  State<_FloatingLogo> createState() => _FloatingLogoState();
+}
+
+class _FloatingLogoState extends State<_FloatingLogo> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final offset = Offset(0, -6 * Curves.easeInOutSine.transform(_controller.value));
+        return Transform.translate(
+          offset: offset,
+          child: child,
+        );
+      },
+      child: Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: IndustrialColors.primary,
+          borderRadius: BorderRadius.circular(widget.size * 0.16),
+          border: Border.all(color: const Color(0xFF34D399), width: 2), // Mint Green
+          boxShadow: [
+            BoxShadow(
+              color: IndustrialColors.primary.withValues(alpha: 0.15),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.shield_outlined,
+              color: const Color(0xFF34D399),
+              size: widget.size * 0.68,
+            ),
+            Icon(
+              Icons.view_module,
+              color: IndustrialColors.onPrimary,
+              size: widget.size * 0.22,
+            ),
+          ],
+        ),
       ),
     );
   }
