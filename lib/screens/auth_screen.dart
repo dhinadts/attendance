@@ -1,12 +1,15 @@
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-import '../constants/organization_options.dart';
-import '../services/auth_role_service.dart';
-import '../services/fcm_notification_service.dart';
-import '../theme/industrial_theme.dart';
-import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
+import 'package:go_router/go_router.dart';
+import '../services/auth_role_service.dart';
+import '../widgets/primary_action_button.dart';
+import '../constants/organization_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/fcm_notification_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({
@@ -54,6 +57,62 @@ class _AuthScreenState extends State<AuthScreen> {
     _isSignup = widget.initialSignup;
     _loadRoleAssignmentAccess();
   }
+
+  Future<void> _registerFcmTokenForCurrentUser(AppUserRole role) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  await FirebaseMessaging.instance.requestPermission();
+
+  final token = await FirebaseMessaging.instance.getToken(
+    vapidKey: 'BP_9jdTqzfW3V535gSfqpUaoWTZ5Vll9wwdIj4iUoZ7huQdgLy2bq5ghXn4o1EHPAPOwHfziNLMOlSW40Jhd3ik',
+  );
+  debugPrint('FCM Token: $token');
+  if (token == null || token.isEmpty) return;
+
+  final roleValue = role.toString().split('.').last;
+
+  final tokenDocId = '${user.uid}_${token.substring(0, 20)}';
+
+  await FirebaseFirestore.instance
+      .collection('Attendance')
+      .doc('main')
+      .collection('fcm_tokens')
+      .doc(tokenDocId)
+      .set({
+    'uid': user.uid,
+    'token': token,
+    'role': roleValue,
+    'email': user.email ?? '',
+    'isAdmin': role.isAdminLike,
+    'updatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+
+  if (role.isAdminLike) {
+    await FirebaseMessaging.instance.subscribeToTopic('admin_all');
+  } else {
+    await FirebaseMessaging.instance.unsubscribeFromTopic('admin_all');
+  }
+
+  FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+    final newDocId = '${user.uid}_${newToken.substring(0, 20)}';
+
+    await FirebaseFirestore.instance
+        .collection('Attendance')
+        .doc('main')
+        .collection('fcm_tokens')
+        .doc(newDocId)
+        .set({
+      'uid': user.uid,
+      'token': newToken,
+      'role': roleValue,
+      'email': user.email ?? '',
+      'isAdmin': role.isAdminLike,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  });
+  print('FCM token registered for user ${user.uid} with role $roleValue');
+}
 
   Future<void> _loadRoleAssignmentAccess() async {
     final role = await _auth.currentRole();
@@ -123,6 +182,11 @@ class _AuthScreenState extends State<AuthScreen> {
         });
         return;
       }
+      // Register FCM token but do not block sign-in flow on failures (web service
+      // worker registration can fail and should not prevent login).
+      _registerFcmTokenForCurrentUser(role).catchError((error, stack) {
+        debugPrint('FCM registration failed: $error');
+      });
       final pendingRoute = FcmNotificationService.instance
           .consumePendingRouteFor(role);
       context.go(

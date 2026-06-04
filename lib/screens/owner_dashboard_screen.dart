@@ -1,14 +1,15 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/responsive.dart';
+import '../widgets/app_shell.dart';
+import '../widgets/status_chip.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
 import '../services/app_firestore.dart';
 import '../theme/industrial_theme.dart';
-import '../widgets/admin_bottom_nav.dart';
-import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
 import '../widgets/section_header.dart';
-import '../widgets/status_chip.dart';
+import '../widgets/industrial_card.dart';
+import 'package:go_router/go_router.dart';
+import '../widgets/admin_bottom_nav.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class OwnerDashboardScreen extends StatefulWidget {
   const OwnerDashboardScreen({super.key});
@@ -25,6 +26,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     return AppShell(
       showAppBar: true,
       title: 'WorkSync Pro',
+      showBackButton: false,
       floatingActionButton: FloatingActionButton(
         backgroundColor: IndustrialColors.primary,
         onPressed: () {},
@@ -34,11 +36,11 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 900;
-          final cardWidth = isWide ? 150.0 : _mobileCardWidth(context);
+          final cardWidth = isWide ? 143.0 : _mobileCardWidth(context);
           final pagePadding = isWide
               ? const EdgeInsets.fromLTRB(28, 24, 28, 32)
               : const EdgeInsets.symmetric(horizontal: 16, vertical: 16);
-
+              
           return SingleChildScrollView(
             child: Padding(
               padding: pagePadding,
@@ -53,12 +55,19 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    'Admin Portal',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: IndustrialColors.onSurface,
+                  GestureDetector(
+                    onTap: () {
+              debugPrint('Admin Portal tapped ${Responsive.width(context)}');
+
+                      // Handle tap event
+                    },
+                    child: Text(
+                      'Admin Portal',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: IndustrialColors.onSurface,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -74,10 +83,9 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   const SizedBox(height: 20),
                   SectionHeader(title: 'Quick Actions'),
                   const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
+                  Builder(builder: (context) {
+                    final desiredActionHeight = 110.0;
+                    final actions = [
                       _buildActionButton(
                         context,
                         'Mark Attendance',
@@ -86,6 +94,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         IndustrialColors.onPrimary,
                         () => context.go('/admin-mark-attendance'),
                         width: cardWidth,
+                        height: desiredActionHeight,
                       ),
                       _buildActionButton(
                         context,
@@ -95,6 +104,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         IndustrialColors.primary,
                         () => context.go('/admin-salary'),
                         width: cardWidth,
+                        height: desiredActionHeight,
                       ),
                       _buildActionButton(
                         context,
@@ -104,6 +114,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         IndustrialColors.primary,
                         () => context.go('/admin-leave-requests'),
                         width: cardWidth,
+                        height: desiredActionHeight,
                       ),
                       _buildActionButton(
                         context,
@@ -113,6 +124,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         IndustrialColors.primary,
                         () => context.go('/admin-tasks'),
                         width: cardWidth,
+                        height: desiredActionHeight,
                       ),
                       _buildActionButton(
                         context,
@@ -122,6 +134,17 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         IndustrialColors.primary,
                         () => context.go('/admin-notifications'),
                         width: cardWidth,
+                        height: desiredActionHeight,
+                      ),
+                      _buildActionButton(
+                        context,
+                        'Messages',
+                        Icons.chat_bubble_outline,
+                        IndustrialColors.surfaceContainerHigh,
+                        IndustrialColors.primary,
+                        () => context.go('/admin-messages'),
+                        width: cardWidth,
+                        height: desiredActionHeight,
                       ),
                       _buildActionButton(
                         context,
@@ -131,9 +154,48 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                         IndustrialColors.primary,
                         () => context.go('/admin-export-reports'),
                         width: cardWidth,
+                        height: desiredActionHeight,
                       ),
-                    ],
-                  ),
+                    ];
+
+                    final isWeb = Responsive.isDesktop(context);
+                    final isTablet = Responsive.isTablet(context);
+
+                    if (isWeb) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 4),
+                            ...actions.map((w) => Padding(padding: const EdgeInsets.only(right: 10), child: w)),
+                          ],
+                        ),
+                      );
+                    }
+
+                    if (isTablet) {
+                      return Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: actions,
+                      );
+                    }
+
+                    // Mobile: arrange into two rows using Grid with two rows => columns = ceil(n/2)
+                    final cols = (actions.length / 2).ceil();
+                    // keep quick-action tiles uniform height across screens
+                    final childAspectRatio = cardWidth / desiredActionHeight;
+                    return GridView.count(
+                      crossAxisCount: cols,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      childAspectRatio: childAspectRatio,
+                      children: actions,
+                    );
+                  }),
                   const SizedBox(height: 28),
                   _buildRecentActivitySection(context),
                   const SizedBox(height: 32),
@@ -179,6 +241,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   value: '18/22',
                   label: 'PRESENT',
                   color: IndustrialColors.secondary,
+                  icon: Icons.person_search,
                 ),
               ),
               const SizedBox(width: 8),
@@ -188,6 +251,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   value: '2',
                   label: 'LEAVE',
                   color: IndustrialColors.tertiary,
+                  icon: Icons.event_available,
                 ),
               ),
               const SizedBox(width: 8),
@@ -197,6 +261,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   value: '2',
                   label: 'LATE',
                   color: IndustrialColors.error,
+                  icon: Icons.schedule,
                 ),
               ),
             ],
@@ -242,10 +307,13 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     required String value,
     required String label,
     required Color color,
+    IconData? icon,
   }) {
+    final isWeb = Responsive.isDesktop(context);
     return Container(
-      height: 72,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      width: isWeb ? 140 : null,
+      height: isWeb ? 110 : 72,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: IndustrialColors.surfaceContainer,
         borderRadius: BorderRadius.circular(8),
@@ -254,10 +322,14 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          if (icon != null) ...[
+            Icon(icon, size: 30, color: color),
+            const SizedBox(height: 6),
+          ],
           Text(
             value,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.w700,
               color: color,
             ),
@@ -268,7 +340,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontSize: 10,
+              fontSize: 12,
               color: IndustrialColors.onSurfaceVariant,
             ),
           ),
@@ -285,10 +357,11 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     Color iconColor,
     VoidCallback onTap, {
     required double width,
+    double? height,
   }) {
     return SizedBox(
       width: width,
-      height: 78,
+      height: height ?? 78,
       child: Container(
         decoration: BoxDecoration(
           color: bgColor,
@@ -505,7 +578,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   }
 
   double _mobileCardWidth(BuildContext context) {
-    final availableWidth = MediaQuery.sizeOf(context).width - 44;
+    final availableWidth = Responsive.width(context) - 44;
     if (availableWidth < 340) return availableWidth;
     return (availableWidth - 20) / 3;
   }

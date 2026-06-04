@@ -1,12 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import '../utils/responsive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import 'package:go_router/go_router.dart';
 import '../services/auth_role_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AppShell extends StatefulWidget {
   final Widget child;
@@ -15,6 +16,8 @@ class AppShell extends StatefulWidget {
   final FloatingActionButton? floatingActionButton;
   final List<Widget>? appBarActions;
   final bool showAppBar;
+  final bool showBackButton;
+  final bool forceAdminShell;
 
   const AppShell({
     super.key,
@@ -23,7 +26,9 @@ class AppShell extends StatefulWidget {
     this.bottomNavigationBar,
     this.floatingActionButton,
     this.appBarActions,
-    this.showAppBar = true,
+    this.showAppBar = true, 
+    this.showBackButton = false,
+    this.forceAdminShell = false,
   });
 
   @override
@@ -63,13 +68,18 @@ class _AppShellState extends State<AppShell> {
       '/profile',
       '/login',
       '/startup',
+      '/privacy',
+      '/terms',
+      '/support',
     };
-    final showBackButton =
-        !rootPaths.contains(currentPath) || GoRouter.of(context).canPop();
-    final useAdminWebShell =
-        widget.showAppBar &&
-        isAdminPath &&
-        (kIsWeb || MediaQuery.sizeOf(context).width >= 1000);
+
+    final isRootPath = rootPaths.contains(currentPath);
+    final showBackButton = widget.showBackButton || 
+        (!isRootPath || GoRouter.of(context).canPop());
+    
+    final useAdminWebShell = widget.showAppBar &&
+      (widget.forceAdminShell ||
+        (isAdminPath && (kIsWeb || Responsive.isLargeDesktop(context))));
 
     return PopScope(
       canPop: false,
@@ -198,7 +208,7 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-class _AdminWebShell extends StatelessWidget {
+class _AdminWebShell extends StatefulWidget {
   const _AdminWebShell({
     required this.title,
     required this.currentPath,
@@ -214,20 +224,71 @@ class _AdminWebShell extends StatelessWidget {
   final FloatingActionButton? floatingActionButton;
 
   @override
+  State<_AdminWebShell> createState() => _AdminWebShellState();
+}
+
+class _AdminWebShellState extends State<_AdminWebShell> {
+  bool _collapsed = false;
+  bool _hovering = false;
+
+  void _toggleCollapsed() => setState(() => _collapsed = !_collapsed);
+
+  void _setHover(bool v) {
+    if (!_collapsed && !v) return;
+    setState(() => _hovering = v);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final effectiveCollapsed = _collapsed && !_hovering;
     return Scaffold(
-      floatingActionButton: floatingActionButton,
+      floatingActionButton: widget.floatingActionButton,
       backgroundColor: const Color(0xFFF6F8FB),
       body: Row(
         children: [
-          _AdminSideMenu(currentPath: currentPath),
+          MouseRegion(
+            onEnter: (_) => _setHover(true),
+            onExit: (_) => _setHover(false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: effectiveCollapsed ? 72 : 240,
+              child: ClipRect(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, anim) {
+                    return FadeTransition(
+                      opacity: anim,
+                      child: SizeTransition(
+                        sizeFactor: anim,
+                        axis: Axis.horizontal,
+                        alignment: Alignment.centerLeft,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Align(
+                    key: ValueKey<bool>(effectiveCollapsed),
+                    alignment: Alignment.topLeft,
+                    child: _AdminSideMenu(
+                      currentPath: widget.currentPath, 
+                      collapsed: effectiveCollapsed,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           Expanded(
             child: Column(
               children: [
                 _AdminTopBar(
-                  title: title,
-                  currentPath: currentPath,
-                  appBarActions: appBarActions,
+                  title: widget.title,
+                  currentPath: widget.currentPath,
+                  appBarActions: widget.appBarActions,
+                  isCollapsed: _collapsed,
+                  onToggleCollapsed: _toggleCollapsed,
                 ),
                 Expanded(
                   child: Container(
@@ -239,7 +300,7 @@ class _AdminWebShell extends StatelessWidget {
                         alignment: Alignment.topCenter,
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 1320),
-                          child: child,
+                          child: widget.child,
                         ),
                       ),
                     ),
@@ -255,9 +316,10 @@ class _AdminWebShell extends StatelessWidget {
 }
 
 class _AdminSideMenu extends StatelessWidget {
-  const _AdminSideMenu({required this.currentPath});
+  const _AdminSideMenu({required this.currentPath, this.collapsed = false});
 
   final String currentPath;
+  final bool collapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -265,145 +327,117 @@ class _AdminSideMenu extends StatelessWidget {
       _DrawerItem('Dashboard', Icons.dashboard, '/admin-dashboard'),
       _DrawerItem('Employees', Icons.groups, '/admin-employees'),
       _DrawerItem('Attendance', Icons.fact_check, '/admin-attendance'),
-      _DrawerItem(
-        'Mark Attendance',
-        Icons.how_to_reg,
-        '/admin-mark-attendance',
-      ),
-      _DrawerItem(
-        'Leave Requests',
-        Icons.event_available,
-        '/admin-leave-requests',
-      ),
+      _DrawerItem('Mark Attendance', Icons.how_to_reg, '/admin-mark-attendance'),
+      _DrawerItem('Leave Requests', Icons.event_available, '/admin-leave-requests'),
       _DrawerItem('Payroll', Icons.payments, '/admin-salary'),
       _DrawerItem('Export Reports', Icons.table_view, '/admin-export-reports'),
       _DrawerItem('Exit Requests', Icons.exit_to_app, '/admin-exit-requests'),
     ];
+
     const communicationItems = [
       _DrawerItem('Messages', Icons.chat_bubble_outline, '/admin-messages'),
       _DrawerItem('Notifications', Icons.notifications, '/admin-notifications'),
     ];
+
     const accountItems = [
       _DrawerItem('Profile', Icons.person, '/admin-profile'),
       _DrawerItem('Settings', Icons.settings, '/admin-settings'),
     ];
-    const createUserItem = _DrawerItem(
-      'Create User',
-      Icons.person_add,
-      '/admin-create-user',
-    );
+
+    const createUserItem = _DrawerItem('Create User', Icons.person_add, '/admin-create-user');
+
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    final menuWidth = collapsed ? 72.0 : 240.0;
 
     return Container(
-      width: 286,
+      width: menuWidth,
       decoration: BoxDecoration(
         color: IndustrialColors.surface,
-        border: Border(
-          right: BorderSide(color: IndustrialColors.outlineVariant, width: 1),
-        ),
+        border: Border(right: BorderSide(color: IndustrialColors.outlineVariant, width: 1)),
       ),
       child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
-              child: Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: IndustrialColors.primary,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.verified_user,
-                      color: IndustrialColors.onPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'attendance',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: IndustrialColors.onSurface,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                        Text(
-                          'Admin workspace',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: IndustrialColors.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Divider(color: IndustrialColors.outlineVariant),
-            ),
-            Expanded(
-              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: uid == null
-                    ? null
-                    : FirebaseFirestore.instance
-                          .appCollection('users')
-                          .doc(uid)
-                          .snapshots(),
-                builder: (context, snapshot) {
-                  final canCreateUsers = appUserRoleFromValue(
-                    snapshot.data?.data()?['role'],
-                  ).canAssignRoles;
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
-                    children: [
-                      _MenuSectionLabel('Operations'),
-                      for (final item in operationsItems)
-                        _AdminSideMenuItem(
-                          item: item,
-                          selected: _isSelected(item.route),
-                        ),
-                      const SizedBox(height: 12),
-                      _MenuSectionLabel('Communication'),
-                      for (final item in communicationItems)
-                        _AdminSideMenuItem(
-                          item: item,
-                          selected: _isSelected(item.route),
-                        ),
-                      const SizedBox(height: 12),
-                      _MenuSectionLabel('Account'),
-                      if (canCreateUsers)
-                        _AdminSideMenuItem(
-                          item: createUserItem,
-                          selected: _isSelected(createUserItem.route),
-                        ),
-                      for (final item in accountItems)
-                        _AdminSideMenuItem(
-                          item: item,
-                          selected: _isSelected(item.route),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+        child: collapsed 
+            ? _buildCompact(context, uid, operationsItems, communicationItems, accountItems) 
+            : _buildExpanded(context, uid, operationsItems, communicationItems, accountItems, createUserItem),
       ),
+    );
+  }
+
+  Widget _buildCompact(BuildContext context, String? uid, List<_DrawerItem> ops, List<_DrawerItem> comms, List<_DrawerItem> accs) {
+    final allItems = [...ops, ...comms, ...accs];
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: IndustrialColors.primary, borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.verified_user, color: IndustrialColors.onPrimary),
+          ),
+        ),
+        const Divider(height: 1, color: IndustrialColors.outlineVariant),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            children: [for (final item in allItems) _CompactMenuItem(item: item, selected: _isSelected(item.route))],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExpanded(BuildContext context, String? uid, List<_DrawerItem> ops, List<_DrawerItem> comms, List<_DrawerItem> accs, _DrawerItem createUserItem) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 22, 24, 18),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(color: IndustrialColors.primary, borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.verified_user, color: IndustrialColors.onPrimary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('attendance', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: IndustrialColors.onSurface, fontWeight: FontWeight.w800)),
+                    Text('Admin workspace', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: IndustrialColors.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 28), child: Divider(color: IndustrialColors.outlineVariant)),
+        Expanded(
+          child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: uid == null ? null : FirebaseFirestore.instance.appCollection('users').doc(uid).snapshots(),
+            builder: (context, snapshot) {
+              final canCreateUsers = appUserRoleFromValue(snapshot.data?.data()?['role']).canAssignRoles;
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+                children: [
+                  const _MenuSectionLabel('Operations'),
+                  for (final item in ops) _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+                  const SizedBox(height: 12),
+                  const _MenuSectionLabel('Communication'),
+                  for (final item in comms) _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+                  const SizedBox(height: 12),
+                  const _MenuSectionLabel('Account'),
+                  if (canCreateUsers) _AdminSideMenuItem(item: createUserItem, selected: _isSelected(createUserItem.route)),
+                  for (final item in accs) _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -497,71 +531,122 @@ class _AdminSideMenuItem extends StatelessWidget {
   }
 }
 
+class _CompactMenuItem extends StatelessWidget {
+  const _CompactMenuItem({required this.item, required this.selected});
+
+  final _DrawerItem item;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Tooltip(
+        message: item.label,
+        waitDuration: const Duration(milliseconds: 300),
+        child: Material(
+          color: selected ? IndustrialColors.primary.withValues(alpha: 0.08) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => context.go(item.route),
+            child: Container(
+              height: 44,
+              alignment: Alignment.center,
+              child: Icon(item.icon, size: 20, color: selected ? IndustrialColors.primary : IndustrialColors.onSurfaceVariant),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AdminTopBar extends StatelessWidget {
   const _AdminTopBar({
     required this.title,
     required this.currentPath,
     required this.appBarActions,
+    this.isCollapsed = false,
+    this.onToggleCollapsed,
   });
 
   final String title;
   final String currentPath;
   final List<Widget>? appBarActions;
+  final bool isCollapsed;
+  final VoidCallback? onToggleCollapsed;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 76,
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+      padding: EdgeInsets.zero,
       decoration: BoxDecoration(
         color: IndustrialColors.surface,
         border: Border(
           bottom: BorderSide(color: IndustrialColors.outlineVariant, width: 1),
         ),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1320),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Row(
               children: [
-                Text(
-                  _titleForRoute(title, currentPath),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: IndustrialColors.onSurface,
-                    fontWeight: FontWeight.w800,
+                IconButton(
+                  tooltip: isCollapsed ? 'Open menu' : 'Collapse menu',
+                  icon: Icon(isCollapsed ? Icons.menu : Icons.menu_open),
+                  onPressed: onToggleCollapsed,
+                  color: IndustrialColors.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _titleForRoute(title, currentPath),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: IndustrialColors.onSurface,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Manage attendance, teams, approvals, payroll and requests',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: IndustrialColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Manage attendance, teams, approvals, payroll and requests',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: IndustrialColors.onSurfaceVariant,
-                  ),
+                if (appBarActions != null) ...appBarActions!,
+                const _NotificationBell(isAdminPath: true),
+                IconButton(
+                  tooltip: 'Messages',
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  onPressed: () => context.go('/admin-messages'),
+                  color: IndustrialColors.primary,
+                ),
+                IconButton(
+                  tooltip: 'Profile',
+                  icon: const Icon(Icons.account_circle),
+                  onPressed: () => context.go('/admin-profile'),
+                  color: IndustrialColors.primary,
                 ),
               ],
             ),
           ),
-          if (appBarActions != null) ...appBarActions!,
-          _NotificationBell(isAdminPath: true),
-          IconButton(
-            tooltip: 'Messages',
-            icon: const Icon(Icons.chat_bubble_outline),
-            onPressed: () => context.go('/admin-messages'),
-            color: IndustrialColors.primary,
-          ),
-          IconButton(
-            tooltip: 'Profile',
-            icon: const Icon(Icons.account_circle),
-            onPressed: () => context.go('/admin-profile'),
-            color: IndustrialColors.primary,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -596,6 +681,12 @@ class _AdminTopBar extends StatelessWidget {
         return 'Create User';
       case '/admin-settings':
         return 'Settings';
+      case '/privacy':
+        return 'Privacy Policy';
+      case '/terms':
+        return 'Terms & Conditions';
+      case '/support':
+        return 'Support Center';
       case '/tasks':
         return 'Tasks';
       default:

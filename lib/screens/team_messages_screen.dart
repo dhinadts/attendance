@@ -1,19 +1,22 @@
 import 'dart:async';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-
-import '../constants/organization_options.dart';
-import '../services/attendance_session_service.dart';
-import '../services/auth_role_service.dart';
-import '../services/fcm_notification_service.dart';
-import '../theme/industrial_theme.dart';
+import '../utils/responsive.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
-import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import '../services/auth_role_service.dart';
+import '../widgets/primary_action_button.dart';
+import '../constants/organization_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/fcm_notification_service.dart';
+import '../services/attendance_session_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+enum _MessageFilterMode { today, range, all }
+
+
 
 class TeamMessagesScreen extends StatefulWidget {
   const TeamMessagesScreen({super.key});
@@ -38,6 +41,9 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
   StatusChipType _statusType = StatusChipType.neutral;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
   _deliverySubscription;
+  _MessageFilterMode _filterMode = _MessageFilterMode.today;
+  DateTime? _rangeStart;
+  DateTime? _rangeEnd;
 
   @override
   void initState() {
@@ -147,6 +153,24 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
         .snapshots();
   }
 
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final initialStart = _rangeStart ?? now.subtract(const Duration(days: 7));
+    final initialEnd = _rangeEnd ?? now;
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 1),
+      initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
+    );
+    if (picked == null) return;
+    setState(() {
+      _rangeStart = picked.start;
+      _rangeEnd = picked.end;
+      _filterMode = _MessageFilterMode.range;
+    });
+  }
+
   void _watchDeliveryStatus(String outboxId) {
     _deliverySubscription?.cancel();
     _deliverySubscription = FirebaseFirestore.instance
@@ -227,6 +251,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
     final isAdmin = _role.isAdminLike;
     return AppShell(
       title: 'Messages',
+      showBackButton: false,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -307,12 +332,68 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
               ),
             ),
             const SizedBox(height: 20),
+            // Filters: Today / Range / All
+            Row(
+              children: [
+                FilledButton(
+                  onPressed: () => setState(() => _filterMode = _MessageFilterMode.today),
+                  child: const Text('Today'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _pickDateRange,
+                  child: const Text('Custom Range'),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _filterMode = _MessageFilterMode.all;
+                    _rangeStart = null;
+                    _rangeEnd = null;
+                  }),
+                  child: const Text('All'),
+                ),
+                const SizedBox(width: 12),
+                if (_filterMode == _MessageFilterMode.range && _rangeStart != null && _rangeEnd != null)
+                  Text('Showing: ${_rangeStart!.toLocal().toString().split(' ').first} → ${_rangeEnd!.toLocal().toString().split(' ').first}'),
+              ],
+            ),
+            const SizedBox(height: 12),
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _messageStream(),
               builder: (context, snapshot) {
-                final messages = (snapshot.data?.docs ?? [])
-                    .map((doc) => doc.data())
-                    .where(_canReadMessage)
+                final docs = snapshot.data?.docs ?? [];
+                final messages = docs
+                    .map((doc) {
+                      final data = doc.data();
+                      DateTime? created;
+                      final createdAt = data['createdAt'];
+                      if (createdAt is Timestamp) {
+                        created = createdAt.toDate();
+                      } else if (data['createdAtIst'] != null) {
+                        created = DateTime.tryParse(data['createdAtIst'].toString());
+                      }
+                      return {'data': data, 'created': created};
+                    })
+                    .where((entry) => _canReadMessage(entry['data'] as Map<String, dynamic>))
+                    .where((entry) {
+                      final created = entry['created'] as DateTime?;
+                      if (_filterMode == _MessageFilterMode.today) {
+                        if (created == null) return true;
+                        final now = DateTime.now();
+                        final c = created.toLocal();
+                        return c.year == now.year && c.month == now.month && c.day == now.day;
+                      }
+                      if (_filterMode == _MessageFilterMode.range) {
+                        if (created == null || _rangeStart == null || _rangeEnd == null) return false;
+                        final start = DateTime(_rangeStart!.year, _rangeStart!.month, _rangeStart!.day);
+                        final end = DateTime(_rangeEnd!.year, _rangeEnd!.month, _rangeEnd!.day, 23, 59, 59);
+                        final c = created.toLocal();
+                        return c.isAfter(start.subtract(const Duration(seconds: 1))) && c.isBefore(end.add(const Duration(seconds: 1)));
+                      }
+                      return true;
+                    })
+                    .map((entry) => entry['data'] as Map<String, dynamic>)
                     .toList();
                 if (messages.isEmpty) {
                   return const StatusChip(
@@ -320,50 +401,45 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
                     type: StatusChipType.neutral,
                   );
                 }
-                return Column(
-                  children: messages
-                      .map(
-                        (data) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: IndustrialCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        data['title'] as String? ?? 'Message',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                    StatusChip(
-                                      label:
-                                          data['targetTeam'] as String? ??
-                                          'all',
-                                      type: StatusChipType.neutral,
-                                    ),
-                                  ],
+                final isWeb = Responsive.isDesktop(context);
+                final isTablet = Responsive.isTablet(context);
+                final cross = isWeb ? 3 : (isTablet ? 2 : 1);
+                return GridView.count(
+                  crossAxisCount: cross,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: messages.map((data) {
+                    return IndustrialCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  data['title'] as String? ?? 'Message',
+                                  style: const TextStyle(fontWeight: FontWeight.w700),
                                 ),
-                                const SizedBox(height: 8),
-                                Text(data['body'] as String? ?? ''),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '${data['senderRole'] ?? '-'} | ${data['createdAtIst'] ?? '-'}',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color:
-                                            IndustrialColors.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            ),
+                              ),
+                              StatusChip(
+                                label: data['targetTeam'] as String? ?? 'all',
+                                type: StatusChipType.neutral,
+                              ),
+                            ],
                           ),
-                        ),
-                      )
-                      .toList(),
+                          const SizedBox(height: 8),
+                          Text(data['body'] as String? ?? ''),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${data['senderRole'] ?? '-'} | ${data['createdAtIst'] ?? '-'}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: IndustrialColors.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 );
               },
             ),

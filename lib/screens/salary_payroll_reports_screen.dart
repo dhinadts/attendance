@@ -1,17 +1,17 @@
-import 'dart:convert';
 import 'dart:io';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
-
-import '../app/state/app_providers.dart';
-import '../theme/industrial_theme.dart';
+import 'dart:convert';
 import '../widgets/app_shell.dart';
-import '../widgets/employee_bottom_nav.dart';
-import '../widgets/industrial_card.dart';
-import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
+import '../app/state/app_providers.dart';
+import '../widgets/industrial_card.dart';
+import '../widgets/employee_bottom_nav.dart';
+import '../widgets/primary_action_button.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+
 
 class SalaryPayrollReportsScreen extends ConsumerWidget {
   const SalaryPayrollReportsScreen({super.key});
@@ -24,6 +24,7 @@ class SalaryPayrollReportsScreen extends ConsumerWidget {
 
     return AppShell(
       title: 'Salary',
+      showBackButton: false,
       bottomNavigationBar: const EmployeeBottomNav(currentIndex: 4),
       child: profileAsync.when(
         skipLoadingOnRefresh: false,

@@ -1,13 +1,13 @@
+import '../widgets/app_shell.dart';
+import '../widgets/status_chip.dart';
 import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
+import '../app/state/app_providers.dart';
+import '../widgets/industrial_card.dart';
+import '../widgets/admin_bottom_nav.dart';
+import '../widgets/primary_action_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../app/state/app_providers.dart';
-import '../theme/industrial_theme.dart';
-import '../widgets/admin_bottom_nav.dart';
-import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
-import '../widgets/primary_action_button.dart';
-import '../widgets/status_chip.dart';
 
 class AdminSalaryScreen extends ConsumerStatefulWidget {
   const AdminSalaryScreen({super.key});
@@ -93,6 +93,7 @@ class _AdminSalaryScreenState extends ConsumerState<AdminSalaryScreen> {
 
     return AppShell(
       title: 'Payroll Admin',
+      showBackButton: false,
       bottomNavigationBar: const AdminBottomNav(currentIndex: 2),
       child: employeesAsync.when(
         skipLoadingOnRefresh: false,

@@ -1,12 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-
-import '../theme/industrial_theme.dart';
-import '../widgets/admin_bottom_nav.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import '../widgets/admin_bottom_nav.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class AdminEmployeeDetailScreen extends StatefulWidget {
   const AdminEmployeeDetailScreen({
@@ -193,6 +193,7 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
     return AppShell(
       title: 'Employee Profile',
       bottomNavigationBar: const AdminBottomNav(currentIndex: 1),
+       showBackButton: false,
       child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _firestore
             .appCollection('employee_profiles')
@@ -280,12 +281,15 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                 ],
               ),
               Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildProfileTab(profileData),
-                    _buildAttendanceTab(),
-                  ],
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 12),
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildProfileTab(profileData),
+                      _buildAttendanceTab(),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -596,7 +600,7 @@ class _AdminEmployeeDetailScreenState extends State<AdminEmployeeDetailScreen>
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
-                childAspectRatio: 1.1,
+                childAspectRatio: 4,
                 children: [
                   _buildStatBox(
                     'Present',

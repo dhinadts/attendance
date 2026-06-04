@@ -1,19 +1,19 @@
-import 'dart:convert';
-import 'dart:async';
 import 'dart:io';
-
+import 'dart:async';
+import 'dart:convert';
+import '../widgets/app_shell.dart';
 import 'package:camera/camera.dart';
+import '../widgets/status_chip.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import '../theme/industrial_theme.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
+import '../widgets/primary_action_button.dart';
+import '../services/face_recognition_service.dart';
+import '../services/attendance_session_service.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
-import '../theme/industrial_theme.dart';
-import '../services/attendance_session_service.dart';
-import '../services/face_recognition_service.dart';
-import '../widgets/app_shell.dart';
-import '../widgets/primary_action_button.dart';
-import '../widgets/status_chip.dart';
+
 
 class FaceAuthLoginScreen extends StatefulWidget {
   const FaceAuthLoginScreen({super.key});
@@ -508,6 +508,7 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
     return AppShell(
       showAppBar: true,
       title: 'WorkSync Pro',
+      showBackButton: false,
       child: SingleChildScrollView(
         child: Container(
           constraints: BoxConstraints(

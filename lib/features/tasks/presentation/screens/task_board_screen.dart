@@ -1,19 +1,19 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:excel/excel.dart' as xlsx;
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-
-import 'package:attendance/services/app_firestore.dart';
-import 'package:attendance/services/attendance_session_service.dart';
-import 'package:attendance/services/auth_role_service.dart';
-import 'package:attendance/theme/industrial_theme.dart';
-import 'package:attendance/widgets/admin_bottom_nav.dart';
+import 'package:excel/excel.dart' as xlsx;
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance/widgets/app_shell.dart';
-import 'package:attendance/widgets/employee_bottom_nav.dart';
-import 'package:attendance/widgets/industrial_card.dart';
-import 'package:attendance/widgets/primary_action_button.dart';
 import 'package:attendance/widgets/status_chip.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:attendance/services/app_firestore.dart';
+import 'package:attendance/theme/industrial_theme.dart';
+import 'package:attendance/widgets/industrial_card.dart';
+import 'package:attendance/widgets/admin_bottom_nav.dart';
+import 'package:attendance/services/auth_role_service.dart';
+import 'package:attendance/widgets/employee_bottom_nav.dart';
+import 'package:attendance/widgets/primary_action_button.dart';
+import 'package:attendance/services/attendance_session_service.dart';
+
 
 class TaskBoardScreen extends StatefulWidget {
   const TaskBoardScreen({super.key, required this.adminMode});
@@ -94,6 +94,7 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
               child: const Icon(Icons.add, color: IndustrialColors.onPrimary),
             )
           : null,
+      showBackButton: false,
       child: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(

@@ -1,15 +1,15 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import '../widgets/app_shell.dart';
+import '../widgets/status_chip.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-import '../services/attendance_session_service.dart';
 import '../theme/industrial_theme.dart';
 import '../theme/theme_controller.dart';
-import '../widgets/app_shell.dart';
-import '../widgets/admin_bottom_nav.dart';
 import '../widgets/industrial_card.dart';
+import 'package:go_router/go_router.dart';
+import '../widgets/admin_bottom_nav.dart';
 import '../widgets/primary_action_button.dart';
-import '../widgets/status_chip.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/attendance_session_service.dart';
+
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -42,95 +42,257 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return AppShell(
       title: 'Settings',
+      showBackButton: false,
       bottomNavigationBar: isAdmin
           ? const AdminBottomNav(currentIndex: 4)
           : null,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Settings',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-              ),
+            // SaaS Subscription Status
+            _buildSaaSStatusCard(),
+            const SizedBox(height: 24),
+            
+            // Settings Grid - Responsive layout for web
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // Responsive grid: 1 column on mobile, 2-3 columns on web
+                int crossAxisCount = 1;
+                if (constraints.maxWidth >= 1200) {
+                  crossAxisCount = 3;
+                } else if (constraints.maxWidth >= 800) {
+                  crossAxisCount = 3;
+                }
+                
+                final desiredSettingHeight = MediaQuery.of(context).size.height * 0.35;
+                final itemWidth = (constraints.maxWidth - (crossAxisCount - 1) * 20) / crossAxisCount;
+                final childAspect = itemWidth / desiredSettingHeight;
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 20,
+                  mainAxisSpacing: 20,
+                  childAspectRatio: childAspect,
+                  children: [
+                    SizedBox(height: desiredSettingHeight, child: _buildSettingCard(
+                      title: 'Appearance',
+                      subtitle: 'Toggle light / dark mode',
+                      icon: Icons.dark_mode,
+                      onPressed: () {
+                        themeModeNotifier.value =
+                            themeModeNotifier.value == ThemeMode.dark
+                            ? ThemeMode.light
+                            : ThemeMode.dark;
+                      },
+                      buttonLabel: 'CHANGE THEME',
+                    )),
+                    SizedBox(height: desiredSettingHeight, child: _buildSettingCard(
+                      title: 'Local Storage',
+                      subtitle: 'Clear local profile/session cache',
+                      icon: Icons.cleaning_services,
+                      onPressed: _clearCache,
+                      buttonLabel: 'CLEAR CACHE',
+                    )),
+                    SizedBox(height: desiredSettingHeight, child: _buildSettingCard(
+                      title: 'Session',
+                      subtitle: 'Logout from this device',
+                      icon: Icons.logout,
+                      onPressed: _logout,
+                      buttonLabel: 'LOGOUT',
+                      buttonStyle: ActionButtonStyle.tertiary,
+                    )),
+                  ],
+                );
+              },
             ),
-            const SizedBox(height: 8),
-            const StatusChip(
-              label: 'Employee app',
-              type: StatusChipType.neutral,
-              icon: Icons.tune,
-            ),
-            const SizedBox(height: 20),
-            IndustrialCard(
-              child: Column(
-                children: [
-                  _row('Theme', 'Toggle light / dark', Icons.dark_mode),
-                  const SizedBox(height: 12),
-                  PrimaryActionButton(
-                    label: 'CHANGE THEME',
-                    icon: Icons.brightness_6,
-                    style: ActionButtonStyle.outline,
-                    onPressed: () {
-                      themeModeNotifier.value =
-                          themeModeNotifier.value == ThemeMode.dark
-                          ? ThemeMode.light
-                          : ThemeMode.dark;
-                    },
-                  ),
-                  const Divider(height: 28),
-                  _row(
-                    'Cache',
-                    'Clear local profile/session cache',
-                    Icons.cleaning_services,
-                  ),
-                  const SizedBox(height: 12),
-                  PrimaryActionButton(
-                    label: 'CLEAR CACHE',
-                    icon: Icons.delete_sweep,
-                    style: ActionButtonStyle.outline,
-                    onPressed: _clearCache,
-                  ),
-                  const Divider(height: 28),
-                  _row('Account', 'Logout from this device', Icons.logout),
-                  const SizedBox(height: 12),
-                  PrimaryActionButton(
-                    label: 'LOGOUT',
-                    icon: Icons.logout,
-                    style: ActionButtonStyle.tertiary,
-                    onPressed: _logout,
-                  ),
-                ],
-              ),
-            ),
+            
+            const SizedBox(height: 32),
+            
+            // SaaS Company Info Section
+            _buildSaaSFooter(),
           ],
         ),
       ),
     );
   }
 
-  Widget _row(String title, String subtitle, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: IndustrialColors.primary),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: IndustrialColors.onSurfaceVariant,
+  Widget _buildSaaSStatusCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            IndustrialColors.primary.withOpacity(0.1),
+            IndustrialColors.primary.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: IndustrialColors.primary.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: IndustrialColors.primary.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.cloud_queue,
+              color: IndustrialColors.primary,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SaaS Plan: Enterprise',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 4),
+                Text(
+                  'Active subscription · DhinaDTS Cloud Platform',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: IndustrialColors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const StatusChip(
+            label: 'Active',
+            type: StatusChipType.success,
+            icon: Icons.check_circle,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onPressed,
+    required String buttonLabel,
+    ActionButtonStyle buttonStyle = ActionButtonStyle.outline,
+  }) {
+    return IndustrialCard(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 48, color: IndustrialColors.primary),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: IndustrialColors.onSurfaceVariant,
+            ),
+          ),
+          const Spacer(),
+          PrimaryActionButton(
+            label: buttonLabel,
+            icon: icon,
+            style: buttonStyle,
+            onPressed: onPressed,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSaaSFooter() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: IndustrialColors.surfaceVariant.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'DhinaDTS Cloud Platform',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Secure enterprise attendance management · GDPR Compliant · 99.9% Uptime SLA',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: IndustrialColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildFooterLink('Privacy Policy'),
+              const SizedBox(width: 24),
+              _buildFooterLink('Terms of Service'),
+              const SizedBox(width: 24),
+              _buildFooterLink('Support'),
             ],
           ),
+          const SizedBox(height: 12),
+          Text(
+            '© 2024 DhinaDTS. All rights reserved. Version 2.0.0',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: IndustrialColors.onSurfaceVariant,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooterLink(String text) {
+    return GestureDetector(
+      onTap: () {
+        if(text == 'Privacy Policy'){
+          context.go('/privacy');
+        }
+        else if(text == 'Terms of Service'){
+          context.go('/terms');
+        }
+        else if(text == 'Support'){
+          context.go('/support');
+        }
+        else{
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$text - Coming soon')),
+          );
+        }
+      },
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          color: IndustrialColors.primary,
+          decoration: TextDecoration.underline,
         ),
-      ],
+      ),
     );
   }
 }

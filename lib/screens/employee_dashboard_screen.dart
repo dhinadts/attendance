@@ -1,17 +1,17 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-import '../services/attendance_session_service.dart';
-import '../services/fcm_notification_service.dart';
-import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/employee_bottom_nav.dart';
-import '../widgets/industrial_card.dart';
-import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import 'package:go_router/go_router.dart';
+import '../widgets/employee_bottom_nav.dart';
+import '../widgets/primary_action_button.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/fcm_notification_service.dart';
+import '../services/attendance_session_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -131,6 +131,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
     return AppShell(
       title: 'WorkSync Pro',
+      showBackButton: false,
       bottomNavigationBar: EmployeeBottomNav(
         currentIndex: 0,
         attendanceAlert: _outsideOfficeSession,

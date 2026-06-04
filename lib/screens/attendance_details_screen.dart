@@ -1,14 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-import '../services/attendance_session_service.dart';
-import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/employee_bottom_nav.dart';
-import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import 'package:go_router/go_router.dart';
+import '../widgets/employee_bottom_nav.dart';
+import '../services/attendance_session_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class AttendanceDetailsScreen extends StatefulWidget {
   const AttendanceDetailsScreen({super.key});
@@ -67,6 +67,7 @@ class _AttendanceDetailsScreenState extends State<AttendanceDetailsScreen> {
   Widget build(BuildContext context) {
     return AppShell(
       title: 'Attendance',
+      showBackButton: false,
       bottomNavigationBar: EmployeeBottomNav(
         currentIndex: 1,
         attendanceAlert: _outsideOfficeSession,

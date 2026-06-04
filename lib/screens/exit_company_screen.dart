@@ -1,14 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-
-import '../services/attendance_session_service.dart';
-import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/employee_bottom_nav.dart';
-import '../widgets/industrial_card.dart';
-import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import '../widgets/employee_bottom_nav.dart';
+import '../widgets/primary_action_button.dart';
+import '../services/attendance_session_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class ExitCompanyScreen extends StatefulWidget {
   const ExitCompanyScreen({super.key});
@@ -83,6 +83,7 @@ class _ExitCompanyScreenState extends State<ExitCompanyScreen> {
   Widget build(BuildContext context) {
     return AppShell(
       title: 'Exit Company',
+      showBackButton: false,
       bottomNavigationBar: const EmployeeBottomNav(currentIndex: 5),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

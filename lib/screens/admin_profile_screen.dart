@@ -1,19 +1,19 @@
 import 'dart:convert';
 import 'dart:ui' as ui;
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../widgets/app_shell.dart';
+import '../widgets/status_chip.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import '../constants/organization_options.dart';
 import '../theme/industrial_theme.dart';
-import '../widgets/admin_bottom_nav.dart';
-import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
-import '../widgets/status_chip.dart';
-import '../widgets/primary_action_button.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import '../widgets/admin_bottom_nav.dart';
+import '../widgets/primary_action_button.dart';
+import '../constants/organization_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+
 
 class AdminProfileScreen extends StatefulWidget {
   const AdminProfileScreen({super.key});
@@ -318,6 +318,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
     if (user == null) {
       return const AppShell(
         title: 'Admin Profile',
+        showBackButton: false,
         bottomNavigationBar: AdminBottomNav(currentIndex: 0),
         child: Center(child: Text('Please log in.')),
       );
@@ -325,6 +326,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
 
     return AppShell(
       title: 'Admin Profile',
+      showBackButton: false,
       bottomNavigationBar: const AdminBottomNav(currentIndex: 0),
       child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _firestore.appCollection('users').doc(user.uid).snapshots(),

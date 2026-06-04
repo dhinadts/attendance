@@ -33,6 +33,7 @@ dependencies:
   shared_preferences: ^2.5.5
   file_picker: ^10.3.7
   excel: ^4.0.6
+  url_launcher: ^6.3.2
   
 dependency_overrides:
   lints: ^3.0.0

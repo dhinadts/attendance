@@ -1,13 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-
-import '../services/attendance_session_service.dart';
-import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/employee_bottom_nav.dart';
-import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import '../widgets/employee_bottom_nav.dart';
+import '../services/attendance_session_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 enum _LogRange { today, week, month, year }
 
@@ -54,6 +54,7 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
   Widget build(BuildContext context) {
     return AppShell(
       title: 'Attendance Log',
+      showBackButton: false,
       bottomNavigationBar: EmployeeBottomNav(
         currentIndex: 2,
         attendanceAlert: _outsideOfficeSession,

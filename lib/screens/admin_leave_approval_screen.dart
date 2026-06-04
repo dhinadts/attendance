@@ -1,15 +1,15 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-import '../theme/industrial_theme.dart';
-import '../widgets/admin_bottom_nav.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
-import '../widgets/primary_action_button.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import 'package:go_router/go_router.dart';
+import '../widgets/admin_bottom_nav.dart';
+import '../widgets/primary_action_button.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class AdminLeaveApprovalScreen extends StatefulWidget {
   const AdminLeaveApprovalScreen({
@@ -240,6 +240,7 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
 
     return AppShell(
       title: 'Review Leave Request',
+      showBackButton: false,
       bottomNavigationBar: const AdminBottomNav(currentIndex: 1),
       child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _firestore

@@ -1,14 +1,15 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-
-import '../theme/industrial_theme.dart';
-import '../widgets/admin_bottom_nav.dart';
+import '../utils/responsive.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
-import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import '../widgets/admin_bottom_nav.dart';
+import '../widgets/primary_action_button.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class AdminLeaveRequestsScreen extends StatefulWidget {
   const AdminLeaveRequestsScreen({super.key});
@@ -166,6 +167,7 @@ class _AdminLeaveRequestsScreenState extends State<AdminLeaveRequestsScreen> {
     return AppShell(
       title: 'Approve Leaves',
       bottomNavigationBar: const AdminBottomNav(currentIndex: 1),
+      showBackButton: false,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _leaveStream(),
         builder: (context, snapshot) {
@@ -198,12 +200,26 @@ class _AdminLeaveRequestsScreenState extends State<AdminLeaveRequestsScreen> {
               if (pendingRequests.isEmpty)
                 _emptySection('No pending leave requests')
               else
-                ...pendingRequests.map(
-                  (doc) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _pendingLeaveCard(doc.id, doc.data()),
-                  ),
-                ),
+                Builder(builder: (context) {
+                  final isWeb = Responsive.isDesktop(context);
+                  final isTablet = Responsive.isTablet(context);
+                  final cross = isWeb ? 3 : (isTablet ? 2 : 1);
+                  final desiredCardHeight = 160.0;
+                  return GridView.count(
+                    crossAxisCount: cross,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    childAspectRatio: (MediaQuery.of(context).size.width / cross) / desiredCardHeight,
+                    children: pendingRequests.map((doc) {
+                      return SizedBox(
+                        height: desiredCardHeight,
+                        child: _pendingLeaveCard(doc.id, doc.data()),
+                      );
+                    }).toList(),
+                  );
+                }),
               const SizedBox(height: 8),
               _sectionHeader(
                 'Approved / Rejected History',

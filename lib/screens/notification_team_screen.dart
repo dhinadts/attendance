@@ -1,12 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import 'package:go_router/go_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class NotificationTeamScreen extends StatelessWidget {
   const NotificationTeamScreen({super.key, required this.team});
@@ -18,6 +18,7 @@ class NotificationTeamScreen extends StatelessWidget {
     final normalizedTeam = team.trim().toUpperCase();
     return AppShell(
       title: normalizedTeam,
+      showBackButton: false,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .appCollection('employee_profiles')

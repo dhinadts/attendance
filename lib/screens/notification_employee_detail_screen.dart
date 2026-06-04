@@ -1,14 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-
-import '../services/attendance_session_service.dart';
-import '../services/auth_role_service.dart';
-import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import '../services/auth_role_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/attendance_session_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class NotificationEmployeeDetailScreen extends StatefulWidget {
   const NotificationEmployeeDetailScreen({
@@ -327,6 +327,7 @@ class _NotificationEmployeeDetailScreenState
 
     return AppShell(
       title: title,
+      showBackButton: false,
       child: Stack(
         children: [
           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(

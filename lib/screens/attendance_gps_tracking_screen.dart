@@ -1,13 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:go_router/go_router.dart';
-import '../services/attendance_session_service.dart';
-import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
 import '../widgets/stat_card.dart';
-import '../widgets/primary_action_button.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
+import '../widgets/industrial_card.dart';
+import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
+import '../widgets/primary_action_button.dart';
+import '../services/attendance_session_service.dart';
 
 class AttendanceGpsTrackingScreen extends StatefulWidget {
   const AttendanceGpsTrackingScreen({super.key});
@@ -190,6 +190,7 @@ class _AttendanceGpsTrackingScreenState
   Widget build(BuildContext context) {
     return AppShell(
       showAppBar: true,
+      showBackButton: false,
       title: 'WorkSync Pro',
       bottomNavigationBar: _buildBottomNav(),
       child: SingleChildScrollView(

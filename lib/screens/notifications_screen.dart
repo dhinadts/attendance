@@ -1,17 +1,17 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-import '../constants/organization_options.dart';
-import '../services/attendance_session_service.dart';
-import '../services/auth_role_service.dart';
-import '../services/fcm_notification_service.dart';
-import '../theme/industrial_theme.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/industrial_card.dart';
 import '../widgets/status_chip.dart';
+import 'package:flutter/material.dart';
+import '../theme/industrial_theme.dart';
 import '../services/app_firestore.dart';
+import '../widgets/industrial_card.dart';
+import 'package:go_router/go_router.dart';
+import '../services/auth_role_service.dart';
+import '../constants/organization_options.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/fcm_notification_service.dart';
+import '../services/attendance_session_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({
@@ -853,9 +853,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return AppShell(
       title: _role.isAdminLike ? 'Admin Notifications' : 'Notifications',
+      showBackButton: false,
       child: _role.isAdminLike
           ? _buildAdminView(isLoading)
           : _buildEmployeeView(isLoading),
+          
     );
   }
 }

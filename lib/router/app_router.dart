@@ -1,37 +1,41 @@
 import 'dart:async';
-
-import 'package:firebase_auth/firebase_auth.dart';
+import '../screens/auth_screen.dart';
+import '../screens/profile_screen.dart';
+import '../screens/startup_screen.dart';
 import 'package:flutter/foundation.dart';
+import '../screens/settings_screen.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_role_service.dart';
-import '../services/fcm_notification_service.dart';
-import '../screens/admin_attendance_logs_screen.dart';
 import '../screens/admin_salary_screen.dart';
-import '../screens/auth_screen.dart';
-import '../screens/employee_dashboard_screen.dart';
-import '../screens/face_auth_login_screen.dart';
-import '../screens/attendance_details_screen.dart';
-import '../screens/attendance_gps_tracking_screen.dart';
-import '../screens/attendance_log_screen.dart';
 import '../screens/exit_company_screen.dart';
-import '../screens/owner_dashboard_screen.dart';
-import '../screens/profile_screen.dart';
 import '../screens/notifications_screen.dart';
-import '../screens/notification_employee_detail_screen.dart';
-import '../screens/notification_team_screen.dart';
-import '../screens/salary_payroll_reports_screen.dart';
-import '../screens/settings_screen.dart';
-import '../screens/startup_screen.dart';
 import '../screens/team_messages_screen.dart';
-import '../features/tasks/presentation/screens/task_board_screen.dart';
+import '../screens/admin_profile_screen.dart';
+import '../screens/attendance_log_screen.dart';
+import '../screens/face_auth_login_screen.dart';
+import '../screens/owner_dashboard_screen.dart';
 import '../screens/admin_employees_screen.dart';
-import '../screens/admin_employee_detail_screen.dart';
-import '../screens/admin_export_reports_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../screens/notification_team_screen.dart';
+import 'package:attendance/widgets/app_shell.dart';
+import '../services/fcm_notification_service.dart';
+import '../screens/employee_dashboard_screen.dart';
+import '../screens/attendance_details_screen.dart';
 import '../screens/admin_exit_requests_screen.dart';
+import '../screens/admin_export_reports_screen.dart';
 import '../screens/admin_leave_approval_screen.dart';
 import '../screens/admin_leave_requests_screen.dart';
+import '../screens/admin_attendance_logs_screen.dart';
+import '../screens/admin_employee_detail_screen.dart';
 import '../screens/admin_mark_attendance_screen.dart';
-import '../screens/admin_profile_screen.dart';
+import '../screens/salary_payroll_reports_screen.dart';
+import 'package:attendance/screens/support_screen.dart';
+import '../screens/attendance_gps_tracking_screen.dart';
+import '../screens/notification_employee_detail_screen.dart';
+import 'package:attendance/screens/privacy_policy_screen.dart';
+import 'package:attendance/screens/terms_conditions_screen.dart';
+import '../features/tasks/presentation/screens/task_board_screen.dart';
+
 
 class AuthRefreshListenable extends ChangeNotifier {
   AuthRefreshListenable() {
@@ -61,6 +65,19 @@ final appRouter = GoRouter(
     final path = state.uri.path;
     final isLogin = path == '/login';
     final isStartup = path == '/startup';
+    
+    // Public routes that everyone can access (no redirect)
+    final publicRoutes = {
+      '/privacy',
+      '/terms',
+      '/support',
+      '/login',
+      '/startup',
+    };
+    
+    if (publicRoutes.contains(path)) {
+      return null; // Allow access to public routes without checks
+    }
 
     if (isStartup) {
       return null;
@@ -118,8 +135,11 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/admin-create-user',
       name: 'adminCreateUser',
-      builder: (context, state) =>
-          const AuthScreen(initialSignup: true, adminCreateMode: true),
+      builder: (context, state) => AppShell(
+        title: 'Create User',
+        showBackButton: true,
+        child: const AuthScreen(initialSignup: true, adminCreateMode: true),
+      ),
     ),
     GoRoute(
       path: '/face-attendance',
@@ -141,14 +161,20 @@ final appRouter = GoRouter(
       name: 'adminEmployees',
       builder: (context, state) => const AdminEmployeesScreen(),
     ),
-    GoRoute(
-      path: '/admin-employee-detail',
-      name: 'adminEmployeeDetail',
-      builder: (context, state) => AdminEmployeeDetailScreen(
-        employeeId: state.uri.queryParameters['employeeId'] ?? '',
-        initialTab: state.uri.queryParameters['initialTab'],
-      ),
-    ),
+   GoRoute(
+  path: '/admin-employee-detail',
+  builder: (context, state) {
+    final employeeId = state.uri.queryParameters['employeeId'] ?? '';
+    final initialTab = int.tryParse(
+      state.uri.queryParameters['initialTab'] ?? '0',
+    ) ?? 0;
+
+    return AdminEmployeeDetailScreen(
+      employeeId: employeeId,
+      initialTab: initialTab.toString(),
+    );
+  },
+),
     GoRoute(
       path: '/admin-leave-approval',
       name: 'adminLeaveApproval',
@@ -289,9 +315,37 @@ final appRouter = GoRouter(
       name: 'exitCompany',
       builder: (context, state) => const ExitCompanyScreen(),
     ),
+    GoRoute(
+      path: '/privacy',
+      name: 'privacy',
+      builder: (context, state) => AppShell(
+        title: 'Privacy Policy',
+        forceAdminShell: true,
+        child: const PrivacyPolicyScreen(),
+      ),
+    ),
+    GoRoute(
+      path: '/terms',
+      name: 'terms',
+      builder: (context, state) => AppShell(
+        title: 'Terms & Conditions',
+        forceAdminShell: true,
+        child: const TermsConditionsScreen(),
+      ),
+    ),
+    GoRoute(
+      path: '/support',
+      name: 'support',
+      builder: (context, state) => AppShell(
+        title: 'Support',
+        forceAdminShell: true,
+        child: const SupportScreen(),
+      ),
+    ),
   ],
 );
 
+// Employee-only routes (excluding public legal pages)
 const _employeeOnlyRoutes = {
   '/dashboard',
   '/face-attendance',
@@ -305,6 +359,9 @@ const _employeeOnlyRoutes = {
   '/notifications',
   '/settings',
   '/exit-company',
+  // '/privacy', // REMOVED - now public
+  // '/terms',   // REMOVED - now public
+  // '/support', // REMOVED - now public
 };
 
 const _leaveApprovalRoutes = {'/admin-leave-approval', '/admin-leave-requests'};
