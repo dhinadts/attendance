@@ -26,7 +26,7 @@ class AppShell extends StatefulWidget {
     this.bottomNavigationBar,
     this.floatingActionButton,
     this.appBarActions,
-    this.showAppBar = true, 
+    this.showAppBar = true,
     this.showBackButton = false,
     this.forceAdminShell = false,
   });
@@ -74,12 +74,13 @@ class _AppShellState extends State<AppShell> {
     };
 
     final isRootPath = rootPaths.contains(currentPath);
-    final showBackButton = widget.showBackButton || 
-        (!isRootPath || GoRouter.of(context).canPop());
-    
-    final useAdminWebShell = widget.showAppBar &&
-      (widget.forceAdminShell ||
-        (isAdminPath && (kIsWeb || Responsive.isLargeDesktop(context))));
+    final showBackButton =
+        widget.showBackButton || (!isRootPath || GoRouter.of(context).canPop());
+
+    final useAdminWebShell =
+        widget.showAppBar &&
+        (widget.forceAdminShell ||
+            (isAdminPath && (kIsWeb || Responsive.isLargeDesktop(context))));
 
     return PopScope(
       canPop: false,
@@ -231,10 +232,15 @@ class _AdminWebShellState extends State<_AdminWebShell> {
   bool _collapsed = false;
   bool _hovering = false;
 
-  void _toggleCollapsed() => setState(() => _collapsed = !_collapsed);
+  void _toggleCollapsed() {
+    setState(() {
+      _collapsed = !_collapsed;
+      _hovering = false;
+    });
+  }
 
   void _setHover(bool v) {
-    if (!_collapsed && !v) return;
+    if (!_collapsed || _hovering == v) return;
     setState(() => _hovering = v);
   }
 
@@ -250,32 +256,13 @@ class _AdminWebShellState extends State<_AdminWebShell> {
             onEnter: (_) => _setHover(true),
             onExit: (_) => _setHover(false),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
               width: effectiveCollapsed ? 72 : 240,
               child: ClipRect(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  switchInCurve: Curves.easeOut,
-                  switchOutCurve: Curves.easeIn,
-                  transitionBuilder: (child, anim) {
-                    return FadeTransition(
-                      opacity: anim,
-                      child: SizeTransition(
-                        sizeFactor: anim,
-                        axis: Axis.horizontal,
-                        alignment: Alignment.centerLeft,
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: Align(
-                    key: ValueKey<bool>(effectiveCollapsed),
-                    alignment: Alignment.topLeft,
-                    child: _AdminSideMenu(
-                      currentPath: widget.currentPath, 
-                      collapsed: effectiveCollapsed,
-                    ),
-                  ),
+                child: _AdminSideMenu(
+                  currentPath: widget.currentPath,
+                  collapsed: effectiveCollapsed,
                 ),
               ),
             ),
@@ -327,8 +314,16 @@ class _AdminSideMenu extends StatelessWidget {
       _DrawerItem('Dashboard', Icons.dashboard, '/admin-dashboard'),
       _DrawerItem('Employees', Icons.groups, '/admin-employees'),
       _DrawerItem('Attendance', Icons.fact_check, '/admin-attendance'),
-      _DrawerItem('Mark Attendance', Icons.how_to_reg, '/admin-mark-attendance'),
-      _DrawerItem('Leave Requests', Icons.event_available, '/admin-leave-requests'),
+      _DrawerItem(
+        'Mark Attendance',
+        Icons.how_to_reg,
+        '/admin-mark-attendance',
+      ),
+      _DrawerItem(
+        'Leave Requests',
+        Icons.event_available,
+        '/admin-leave-requests',
+      ),
       _DrawerItem('Payroll', Icons.payments, '/admin-salary'),
       _DrawerItem('Export Reports', Icons.table_view, '/admin-export-reports'),
       _DrawerItem('Exit Requests', Icons.exit_to_app, '/admin-exit-requests'),
@@ -344,7 +339,11 @@ class _AdminSideMenu extends StatelessWidget {
       _DrawerItem('Settings', Icons.settings, '/admin-settings'),
     ];
 
-    const createUserItem = _DrawerItem('Create User', Icons.person_add, '/admin-create-user');
+    const createUserItem = _DrawerItem(
+      'Create User',
+      Icons.person_add,
+      '/admin-create-user',
+    );
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final menuWidth = collapsed ? 72.0 : 240.0;
@@ -353,19 +352,41 @@ class _AdminSideMenu extends StatelessWidget {
       width: menuWidth,
       decoration: BoxDecoration(
         color: IndustrialColors.surface,
-        border: Border(right: BorderSide(color: IndustrialColors.outlineVariant, width: 1)),
+        border: Border(
+          right: BorderSide(color: IndustrialColors.outlineVariant, width: 1),
+        ),
       ),
       child: SafeArea(
-        child: collapsed 
-            ? _buildCompact(context, uid, operationsItems, communicationItems, accountItems) 
-            : _buildExpanded(context, uid, operationsItems, communicationItems, accountItems, createUserItem),
+        child: collapsed
+            ? _buildCompact(
+                context,
+                uid,
+                operationsItems,
+                communicationItems,
+                accountItems,
+              )
+            : _buildExpanded(
+                context,
+                uid,
+                operationsItems,
+                communicationItems,
+                accountItems,
+                createUserItem,
+              ),
       ),
     );
   }
 
-  Widget _buildCompact(BuildContext context, String? uid, List<_DrawerItem> ops, List<_DrawerItem> comms, List<_DrawerItem> accs) {
+  Widget _buildCompact(
+    BuildContext context,
+    String? uid,
+    List<_DrawerItem> ops,
+    List<_DrawerItem> comms,
+    List<_DrawerItem> accs,
+  ) {
     final allItems = [...ops, ...comms, ...accs];
-    return Column(
+    return ListView(
+      padding: EdgeInsets.zero,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
@@ -373,79 +394,139 @@ class _AdminSideMenu extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: IndustrialColors.primary, 
+              color: IndustrialColors.primary,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFF34D399), width: 1.5),
             ),
-            child: const Icon(Icons.shield_outlined, color: Color(0xFF34D399), size: 18),
+            child: const Icon(
+              Icons.shield_outlined,
+              color: Color(0xFF34D399),
+              size: 18,
+            ),
           ),
         ),
         const Divider(height: 1, color: IndustrialColors.outlineVariant),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            children: [for (final item in allItems) _CompactMenuItem(item: item, selected: _isSelected(item.route))],
-          ),
-        ),
+        const SizedBox(height: 8),
+        for (final item in allItems)
+          _CompactMenuItem(item: item, selected: _isSelected(item.route)),
+        const SizedBox(height: 18),
       ],
     );
   }
 
-  Widget _buildExpanded(BuildContext context, String? uid, List<_DrawerItem> ops, List<_DrawerItem> comms, List<_DrawerItem> accs, _DrawerItem createUserItem) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 22, 24, 18),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: IndustrialColors.primary, 
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF34D399), width: 1.5),
-                ),
-                child: const Icon(Icons.shield_outlined, color: Color(0xFF34D399), size: 20),
+  Widget _buildExpanded(
+    BuildContext context,
+    String? uid,
+    List<_DrawerItem> ops,
+    List<_DrawerItem> comms,
+    List<_DrawerItem> accs,
+    _DrawerItem createUserItem,
+  ) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: uid == null
+          ? null
+          : FirebaseFirestore.instance
+                .appCollection('users')
+                .doc(uid)
+                .snapshots(),
+      builder: (context, snapshot) {
+        final canCreateUsers = appUserRoleFromValue(
+          snapshot.data?.data()?['role'],
+        ).canAssignRoles;
+        return ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 22, 24, 18),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: IndustrialColors.primary,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF34D399),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.shield_outlined,
+                      color: Color(0xFF34D399),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'DhinaDTS',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: IndustrialColors.onSurface,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        Text(
+                          'Admin workspace',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: IndustrialColors.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('DhinaDTS', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: IndustrialColors.onSurface, fontWeight: FontWeight.w800)),
-                    Text('Admin workspace', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: IndustrialColors.onSurfaceVariant)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 28), child: Divider(color: IndustrialColors.outlineVariant)),
-        Expanded(
-          child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: uid == null ? null : FirebaseFirestore.instance.appCollection('users').doc(uid).snapshots(),
-            builder: (context, snapshot) {
-              final canCreateUsers = appUserRoleFromValue(snapshot.data?.data()?['role']).canAssignRoles;
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Divider(color: IndustrialColors.outlineVariant),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const _MenuSectionLabel('Operations'),
-                  for (final item in ops) _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+                  for (final item in ops)
+                    _AdminSideMenuItem(
+                      item: item,
+                      selected: _isSelected(item.route),
+                    ),
                   const SizedBox(height: 12),
                   const _MenuSectionLabel('Communication'),
-                  for (final item in comms) _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+                  for (final item in comms)
+                    _AdminSideMenuItem(
+                      item: item,
+                      selected: _isSelected(item.route),
+                    ),
                   const SizedBox(height: 12),
                   const _MenuSectionLabel('Account'),
-                  if (canCreateUsers) _AdminSideMenuItem(item: createUserItem, selected: _isSelected(createUserItem.route)),
-                  for (final item in accs) _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+                  if (canCreateUsers)
+                    _AdminSideMenuItem(
+                      item: createUserItem,
+                      selected: _isSelected(createUserItem.route),
+                    ),
+                  for (final item in accs)
+                    _AdminSideMenuItem(
+                      item: item,
+                      selected: _isSelected(item.route),
+                    ),
                 ],
-              );
-            },
-          ),
-        ),
-      ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -553,7 +634,9 @@ class _CompactMenuItem extends StatelessWidget {
         message: item.label,
         waitDuration: const Duration(milliseconds: 300),
         child: Material(
-          color: selected ? IndustrialColors.primary.withValues(alpha: 0.08) : Colors.transparent,
+          color: selected
+              ? IndustrialColors.primary.withValues(alpha: 0.08)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
@@ -561,7 +644,13 @@ class _CompactMenuItem extends StatelessWidget {
             child: Container(
               height: 44,
               alignment: Alignment.center,
-              child: Icon(item.icon, size: 20, color: selected ? IndustrialColors.primary : IndustrialColors.onSurfaceVariant),
+              child: Icon(
+                item.icon,
+                size: 20,
+                color: selected
+                    ? IndustrialColors.primary
+                    : IndustrialColors.onSurfaceVariant,
+              ),
             ),
           ),
         ),
