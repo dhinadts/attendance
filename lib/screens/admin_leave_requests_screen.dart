@@ -10,7 +10,6 @@ import '../widgets/primary_action_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
 class AdminLeaveRequestsScreen extends StatefulWidget {
   const AdminLeaveRequestsScreen({super.key});
 
@@ -21,6 +20,7 @@ class AdminLeaveRequestsScreen extends StatefulWidget {
 
 class _AdminLeaveRequestsScreenState extends State<AdminLeaveRequestsScreen> {
   final _firestore = FirebaseFirestore.instance;
+  final Set<String> _processingDocIds = {};
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _leaveStream() {
     return _firestore.appCollection('leave_requests').snapshots();
@@ -117,49 +117,158 @@ class _AdminLeaveRequestsScreenState extends State<AdminLeaveRequestsScreen> {
     };
   }
 
-  Future<void> _showReasonDialog({
+  Future<void> _reviewLeave({
     required String docId,
     required Map<String, dynamic> data,
     required bool approved,
   }) async {
-    final controller = TextEditingController();
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(approved ? 'Approve Leave' : 'Reject Leave'),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          decoration: InputDecoration(
-            labelText: approved ? 'Approval note' : 'Rejection reason',
-          ),
+    if (_processingDocIds.contains(docId)) return;
+    final reason = await _showDecisionSheet(approved: approved);
+    if (reason == null) return;
+
+    setState(() => _processingDocIds.add(docId));
+    try {
+      await _processLeave(
+        docId: docId,
+        data: data,
+        approved: approved,
+        adminReason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(approved ? 'Leave approved' : 'Leave rejected')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to update leave request: $error'),
+          backgroundColor: IndustrialColors.error,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('CANCEL'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.of(dialogContext).pop();
-              await _processLeave(
-                docId: docId,
-                data: data,
-                approved: approved,
-                adminReason: controller.text.trim(),
-              );
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(approved ? 'Leave approved' : 'Leave rejected'),
-                ),
-              );
-            },
-            child: Text(approved ? 'APPROVE' : 'REJECT'),
-          ),
-        ],
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _processingDocIds.remove(docId));
+      }
+    }
+  }
+
+  Future<String?> _showDecisionSheet({required bool approved}) async {
+    final controller = TextEditingController();
+    String? errorText;
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: IndustrialColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: approved
+                            ? IndustrialColors.secondary
+                            : IndustrialColors.error,
+                        foregroundColor: Colors.white,
+                        child: Icon(approved ? Icons.check : Icons.close),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          approved ? 'Approve Leave' : 'Reject Leave',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    approved
+                        ? 'Add an optional note for this approval.'
+                        : 'A rejection reason is required and will be shared with the employee.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: IndustrialColors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    autofocus: !approved,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      labelText: approved
+                          ? 'Approval note'
+                          : 'Rejection reason *',
+                      hintText: approved
+                          ? 'Approved as requested'
+                          : 'Example: Project deadline requires presence',
+                      errorText: errorText,
+                      prefixIcon: Icon(
+                        approved ? Icons.edit_note : Icons.report_gmailerrorred,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          child: const Text('CANCEL'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: approved
+                                ? IndustrialColors.secondary
+                                : IndustrialColors.error,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            final reason = controller.text.trim();
+                            if (!approved && reason.isEmpty) {
+                              setSheetState(() {
+                                errorText =
+                                    'Please enter a reason before rejecting.';
+                              });
+                              return;
+                            }
+                            Navigator.of(sheetContext).pop(reason);
+                          },
+                          icon: Icon(approved ? Icons.check : Icons.close),
+                          label: Text(approved ? 'APPROVE' : 'REJECT'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
+    controller.dispose();
+    return result;
   }
 
   @override
@@ -197,29 +306,41 @@ class _AdminLeaveRequestsScreenState extends State<AdminLeaveRequestsScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               _sectionHeader('Pending Requests', pendingRequests.length),
+              if (pendingRequests.isNotEmpty) ...[
+                StatusChip(
+                  label: 'Swipe right to approve, left to reject',
+                  type: StatusChipType.neutral,
+                  icon: Icons.swipe,
+                ),
+                const SizedBox(height: 12),
+              ],
               if (pendingRequests.isEmpty)
                 _emptySection('No pending leave requests')
               else
-                Builder(builder: (context) {
-                  final isWeb = Responsive.isDesktop(context);
-                  final isTablet = Responsive.isTablet(context);
-                  final cross = isWeb ? 3 : (isTablet ? 2 : 1);
-                  final desiredCardHeight = 160.0;
-                  return GridView.count(
-                    crossAxisCount: cross,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    childAspectRatio: (MediaQuery.of(context).size.width / cross) / desiredCardHeight,
-                    children: pendingRequests.map((doc) {
-                      return SizedBox(
-                        height: desiredCardHeight,
-                        child: _pendingLeaveCard(doc.id, doc.data()),
-                      );
-                    }).toList(),
-                  );
-                }),
+                Builder(
+                  builder: (context) {
+                    final isWeb = Responsive.isDesktop(context);
+                    final isTablet = Responsive.isTablet(context);
+                    final cross = isWeb ? 3 : (isTablet ? 2 : 1);
+                    final desiredCardHeight = 160.0;
+                    return GridView.count(
+                      crossAxisCount: cross,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      childAspectRatio:
+                          (MediaQuery.of(context).size.width / cross) /
+                          desiredCardHeight,
+                      children: pendingRequests.map((doc) {
+                        return SizedBox(
+                          height: desiredCardHeight,
+                          child: _pendingLeaveCard(doc.id, doc.data()),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
               const SizedBox(height: 8),
               _sectionHeader(
                 'Approved / Rejected History',
@@ -273,48 +394,107 @@ class _AdminLeaveRequestsScreenState extends State<AdminLeaveRequestsScreen> {
 
   Widget _pendingLeaveCard(String docId, Map<String, dynamic> data) {
     final details = _employeeDetails(data);
-    return IndustrialCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _employeeHeader(
-            employeeName: details.employeeName,
-            team: details.team,
-            trailing: StatusChip(
-              label: data['date'] as String? ?? '-',
-              type: StatusChipType.pending,
+    final isProcessing = _processingDocIds.contains(docId);
+    return Dismissible(
+      key: ValueKey('leave_$docId'),
+      confirmDismiss: (direction) async {
+        if (isProcessing) return false;
+        await _reviewLeave(
+          docId: docId,
+          data: data,
+          approved: direction == DismissDirection.startToEnd,
+        );
+        return false;
+      },
+      background: _swipeActionBackground(
+        alignment: Alignment.centerLeft,
+        color: IndustrialColors.secondary,
+        icon: Icons.check_circle,
+        label: 'APPROVE',
+      ),
+      secondaryBackground: _swipeActionBackground(
+        alignment: Alignment.centerRight,
+        color: IndustrialColors.error,
+        icon: Icons.cancel,
+        label: 'REJECT',
+      ),
+      child: IndustrialCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _employeeHeader(
+              employeeName: details.employeeName,
+              team: details.team,
+              trailing: StatusChip(
+                label: data['date'] as String? ?? '-',
+                type: StatusChipType.pending,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text('Reason: ${data['reason'] ?? 'No reason provided'}'),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: PrimaryActionButton(
-                  label: 'REJECT',
-                  icon: Icons.close,
-                  style: ActionButtonStyle.tertiary,
-                  onPressed: () => _showReasonDialog(
-                    docId: docId,
-                    data: data,
-                    approved: false,
+            const SizedBox(height: 12),
+            Text('Reason: ${data['reason'] ?? 'No reason provided'}'),
+            const SizedBox(height: 14),
+            if (isProcessing)
+              const LinearProgressIndicator(minHeight: 3)
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: PrimaryActionButton(
+                      label: 'REJECT',
+                      icon: Icons.close,
+                      style: ActionButtonStyle.tertiary,
+                      onPressed: () => _reviewLeave(
+                        docId: docId,
+                        data: data,
+                        approved: false,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: PrimaryActionButton(
-                  label: 'APPROVE',
-                  icon: Icons.check,
-                  onPressed: () => _showReasonDialog(
-                    docId: docId,
-                    data: data,
-                    approved: true,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: PrimaryActionButton(
+                      label: 'APPROVE',
+                      icon: Icons.check,
+                      onPressed: () => _reviewLeave(
+                        docId: docId,
+                        data: data,
+                        approved: true,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _swipeActionBackground({
+    required Alignment alignment,
+    required Color color,
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),

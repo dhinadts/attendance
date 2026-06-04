@@ -10,7 +10,6 @@ import '../widgets/primary_action_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
 class AdminLeaveApprovalScreen extends StatefulWidget {
   const AdminLeaveApprovalScreen({
     super.key,
@@ -28,17 +27,13 @@ class AdminLeaveApprovalScreen extends StatefulWidget {
 
 class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final TextEditingController _reasonController = TextEditingController();
   bool _isProcessing = false;
   String? _statusMessage;
 
-  @override
-  void dispose() {
-    _reasonController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _processLeave(bool approved) async {
+  Future<void> _processLeave({
+    required bool approved,
+    required String adminReason,
+  }) async {
     if (_isProcessing) return;
 
     setState(() {
@@ -49,7 +44,6 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
     });
 
     try {
-      final adminReason = _reasonController.text.trim();
       final leaveDocId = '${widget.employeeId}_${widget.date}';
       final decisionFields = _decisionFields(
         approved: approved,
@@ -109,7 +103,7 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
           'contactNumber': profile['contactNumber'] ?? '',
         },
         'status': approved ? 'leave' : 'absent',
-        'sessionStatus': 'rejected',
+        'sessionStatus': 'admin_reviewed',
         'attendanceStatus': approved
             ? 'approved_leave'
             : 'not_considered_attendance',
@@ -191,6 +185,130 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
         _isProcessing = false;
       });
     }
+  }
+
+  Future<void> _reviewLeave({required bool approved}) async {
+    final reason = await _showDecisionSheet(approved: approved);
+    if (reason == null) return;
+    await _processLeave(approved: approved, adminReason: reason);
+  }
+
+  Future<String?> _showDecisionSheet({required bool approved}) async {
+    final controller = TextEditingController();
+    String? errorText;
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: IndustrialColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                8,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: approved
+                            ? IndustrialColors.secondary
+                            : IndustrialColors.error,
+                        foregroundColor: Colors.white,
+                        child: Icon(approved ? Icons.check : Icons.close),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          approved ? 'Approve Leave' : 'Reject Leave',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    approved
+                        ? 'Add an optional note for this approval.'
+                        : 'A rejection reason is required and will be shared with the employee.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: IndustrialColors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    autofocus: !approved,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      labelText: approved
+                          ? 'Approval note'
+                          : 'Rejection reason *',
+                      hintText: approved
+                          ? 'Approved as requested'
+                          : 'Example: Team coverage is required on this date',
+                      errorText: errorText,
+                      prefixIcon: Icon(
+                        approved ? Icons.edit_note : Icons.report_gmailerrorred,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          child: const Text('CANCEL'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: approved
+                                ? IndustrialColors.secondary
+                                : IndustrialColors.error,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            final reason = controller.text.trim();
+                            if (!approved && reason.isEmpty) {
+                              setSheetState(() {
+                                errorText =
+                                    'Please enter a reason before rejecting.';
+                              });
+                              return;
+                            }
+                            Navigator.of(sheetContext).pop(reason);
+                          },
+                          icon: Icon(approved ? Icons.check : Icons.close),
+                          label: Text(approved ? 'APPROVE' : 'REJECT'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+    return result;
   }
 
   Map<String, dynamic> _decisionFields({
@@ -389,89 +507,92 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
                           ?.copyWith(fontSize: 18, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 10),
-                    IndustrialCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Requested Date:',
-                                style: TextStyle(
-                                  color: IndustrialColors.onSurfaceVariant,
-                                  fontSize: 13,
+                    _reviewableRequestCard(
+                      isCompleted: isCompleted,
+                      child: IndustrialCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Requested Date:',
+                                  style: TextStyle(
+                                    color: IndustrialColors.onSurfaceVariant,
+                                    fontSize: 13,
+                                  ),
                                 ),
-                              ),
-                              StatusChip(
-                                label: requestedDate,
-                                type: StatusChipType.pending,
-                                icon: Icons.calendar_today,
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 20),
-                          const Text(
-                            "Employee's Reason:",
-                            style: TextStyle(
-                              color: IndustrialColors.onSurfaceVariant,
-                              fontSize: 13,
+                                StatusChip(
+                                  label: requestedDate,
+                                  type: StatusChipType.pending,
+                                  icon: Icons.calendar_today,
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            empReason,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const Divider(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Current Status:',
-                                style: TextStyle(
-                                  color: IndustrialColors.onSurfaceVariant,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              StatusChip(
-                                label: currentStatus.toUpperCase().replaceAll(
-                                  '_',
-                                  ' ',
-                                ),
-                                type: currentStatus.contains('approved')
-                                    ? StatusChipType.success
-                                    : (currentStatus.contains('rejected')
-                                          ? StatusChipType.alert
-                                          : StatusChipType.pending),
-                              ),
-                            ],
-                          ),
-                          if (isCompleted) ...[
                             const Divider(height: 20),
-                            _detailRow(
-                              isApproved ? 'Approved by:' : 'Rejected by:',
-                              _decisionBy(leaveData, approved: isApproved),
+                            const Text(
+                              "Employee's Reason:",
+                              style: TextStyle(
+                                color: IndustrialColors.onSurfaceVariant,
+                                fontSize: 13,
+                              ),
                             ),
-                            const SizedBox(height: 6),
-                            _detailRow(
-                              isApproved ? 'Approved at:' : 'Rejected at:',
-                              _decisionAt(leaveData, approved: isApproved),
+                            const SizedBox(height: 4),
+                            Text(
+                              empReason,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                              ),
                             ),
-                            if (_decisionReason(leaveData).isNotEmpty) ...[
+                            const Divider(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Current Status:',
+                                  style: TextStyle(
+                                    color: IndustrialColors.onSurfaceVariant,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                StatusChip(
+                                  label: currentStatus.toUpperCase().replaceAll(
+                                    '_',
+                                    ' ',
+                                  ),
+                                  type: currentStatus.contains('approved')
+                                      ? StatusChipType.success
+                                      : (currentStatus.contains('rejected')
+                                            ? StatusChipType.alert
+                                            : StatusChipType.pending),
+                                ),
+                              ],
+                            ),
+                            if (isCompleted) ...[
+                              const Divider(height: 20),
+                              _detailRow(
+                                isApproved ? 'Approved by:' : 'Rejected by:',
+                                _decisionBy(leaveData, approved: isApproved),
+                              ),
                               const SizedBox(height: 6),
                               _detailRow(
-                                isApproved
-                                    ? 'Approval note:'
-                                    : 'Rejection reason:',
-                                _decisionReason(leaveData),
+                                isApproved ? 'Approved at:' : 'Rejected at:',
+                                _decisionAt(leaveData, approved: isApproved),
                               ),
+                              if (_decisionReason(leaveData).isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                _detailRow(
+                                  isApproved
+                                      ? 'Approval note:'
+                                      : 'Rejection reason:',
+                                  _decisionReason(leaveData),
+                                ),
+                              ],
                             ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -483,29 +604,13 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
                           type: StatusChipType.neutral,
                         ),
                       )
-                    else ...[
-                      // Action Input
-                      Text(
-                        'Admin Response Reason',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
+                    else
+                      const StatusChip(
+                        label:
+                            'Swipe right to approve, left to reject. Rejections require a reason.',
+                        type: StatusChipType.neutral,
+                        icon: Icons.swipe,
                       ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: _reasonController,
-                        maxLines: 3,
-                        enabled: !_isProcessing,
-                        decoration: const InputDecoration(
-                          hintText:
-                              'Enter approval note or rejection reason...',
-                          labelText: 'Response Reason / Note',
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
 
                     if (_statusMessage != null) ...[
                       Center(
@@ -536,7 +641,7 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
                               style: ActionButtonStyle.tertiary,
                               onPressed: _isProcessing
                                   ? null
-                                  : () => _processLeave(false),
+                                  : () => _reviewLeave(approved: false),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -548,7 +653,7 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
                               style: ActionButtonStyle.primary,
                               onPressed: _isProcessing
                                   ? null
-                                  : () => _processLeave(true),
+                                  : () => _reviewLeave(approved: true),
                             ),
                           ),
                         ],
@@ -583,6 +688,66 @@ class _AdminLeaveApprovalScreenState extends State<AdminLeaveApprovalScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _reviewableRequestCard({
+    required bool isCompleted,
+    required Widget child,
+  }) {
+    if (isCompleted) return child;
+
+    return Dismissible(
+      key: ValueKey('leave_review_${widget.employeeId}_${widget.date}'),
+      confirmDismiss: (direction) async {
+        if (_isProcessing) return false;
+        await _reviewLeave(approved: direction == DismissDirection.startToEnd);
+        return false;
+      },
+      background: _swipeActionBackground(
+        alignment: Alignment.centerLeft,
+        color: IndustrialColors.secondary,
+        icon: Icons.check_circle,
+        label: 'APPROVE',
+      ),
+      secondaryBackground: _swipeActionBackground(
+        alignment: Alignment.centerRight,
+        color: IndustrialColors.error,
+        icon: Icons.cancel,
+        label: 'REJECT',
+      ),
+      child: child,
+    );
+  }
+
+  Widget _swipeActionBackground({
+    required Alignment alignment,
+    required Color color,
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      alignment: alignment,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
