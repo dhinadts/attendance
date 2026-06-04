@@ -13,8 +13,6 @@ import '../constants/organization_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
-
 class AdminProfileScreen extends StatefulWidget {
   const AdminProfileScreen({super.key});
 
@@ -36,15 +34,45 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
   final _contactController = TextEditingController();
   final _dobController = TextEditingController();
   final _joiningDateController = TextEditingController();
+  final _fatherController = TextEditingController();
+  final _motherController = TextEditingController();
+  final _spouseController = TextEditingController();
+  final _childrenController = TextEditingController();
+  final _experienceController = TextEditingController();
+  final _strengthsController = TextEditingController();
+  final _weaknessesController = TextEditingController();
+  final _teamActivitiesController = TextEditingController();
+  final _performanceController = TextEditingController();
+  final _reportingToController = TextEditingController();
+  final _workLocationController = TextEditingController();
+  final _emergencyContactController = TextEditingController();
+  final _adminScopeController = TextEditingController();
 
   String _selectedDepartment = OrganizationOptions.teams.first;
-  String _selectedRole = OrganizationOptions.employeeRoles.first;
+  String _selectedRole = OrganizationOptions.adminRoles.first;
+  String _selectedMaritalStatus = _maritalStatuses.first;
+  String _selectedAccessLevel = _accessLevels.first;
 
-  bool _isEditing = false;
   bool _isSaving = false;
   bool _isLoaded = false;
   String _status = 'Admin account configuration';
   String? _photoBase64;
+
+  static const _maritalStatuses = ['Single', 'Married', 'Separated', 'Widowed'];
+
+  static const _accessLevels = [
+    'FULL ACCESS',
+    'CEO ACCESS',
+    'ADMIN ACCESS',
+    'HR ACCESS',
+    'TEAM ADMIN',
+  ];
+
+  List<String> get _roleOptions => {
+    ...OrganizationOptions.adminRoles,
+    ...OrganizationOptions.partialAdminRoles,
+    ...OrganizationOptions.employeeRoles,
+  }.toList();
 
   @override
   void initState() {
@@ -63,6 +91,19 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
     _contactController.dispose();
     _dobController.dispose();
     _joiningDateController.dispose();
+    _fatherController.dispose();
+    _motherController.dispose();
+    _spouseController.dispose();
+    _childrenController.dispose();
+    _experienceController.dispose();
+    _strengthsController.dispose();
+    _weaknessesController.dispose();
+    _teamActivitiesController.dispose();
+    _performanceController.dispose();
+    _reportingToController.dispose();
+    _workLocationController.dispose();
+    _emergencyContactController.dispose();
+    _adminScopeController.dispose();
     super.dispose();
   }
 
@@ -82,7 +123,27 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
         _contactController.text = data['contactNumber'] as String? ?? '';
         _dobController.text = data['dateOfBirth'] as String? ?? '';
         _joiningDateController.text = data['joiningDate'] as String? ?? '';
+        _fatherController.text = _text(data['fatherName']);
+        _motherController.text = _text(data['motherName']);
+        _spouseController.text = _text(data['spouseName']);
+        _childrenController.text = _text(data['children']);
+        _experienceController.text = _text(data['professionalExperience']);
+        _strengthsController.text = _text(data['strengths']);
+        _weaknessesController.text = _text(data['weaknesses']);
+        _teamActivitiesController.text = _text(data['teamActivities']);
+        _performanceController.text = _text(data['performanceLevel']);
+        _reportingToController.text = _text(data['reportingTo']);
+        _workLocationController.text = _text(data['workLocation']);
+        _emergencyContactController.text = _text(data['emergencyContact']);
+        _adminScopeController.text = _text(data['adminScope']);
         _photoBase64 = data['photoBase64'] as String?;
+        _selectedMaritalStatus =
+            _maritalStatuses.contains(data['maritalStatus'])
+            ? data['maritalStatus'] as String
+            : _maritalStatuses.first;
+        _selectedAccessLevel = _accessLevels.contains(data['accessLevel'])
+            ? data['accessLevel'] as String
+            : _accessLevels.first;
 
         final dept = data['department'] as String? ?? '';
         _selectedDepartment = OrganizationOptions.teams.contains(dept)
@@ -91,9 +152,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
 
         final role =
             data['employeeRole'] as String? ?? data['role'] as String? ?? '';
-        _selectedRole = OrganizationOptions.employeeRoles.contains(role)
+        _selectedRole = _roleOptions.contains(role)
             ? role
-            : OrganizationOptions.employeeRoles.first;
+            : OrganizationOptions.adminRoles.first;
 
         _isLoaded = true;
       });
@@ -134,6 +195,21 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
         'contactNumber': _contactController.text.trim(),
         'dateOfBirth': _dobController.text.trim(),
         'joiningDate': _joiningDateController.text.trim(),
+        'fatherName': _fatherController.text.trim(),
+        'motherName': _motherController.text.trim(),
+        'spouseName': _spouseController.text.trim(),
+        'children': _childrenController.text.trim(),
+        'maritalStatus': _selectedMaritalStatus,
+        'professionalExperience': _experienceController.text.trim(),
+        'strengths': _strengthsController.text.trim(),
+        'weaknesses': _weaknessesController.text.trim(),
+        'teamActivities': _teamActivitiesController.text.trim(),
+        'performanceLevel': _performanceController.text.trim(),
+        'reportingTo': _reportingToController.text.trim(),
+        'workLocation': _workLocationController.text.trim(),
+        'emergencyContact': _emergencyContactController.text.trim(),
+        'adminScope': _adminScopeController.text.trim(),
+        'accessLevel': _selectedAccessLevel,
         'department': _selectedDepartment,
         'employeeRole': _selectedRole,
         'role': currentRole,
@@ -143,7 +219,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
       await user.updateDisplayName(displayName);
 
       setState(() {
-        _isEditing = false;
         _isSaving = false;
         _status = 'Admin details saved';
       });
@@ -312,6 +387,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
     }
   }
 
+  String _text(Object? value) => value?.toString().trim() ?? '';
+
   @override
   Widget build(BuildContext context) {
     final user = _auth.currentUser;
@@ -431,10 +508,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
-                  children: [
-                    _buildDetailsTab(userData, email),
-                    _buildActivitiesTab(),
-                  ],
+                  children: [_buildDetailsTab(email), _buildActivitiesTab()],
                 ),
               ),
             ],
@@ -445,291 +519,271 @@ class _AdminProfileScreenState extends State<AdminProfileScreen>
   }
 
   // Tab 1: Details Layout (Editable)
-  Widget _buildDetailsTab(Map<String, dynamic> userData, String email) {
-    if (!_isEditing) {
-      final dob = userData['dateOfBirth'] as String? ?? 'Not specified';
-      final contact = userData['contactNumber'] as String? ?? 'Not specified';
-      final jDate = userData['joiningDate'] as String? ?? 'Not specified';
-      final nick = userData['nickName'] as String? ?? 'Not specified';
-      final firstName = userData['firstName'] as String? ?? 'Not specified';
-      final lastName = userData['lastName'] as String? ?? 'Not specified';
-      final department = userData['department'] as String? ?? 'Not specified';
-      final professionalRole =
-          userData['employeeRole'] as String? ?? 'Not specified';
-
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Profile Information',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _isEditing = true;
-                    });
-                  },
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: const Text('Edit'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: IndustrialColors.primary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            IndustrialCard(
-              child: Column(
-                children: [
-                  _buildDetailRow(Icons.person, 'First Name', firstName),
-                  const Divider(height: 20),
-                  _buildDetailRow(Icons.person_outline, 'Last Name', lastName),
-                  const Divider(height: 20),
-                  _buildDetailRow(Icons.badge, 'Nickname', nick),
-                  const Divider(height: 20),
-                  _buildDetailRow(Icons.email, 'Email Address', email),
-                  const Divider(height: 20),
-                  _buildDetailRow(Icons.phone, 'Contact Number', contact),
-                  const Divider(height: 20),
-                  _buildDetailRow(Icons.cake, 'Date of Birth', dob),
-                  const Divider(height: 20),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Professional Details',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            IndustrialCard(
-              child: Column(
-                children: [
-                  _buildDetailRow(
-                    Icons.factory,
-                    'Department / Team',
-                    department,
-                  ),
-                  const Divider(height: 20),
-                  _buildDetailRow(
-                    Icons.engineering,
-                    'Professional Role',
-                    professionalRole,
-                  ),
-                  const Divider(height: 20),
-                  _buildDetailRow(Icons.event, 'Joining Date', jDate),
-                  const Divider(height: 20),
-                  _buildDetailRow(
-                    Icons.security,
-                    'Access Permissions',
-                    'FULL ACCESS / ADMINISTRATOR',
-                    highlight: true,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
+  Widget _buildDetailsTab(String email) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Edit Profile Details',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          IndustrialCard(
-            child: Column(
-              children: [
-                TextField(
-                  controller: _firstNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'First Name',
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _lastNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Last Name',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _nickNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nickname',
-                    prefixIcon: Icon(Icons.tag_faces),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _contactController,
-                  decoration: const InputDecoration(
-                    labelText: 'Contact Number',
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _dobController,
-                  decoration: const InputDecoration(
-                    labelText: 'Date of Birth (YYYY-MM-DD)',
-                    prefixIcon: Icon(Icons.cake),
-                  ),
-                  keyboardType: TextInputType.datetime,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _joiningDateController,
-                  decoration: const InputDecoration(
-                    labelText: 'Joining Date (YYYY-MM-DD)',
-                    prefixIcon: Icon(Icons.event),
-                  ),
-                  keyboardType: TextInputType.datetime,
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedDepartment,
-                  decoration: const InputDecoration(
-                    labelText: 'Department / Team',
-                    prefixIcon: Icon(Icons.factory),
-                  ),
-                  items: OrganizationOptions.teams
-                      .map(
-                        (team) =>
-                            DropdownMenuItem(value: team, child: Text(team)),
-                      )
-                      .toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _selectedDepartment = val);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedRole,
-                  decoration: const InputDecoration(
-                    labelText: 'Professional Role',
-                    prefixIcon: Icon(Icons.engineering),
-                  ),
-                  items: OrganizationOptions.employeeRoles
-                      .map(
-                        (role) =>
-                            DropdownMenuItem(value: role, child: Text(role)),
-                      )
-                      .toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _selectedRole = val);
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: PrimaryActionButton(
-                        label: 'CANCEL',
-                        style: ActionButtonStyle.outline,
-                        onPressed: () {
-                          setState(() {
-                            _isEditing = false;
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: PrimaryActionButton(
-                        label: _isSaving ? 'SAVING...' : 'SAVE',
-                        isLoading: _isSaving,
-                        onPressed: _isSaving ? null : _saveAdminData,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          _adminProfileOverview(email),
+          const SizedBox(height: 16),
+          _sectionTitle('Professional Profile', Icons.work_history),
+          const SizedBox(height: 8),
+          _adminProfessionalCard(),
+          const SizedBox(height: 16),
+          _sectionTitle('Admin Controls', Icons.admin_panel_settings),
+          const SizedBox(height: 8),
+          _adminControlCard(),
+          const SizedBox(height: 18),
+          PrimaryActionButton(
+            label: _isSaving ? 'SAVING...' : 'SAVE PROFILE',
+            icon: Icons.save,
+            isLoading: _isSaving,
+            onPressed: _isSaving ? null : _saveAdminData,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDetailRow(
-    IconData icon,
-    String label,
-    String value, {
-    bool highlight = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+  Widget _adminProfileOverview(String email) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 760;
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _adminIdentityCard(email),
+              const SizedBox(height: 12),
+              _adminPersonalCard(),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 2, child: _adminIdentityCard(email)),
+            const SizedBox(width: 12),
+            Expanded(flex: 3, child: _adminPersonalCard()),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _adminIdentityCard(String email) {
+    return IndustrialCard(
+      highlighted: true,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: IndustrialColors.primary, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: IndustrialColors.onSurfaceVariant,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: highlight
-                        ? IndustrialColors.secondary
-                        : IndustrialColors.onSurface,
-                  ),
-                ),
-              ],
-            ),
+          _sectionTitle('Account Details', Icons.badge),
+          const SizedBox(height: 12),
+          _field(_firstNameController, 'First Name', Icons.person),
+          const SizedBox(height: 10),
+          _field(_lastNameController, 'Last Name', Icons.person_outline),
+          const SizedBox(height: 10),
+          _field(_nickNameController, 'Nickname', Icons.tag_faces),
+          const SizedBox(height: 10),
+          _field(
+            _emailController,
+            'Email Address',
+            Icons.email,
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 10),
+          _field(
+            _contactController,
+            'Phone Number',
+            Icons.phone,
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: 10),
+          _field(
+            _emergencyContactController,
+            'Emergency Contact',
+            Icons.contact_emergency,
+            keyboardType: TextInputType.phone,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _adminPersonalCard() {
+    return IndustrialCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle('Personal Details', Icons.family_restroom),
+          const SizedBox(height: 12),
+          _field(
+            _dobController,
+            'Date of Birth (YYYY-MM-DD)',
+            Icons.cake,
+            keyboardType: TextInputType.datetime,
+          ),
+          const SizedBox(height: 10),
+          _field(_fatherController, 'Father Name', Icons.man),
+          const SizedBox(height: 10),
+          _field(_motherController, 'Mother Name', Icons.woman),
+          const SizedBox(height: 10),
+          _field(_spouseController, 'Spouse Name', Icons.favorite),
+          const SizedBox(height: 10),
+          _field(_childrenController, 'Children', Icons.child_care),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedMaritalStatus,
+            decoration: const InputDecoration(
+              labelText: 'Marital Status',
+              prefixIcon: Icon(Icons.diversity_1),
+            ),
+            items: _maritalStatuses
+                .map(
+                  (status) =>
+                      DropdownMenuItem(value: status, child: Text(status)),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _selectedMaritalStatus = value);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _adminProfessionalCard() {
+    return IndustrialCard(
+      child: Column(
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: _selectedDepartment,
+            decoration: const InputDecoration(
+              labelText: 'Department / Team',
+              prefixIcon: Icon(Icons.factory),
+            ),
+            items: OrganizationOptions.teams
+                .map((team) => DropdownMenuItem(value: team, child: Text(team)))
+                .toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedDepartment = value);
+            },
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedRole,
+            decoration: const InputDecoration(
+              labelText: 'Admin / CEO Role',
+              prefixIcon: Icon(Icons.engineering),
+            ),
+            items: _roleOptions
+                .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                .toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedRole = value);
+            },
+          ),
+          const SizedBox(height: 10),
+          _field(
+            _joiningDateController,
+            'Joining Date (YYYY-MM-DD)',
+            Icons.event,
+            keyboardType: TextInputType.datetime,
+          ),
+          const SizedBox(height: 10),
+          _field(
+            _experienceController,
+            'Professional Experience',
+            Icons.history_edu,
+            maxLines: 3,
+          ),
+          const SizedBox(height: 10),
+          _field(_strengthsController, 'Strengths', Icons.trending_up),
+          const SizedBox(height: 10),
+          _field(_weaknessesController, 'Weaknesses', Icons.psychology),
+          const SizedBox(height: 10),
+          _field(
+            _teamActivitiesController,
+            'Team Activities',
+            Icons.groups,
+            maxLines: 3,
+          ),
+          const SizedBox(height: 10),
+          _field(_performanceController, 'Performance Level', Icons.speed),
+        ],
+      ),
+    );
+  }
+
+  Widget _adminControlCard() {
+    return IndustrialCard(
+      child: Column(
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: _selectedAccessLevel,
+            decoration: const InputDecoration(
+              labelText: 'Access Level',
+              prefixIcon: Icon(Icons.security),
+            ),
+            items: _accessLevels
+                .map(
+                  (level) => DropdownMenuItem(value: level, child: Text(level)),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedAccessLevel = value);
+            },
+          ),
+          const SizedBox(height: 10),
+          _field(_reportingToController, 'Reporting To', Icons.account_tree),
+          const SizedBox(height: 10),
+          _field(_workLocationController, 'Work Location', Icons.location_on),
+          const SizedBox(height: 10),
+          _field(
+            _adminScopeController,
+            'Admin Responsibility Scope',
+            Icons.fact_check,
+            maxLines: 3,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: IndustrialColors.primary, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+        ),
+      ],
+    );
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: IndustrialColors.primary),
       ),
     );
   }
