@@ -246,6 +246,7 @@ class AuthRoleService {
             .appCollection('employee_profiles')
             .doc(normalizedEmployeeId.isEmpty ? user.uid : normalizedEmployeeId)
             .set({
+              'uid': user.uid,
               'employeeId': normalizedEmployeeId.isEmpty
                   ? user.uid
                   : normalizedEmployeeId,

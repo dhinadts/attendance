@@ -215,57 +215,100 @@ class AttendanceSessionService {
         ? null
         : await _firestore.appCollection('users').doc(user.uid).get();
     final userData = userDoc?.data();
-    final employeeId =
-        prefs.getString(_employeeIdKey) ??
-        (userData?['employeeId'] as String?) ??
-        fallbackId;
-    final profileDoc = await _firestore
-        .appCollection('employee_profiles')
-        .doc(employeeId)
-        .get();
-    final profileData = profileDoc.data();
+    final mappedEmployeeId = (userData?['employeeId'] as String?)?.trim();
+    final cachedEmployeeId = prefs.getString(_employeeIdKey)?.trim();
+    var employeeId = mappedEmployeeId?.isNotEmpty == true
+        ? mappedEmployeeId!
+        : '';
+    Map<String, dynamic>? profileData;
+
+    if (employeeId.isNotEmpty) {
+      final profileDoc = await _firestore
+          .appCollection('employee_profiles')
+          .doc(employeeId)
+          .get();
+      profileData = profileDoc.data();
+    }
+
+    if (profileData == null && user != null) {
+      final byUid = await _firestore
+          .appCollection('employee_profiles')
+          .where('uid', isEqualTo: user.uid)
+          .limit(1)
+          .get();
+      if (byUid.docs.isNotEmpty) {
+        employeeId = byUid.docs.first.id;
+        profileData = byUid.docs.first.data();
+      }
+    }
+
+    if (profileData == null && user?.email?.isNotEmpty == true) {
+      final byEmail = await _firestore
+          .appCollection('employee_profiles')
+          .where('email', isEqualTo: user!.email)
+          .limit(1)
+          .get();
+      if (byEmail.docs.isNotEmpty) {
+        employeeId = byEmail.docs.first.id;
+        profileData = byEmail.docs.first.data();
+      }
+    }
+
+    if (employeeId.isEmpty) {
+      employeeId = cachedEmployeeId?.isNotEmpty == true
+          ? cachedEmployeeId!
+          : fallbackId;
+    }
 
     return EmployeeProfile(
       employeeId: employeeId,
       nickName:
-          prefs.getString(_employeeNickNameKey) ??
           (profileData?['nickName'] as String?) ??
           (userData?['nickName'] as String?) ??
+          prefs.getString(_employeeNickNameKey) ??
           '',
       firstName:
-          prefs.getString(_employeeFirstNameKey) ??
           (profileData?['firstName'] as String?) ??
           (userData?['firstName'] as String?) ??
+          prefs.getString(_employeeFirstNameKey) ??
           (parts.first.isEmpty ? '' : parts.first),
       lastName:
-          prefs.getString(_employeeLastNameKey) ??
           (profileData?['lastName'] as String?) ??
           (userData?['lastName'] as String?) ??
+          prefs.getString(_employeeLastNameKey) ??
           (parts.length > 1 ? parts.sublist(1).join(' ') : ''),
       dateOfBirth:
-          prefs.getString(_employeeDobKey) ??
           (profileData?['dateOfBirth'] as String?) ??
+          (userData?['dateOfBirth'] as String?) ??
+          prefs.getString(_employeeDobKey) ??
           '',
       contactNumber:
-          prefs.getString(_employeeContactKey) ??
           (profileData?['contactNumber'] as String?) ??
+          (userData?['contactNumber'] as String?) ??
+          prefs.getString(_employeeContactKey) ??
           '',
       email:
-          prefs.getString(_employeeEmailKey) ??
-          (profileData?['email'] as String?) ??
+          (userData?['email'] as String?) ??
           user?.email ??
+          (profileData?['email'] as String?) ??
+          prefs.getString(_employeeEmailKey) ??
           '',
       joiningDate:
-          prefs.getString(_employeeJoiningDateKey) ??
           (profileData?['joiningDate'] as String?) ??
+          (userData?['joiningDate'] as String?) ??
+          prefs.getString(_employeeJoiningDateKey) ??
           '',
       role:
-          prefs.getString(_employeeRoleKey) ??
           (profileData?['role'] as String?) ??
+          (profileData?['employeeRole'] as String?) ??
+          (userData?['employeeRole'] as String?) ??
+          (userData?['role'] as String?) ??
+          prefs.getString(_employeeRoleKey) ??
           'Employee',
       department:
-          prefs.getString(_employeeDepartmentKey) ??
           (profileData?['department'] as String?) ??
+          (userData?['department'] as String?) ??
+          prefs.getString(_employeeDepartmentKey) ??
           '',
     );
   }
@@ -290,6 +333,7 @@ class AttendanceSessionService {
         .doc(profile.employeeId.trim())
         .set({
           ...profile.toMap(),
+          'uid': _auth.currentUser?.uid,
           'updatedAt': FieldValue.serverTimestamp(),
           'updatedAtIst': nowIst.toIso8601String(),
         }, SetOptions(merge: true));
@@ -297,12 +341,17 @@ class AttendanceSessionService {
     final user = _auth.currentUser;
     if (user != null) {
       await _firestore.appCollection('users').doc(user.uid).set({
+        'uid': user.uid,
         'employeeId': profile.employeeId.trim(),
         'firstName': profile.firstName.trim(),
         'lastName': profile.lastName.trim(),
         'displayName': profile.employeeName,
         'nickName': profile.nickName.trim(),
         'email': profile.email.trim(),
+        'contactNumber': profile.contactNumber.trim(),
+        'joiningDate': profile.joiningDate.trim(),
+        'department': profile.department.trim(),
+        'employeeRole': profile.role.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     }
