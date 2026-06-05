@@ -400,6 +400,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 14),
           _subHeading('Identity', Icons.badge_outlined),
           const SizedBox(height: 10),
+          _field(_firstNameController, 'First Name', Icons.person),
+          const SizedBox(height: 10),
+          _field(_lastNameController, 'Last Name', Icons.person_outline),
+          const SizedBox(height: 10),
+          _field(
+            _emailController,
+            'Email Address',
+            Icons.email,
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 10),
+          _field(
+            _contactController,
+            'Phone Number',
+            Icons.phone,
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: 10),
           _field(_nickNameController, 'Nick Name', Icons.tag_faces),
           const SizedBox(height: 10),
           _field(
@@ -469,8 +487,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           DropdownButtonFormField<String>(
             initialValue: _selectedRole,
             decoration: const InputDecoration(
-              labelText: 'Employee Role',
+              labelText: 'Employee Role (Editable)',
               prefixIcon: Icon(Icons.engineering),
+              helperText: 'Select the current employee role',
             ),
             items: OrganizationOptions.employeeRoles
                 .map((role) => DropdownMenuItem(value: role, child: Text(role)))

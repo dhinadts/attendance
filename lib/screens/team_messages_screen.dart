@@ -16,8 +16,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum _MessageFilterMode { today, range, all }
 
-
-
 class TeamMessagesScreen extends StatefulWidget {
   const TeamMessagesScreen({super.key});
 
@@ -128,7 +126,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
       if (!mounted) return;
       _messageController.clear();
       setState(() {
-        _status = 'Message saved. Waiting for push delivery...';
+        _status = 'Message queued for backend push relay...';
         _statusType = StatusChipType.pending;
       });
       _watchDeliveryStatus(outboxId);
@@ -186,7 +184,7 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
             switch (deliveryStatus) {
               case 'sent':
                 setState(() {
-                  _status = 'Message saved. Push delivered.';
+                  _status = 'Backend relay delivered the push.';
                   _statusType = StatusChipType.success;
                 });
                 _deliverySubscription?.cancel();
@@ -194,8 +192,8 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
               case 'failed':
                 setState(() {
                   _status = error == null || error.isEmpty
-                      ? 'Message saved, but push delivery failed.'
-                      : 'Push delivery failed: $error';
+                      ? 'Message saved, but backend push relay failed.'
+                      : 'Backend push relay failed: $error';
                   _statusType = StatusChipType.alert;
                 });
                 _deliverySubscription?.cancel();
@@ -203,18 +201,18 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
               case 'retry':
                 setState(() {
                   _status = error == null || error.isEmpty
-                      ? 'Message saved. Push delivery is retrying.'
-                      : 'Push delivery retrying: $error';
+                      ? 'Message saved. Backend relay is retrying.'
+                      : 'Backend relay retrying: $error';
                   _statusType = StatusChipType.pending;
                 });
               case 'processing':
                 setState(() {
-                  _status = 'Message saved. Push delivery processing...';
+                  _status = 'Backend relay is processing delivery...';
                   _statusType = StatusChipType.pending;
                 });
               default:
                 setState(() {
-                  _status = 'Message saved. Push delivery queued.';
+                  _status = 'Message saved. Backend relay delivery queued.';
                   _statusType = StatusChipType.pending;
                 });
             }
@@ -222,7 +220,8 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
           onError: (Object error) {
             if (!mounted) return;
             setState(() {
-              _status = 'Message saved. Unable to read push delivery status.';
+              _status =
+                  'Message saved. Unable to read backend relay delivery status.';
               _statusType = StatusChipType.pending;
             });
           },
@@ -336,7 +335,8 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
             Row(
               children: [
                 FilledButton(
-                  onPressed: () => setState(() => _filterMode = _MessageFilterMode.today),
+                  onPressed: () =>
+                      setState(() => _filterMode = _MessageFilterMode.today),
                   child: const Text('Today'),
                 ),
                 const SizedBox(width: 8),
@@ -354,8 +354,12 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
                   child: const Text('All'),
                 ),
                 const SizedBox(width: 12),
-                if (_filterMode == _MessageFilterMode.range && _rangeStart != null && _rangeEnd != null)
-                  Text('Showing: ${_rangeStart!.toLocal().toString().split(' ').first} → ${_rangeEnd!.toLocal().toString().split(' ').first}'),
+                if (_filterMode == _MessageFilterMode.range &&
+                    _rangeStart != null &&
+                    _rangeEnd != null)
+                  Text(
+                    'Showing: ${_rangeStart!.toLocal().toString().split(' ').first} → ${_rangeEnd!.toLocal().toString().split(' ').first}',
+                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -371,25 +375,51 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
                       if (createdAt is Timestamp) {
                         created = createdAt.toDate();
                       } else if (data['createdAtIst'] != null) {
-                        created = DateTime.tryParse(data['createdAtIst'].toString());
+                        created = DateTime.tryParse(
+                          data['createdAtIst'].toString(),
+                        );
                       }
                       return {'data': data, 'created': created};
                     })
-                    .where((entry) => _canReadMessage(entry['data'] as Map<String, dynamic>))
+                    .where(
+                      (entry) => _canReadMessage(
+                        entry['data'] as Map<String, dynamic>,
+                      ),
+                    )
                     .where((entry) {
                       final created = entry['created'] as DateTime?;
                       if (_filterMode == _MessageFilterMode.today) {
                         if (created == null) return true;
                         final now = DateTime.now();
                         final c = created.toLocal();
-                        return c.year == now.year && c.month == now.month && c.day == now.day;
+                        return c.year == now.year &&
+                            c.month == now.month &&
+                            c.day == now.day;
                       }
                       if (_filterMode == _MessageFilterMode.range) {
-                        if (created == null || _rangeStart == null || _rangeEnd == null) return false;
-                        final start = DateTime(_rangeStart!.year, _rangeStart!.month, _rangeStart!.day);
-                        final end = DateTime(_rangeEnd!.year, _rangeEnd!.month, _rangeEnd!.day, 23, 59, 59);
+                        if (created == null ||
+                            _rangeStart == null ||
+                            _rangeEnd == null) {
+                          return false;
+                        }
+                        final start = DateTime(
+                          _rangeStart!.year,
+                          _rangeStart!.month,
+                          _rangeStart!.day,
+                        );
+                        final end = DateTime(
+                          _rangeEnd!.year,
+                          _rangeEnd!.month,
+                          _rangeEnd!.day,
+                          23,
+                          59,
+                          59,
+                        );
                         final c = created.toLocal();
-                        return c.isAfter(start.subtract(const Duration(seconds: 1))) && c.isBefore(end.add(const Duration(seconds: 1)));
+                        return c.isAfter(
+                              start.subtract(const Duration(seconds: 1)),
+                            ) &&
+                            c.isBefore(end.add(const Duration(seconds: 1)));
                       }
                       return true;
                     })
@@ -420,7 +450,9 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
                               Expanded(
                                 child: Text(
                                   data['title'] as String? ?? 'Message',
-                                  style: const TextStyle(fontWeight: FontWeight.w700),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                               StatusChip(
@@ -434,7 +466,10 @@ class _TeamMessagesScreenState extends State<TeamMessagesScreen> {
                           const SizedBox(height: 8),
                           Text(
                             '${data['senderRole'] ?? '-'} | ${data['createdAtIst'] ?? '-'}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: IndustrialColors.onSurfaceVariant),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: IndustrialColors.onSurfaceVariant,
+                                ),
                           ),
                         ],
                       ),

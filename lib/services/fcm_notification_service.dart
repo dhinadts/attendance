@@ -443,7 +443,8 @@ class FcmNotificationService {
       ...message,
       'messageId': messageRef.id,
       'status': 'pending',
-      'delivery': 'cloud_function',
+      'delivery': 'external_fcm_relay',
+      'deliveryMode': 'backend_relay',
       'createdAt': FieldValue.serverTimestamp(),
     });
     return messageRef.id;
