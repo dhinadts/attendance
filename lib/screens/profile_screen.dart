@@ -210,10 +210,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   _profileOverview(),
                   const SizedBox(height: 16),
-                  _sectionTitle('Personal Details', Icons.family_restroom),
-                  const SizedBox(height: 8),
-                  _personalDetailsCard(),
-                  const SizedBox(height: 16),
                   PrimaryActionButton(
                     label: _isSaving ? 'SAVING...' : 'SAVE PROFILE',
                     icon: Icons.save,
@@ -242,8 +238,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               _identityCard(name),
               const SizedBox(height: 12),
-              _sectionTitle('Personal Details', Icons.family_restroom),
-              const SizedBox(height: 8),
               _personalDetailsCard(),
               const SizedBox(height: 12),
               _professionalCard(),
@@ -260,17 +254,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(width: 12),
 
             // Personal details
-            Expanded(
-              flex: 3,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sectionTitle('Personal Details', Icons.family_restroom),
-                  const SizedBox(height: 8),
-                  _personalDetailsCard(),
-                ],
-              ),
-            ),
+            Expanded(flex: 3, child: _personalDetailsCard()),
             SizedBox(width: 12),
 
             // Professional details
@@ -412,14 +396,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _sectionTitle('Personal Details', Icons.person),
+          const SizedBox(height: 14),
+          _subHeading('Identity', Icons.badge_outlined),
+          const SizedBox(height: 10),
           _field(_nickNameController, 'Nick Name', Icons.tag_faces),
           const SizedBox(height: 10),
           _field(
             _dobController,
-            'DOB (YYYY-MM-DD)',
+            'Date of Birth',
             Icons.cake,
             keyboardType: TextInputType.datetime,
+            hint: 'YYYY-MM-DD',
           ),
+          const SizedBox(height: 18),
+          _subHeading('Family', Icons.family_restroom),
           const SizedBox(height: 10),
           _field(_fatherController, 'Father Name', Icons.man),
           const SizedBox(height: 10),
@@ -458,7 +449,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionTitle('Professional Profile', Icons.work_history),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+          _subHeading('Role & Department', Icons.corporate_fare),
+          const SizedBox(height: 10),
           DropdownButtonFormField<String>(
             initialValue: _selectedDepartment,
             decoration: const InputDecoration(
@@ -486,12 +479,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (value != null) setState(() => _selectedRole = value);
             },
           ),
+          const SizedBox(height: 18),
+          _subHeading('Career Info', Icons.history_edu),
           const SizedBox(height: 10),
           _field(
             _joiningDateController,
-            'Joining Date (YYYY-MM-DD)',
+            'Joining Date',
             Icons.event_available,
             keyboardType: TextInputType.datetime,
+            hint: 'YYYY-MM-DD',
           ),
           const SizedBox(height: 10),
           _field(
@@ -500,6 +496,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icons.history_edu,
             maxLines: 3,
           ),
+          const SizedBox(height: 18),
+          _subHeading('Work Profile', Icons.insights),
           const SizedBox(height: 10),
           _field(_strengthsController, 'Strengths', Icons.trending_up),
           const SizedBox(height: 10),
@@ -646,12 +644,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _subHeading(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: IndustrialColors.primary),
+        const SizedBox(width: 6),
+        Text(
+          title.toUpperCase(),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: IndustrialColors.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _field(
     TextEditingController controller,
     String label,
     IconData icon, {
     TextInputType? keyboardType,
     int maxLines = 1,
+    String? hint,
   }) {
     return TextField(
       controller: controller,
@@ -659,6 +676,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       maxLines: maxLines,
       decoration: InputDecoration(
         labelText: label,
+        hintText: hint,
         prefixIcon: Icon(icon, color: IndustrialColors.primary),
       ),
     );

@@ -77,10 +77,10 @@ class _AppShellState extends State<AppShell> {
     final showBackButton =
         widget.showBackButton || (!isRootPath || GoRouter.of(context).canPop());
 
-    final useAdminWebShell =
+    final useWebShell =
         widget.showAppBar &&
         (widget.forceAdminShell ||
-            (isAdminPath && (kIsWeb || Responsive.isLargeDesktop(context))));
+            (kIsWeb || Responsive.isLargeDesktop(context)));
 
     return PopScope(
       canPop: false,
@@ -101,10 +101,11 @@ class _AppShellState extends State<AppShell> {
         final previousPath = _previousRoute(currentPath);
         context.go(previousPath ?? fallbackPath);
       },
-      child: useAdminWebShell
+      child: useWebShell
           ? _AdminWebShell(
               title: widget.title ?? 'attendance',
               currentPath: currentPath,
+              isAdminPath: isAdminPath,
               appBarActions: widget.appBarActions,
               floatingActionButton: widget.floatingActionButton,
               child: widget.child,
@@ -213,6 +214,7 @@ class _AdminWebShell extends StatefulWidget {
   const _AdminWebShell({
     required this.title,
     required this.currentPath,
+    required this.isAdminPath,
     required this.child,
     required this.appBarActions,
     required this.floatingActionButton,
@@ -220,6 +222,7 @@ class _AdminWebShell extends StatefulWidget {
 
   final String title;
   final String currentPath;
+  final bool isAdminPath;
   final Widget child;
   final List<Widget>? appBarActions;
   final FloatingActionButton? floatingActionButton;
@@ -263,6 +266,7 @@ class _AdminWebShellState extends State<_AdminWebShell> {
                 child: _AdminSideMenu(
                   currentPath: widget.currentPath,
                   collapsed: effectiveCollapsed,
+                  isAdminPath: widget.isAdminPath,
                 ),
               ),
             ),
@@ -273,6 +277,7 @@ class _AdminWebShellState extends State<_AdminWebShell> {
                 _AdminTopBar(
                   title: widget.title,
                   currentPath: widget.currentPath,
+                  isAdminPath: widget.isAdminPath,
                   appBarActions: widget.appBarActions,
                   isCollapsed: _collapsed,
                   onToggleCollapsed: _toggleCollapsed,
@@ -303,76 +308,88 @@ class _AdminWebShellState extends State<_AdminWebShell> {
 }
 
 class _AdminSideMenu extends StatelessWidget {
-  const _AdminSideMenu({required this.currentPath, this.collapsed = false});
+  const _AdminSideMenu({
+    required this.currentPath,
+    this.collapsed = false,
+    this.isAdminPath = true,
+  });
 
   final String currentPath;
   final bool collapsed;
+  final bool isAdminPath;
 
   @override
   Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final menuWidth = collapsed ? 72.0 : 240.0;
+
+    final decoration = BoxDecoration(
+      color: IndustrialColors.surface,
+      border: Border(
+        right: BorderSide(color: IndustrialColors.outlineVariant, width: 1),
+      ),
+    );
+
+    if (!isAdminPath) {
+      const mainItems = [
+        _DrawerItem('Dashboard', Icons.home, '/dashboard'),
+        _DrawerItem('Face Attendance', Icons.face, '/face-attendance'),
+        _DrawerItem('Attendance Details', Icons.calendar_month, '/attendance-details'),
+      ];
+      const workItems = [
+        _DrawerItem('Tasks', Icons.task_alt, '/tasks'),
+        _DrawerItem('Salary', Icons.receipt_long, '/salary'),
+        _DrawerItem('Exit Company', Icons.exit_to_app, '/exit-company'),
+      ];
+      const commItems = [
+        _DrawerItem('Notifications', Icons.notifications, '/notifications'),
+        _DrawerItem('Messages', Icons.chat_bubble_outline, '/messages'),
+      ];
+      const accItems = [
+        _DrawerItem('Profile', Icons.person, '/profile'),
+        _DrawerItem('Settings', Icons.settings, '/settings'),
+      ];
+      const allItems = [...mainItems, ...workItems, ...commItems, ...accItems];
+
+      return Container(
+        width: menuWidth,
+        decoration: decoration,
+        child: SafeArea(
+          child: collapsed
+              ? _buildCompact(context, uid, allItems, const [], const [])
+              : _buildEmployeeExpanded(
+                  context, mainItems, workItems, commItems, accItems),
+        ),
+      );
+    }
+
     const operationsItems = [
       _DrawerItem('Dashboard', Icons.dashboard, '/admin-dashboard'),
       _DrawerItem('Employees', Icons.groups, '/admin-employees'),
       _DrawerItem('Attendance', Icons.fact_check, '/admin-attendance'),
-      _DrawerItem(
-        'Mark Attendance',
-        Icons.how_to_reg,
-        '/admin-mark-attendance',
-      ),
-      _DrawerItem(
-        'Leave Requests',
-        Icons.event_available,
-        '/admin-leave-requests',
-      ),
+      _DrawerItem('Mark Attendance', Icons.how_to_reg, '/admin-mark-attendance'),
+      _DrawerItem('Leave Requests', Icons.event_available, '/admin-leave-requests'),
       _DrawerItem('Payroll', Icons.payments, '/admin-salary'),
       _DrawerItem('Export Reports', Icons.table_view, '/admin-export-reports'),
       _DrawerItem('Exit Requests', Icons.exit_to_app, '/admin-exit-requests'),
     ];
-
     const communicationItems = [
       _DrawerItem('Messages', Icons.chat_bubble_outline, '/admin-messages'),
       _DrawerItem('Notifications', Icons.notifications, '/admin-notifications'),
     ];
-
     const accountItems = [
       _DrawerItem('Profile', Icons.person, '/admin-profile'),
       _DrawerItem('Settings', Icons.settings, '/admin-settings'),
     ];
-
-    const createUserItem = _DrawerItem(
-      'Create User',
-      Icons.person_add,
-      '/admin-create-user',
-    );
-
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final menuWidth = collapsed ? 72.0 : 240.0;
+    const createUserItem = _DrawerItem('Create User', Icons.person_add, '/admin-create-user');
 
     return Container(
       width: menuWidth,
-      decoration: BoxDecoration(
-        color: IndustrialColors.surface,
-        border: Border(
-          right: BorderSide(color: IndustrialColors.outlineVariant, width: 1),
-        ),
-      ),
+      decoration: decoration,
       child: SafeArea(
         child: collapsed
-            ? _buildCompact(
-                context,
-                uid,
-                operationsItems,
-                communicationItems,
-                accountItems,
-              )
-            : _buildExpanded(
-                context,
-                uid,
-                operationsItems,
-                communicationItems,
-                accountItems,
-                createUserItem,
-              ),
+            ? _buildCompact(context, uid, operationsItems, communicationItems, accountItems)
+            : _buildExpanded(context, uid, operationsItems, communicationItems, accountItems, createUserItem),
       ),
     );
   }
@@ -530,9 +547,116 @@ class _AdminSideMenu extends StatelessWidget {
     );
   }
 
+  Widget _buildEmployeeExpanded(
+    BuildContext context,
+    List<_DrawerItem> main,
+    List<_DrawerItem> work,
+    List<_DrawerItem> comm,
+    List<_DrawerItem> acc,
+  ) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: uid == null
+          ? null
+          : FirebaseFirestore.instance
+                .appCollection('employee_profiles')
+                .where('uid', isEqualTo: uid)
+                .limit(1)
+                .snapshots(),
+      builder: (context, snapshot) {
+        final profileData = snapshot.data?.docs.firstOrNull?.data() ?? {};
+        final nickName = (profileData['nickName'] as String?)?.trim() ?? '';
+        final firstName = (profileData['firstName'] as String?)?.trim() ?? '';
+        final lastName = (profileData['lastName'] as String?)?.trim() ?? '';
+        final employeeName = (profileData['employeeName'] as String?)?.trim() ?? '';
+        final displayName = nickName.isNotEmpty
+            ? nickName
+            : (firstName.isNotEmpty || lastName.isNotEmpty)
+                ? '$firstName $lastName'.trim()
+                : employeeName.isNotEmpty
+                    ? employeeName
+                    : (FirebaseAuth.instance.currentUser?.email ?? 'Employee');
+
+        return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 22, 24, 18),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: IndustrialColors.primary,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF34D399), width: 1.5),
+                ),
+                child: const Icon(Icons.person_outline, color: Color(0xFF34D399), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      softWrap: true,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: IndustrialColors.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Employee portal',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: IndustrialColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Divider(color: IndustrialColors.outlineVariant),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _MenuSectionLabel('Main'),
+              for (final item in main)
+                _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+              const SizedBox(height: 12),
+              const _MenuSectionLabel('Work'),
+              for (final item in work)
+                _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+              const SizedBox(height: 12),
+              const _MenuSectionLabel('Communication'),
+              for (final item in comm)
+                _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+              const SizedBox(height: 12),
+              const _MenuSectionLabel('Account'),
+              for (final item in acc)
+                _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
+            ],
+          ),
+        ),
+      ],
+        );       // ListView
+      },         // builder
+    );           // StreamBuilder
+  }
+
   bool _isSelected(String route) {
     if (currentPath == route) return true;
-    if (route == '/admin-dashboard') return false;
+    if (route == '/admin-dashboard' || route == '/dashboard') return currentPath == route;
     return currentPath.startsWith(route);
   }
 }
@@ -663,6 +787,7 @@ class _AdminTopBar extends StatelessWidget {
   const _AdminTopBar({
     required this.title,
     required this.currentPath,
+    required this.isAdminPath,
     required this.appBarActions,
     this.isCollapsed = false,
     this.onToggleCollapsed,
@@ -670,6 +795,7 @@ class _AdminTopBar extends StatelessWidget {
 
   final String title;
   final String currentPath;
+  final bool isAdminPath;
   final List<Widget>? appBarActions;
   final bool isCollapsed;
   final VoidCallback? onToggleCollapsed;
@@ -716,7 +842,9 @@ class _AdminTopBar extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Manage attendance, teams, approvals, payroll and requests',
+                        isAdminPath
+                            ? 'Manage attendance, teams, approvals, payroll and requests'
+                            : 'Track attendance, tasks, salary and team updates',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -727,17 +855,21 @@ class _AdminTopBar extends StatelessWidget {
                   ),
                 ),
                 if (appBarActions != null) ...appBarActions!,
-                const _NotificationBell(isAdminPath: true),
+                _NotificationBell(isAdminPath: isAdminPath),
                 IconButton(
                   tooltip: 'Messages',
                   icon: const Icon(Icons.chat_bubble_outline),
-                  onPressed: () => context.go('/admin-messages'),
+                  onPressed: () => context.go(
+                    isAdminPath ? '/admin-messages' : '/messages',
+                  ),
                   color: IndustrialColors.primary,
                 ),
                 IconButton(
                   tooltip: 'Profile',
                   icon: const Icon(Icons.account_circle),
-                  onPressed: () => context.go('/admin-profile'),
+                  onPressed: () => context.go(
+                    isAdminPath ? '/admin-profile' : '/profile',
+                  ),
                   color: IndustrialColors.primary,
                 ),
               ],
@@ -786,6 +918,26 @@ class _AdminTopBar extends StatelessWidget {
         return 'Support Center';
       case '/tasks':
         return 'Tasks';
+      case '/dashboard':
+        return 'Dashboard';
+      case '/attendance-details':
+        return 'Attendance Details';
+      case '/attendance-log':
+        return 'Attendance Log';
+      case '/face-attendance':
+        return 'Face Attendance';
+      case '/salary':
+        return 'Salary';
+      case '/exit-company':
+        return 'Exit Company';
+      case '/notifications':
+        return 'Notifications';
+      case '/messages':
+        return 'Messages';
+      case '/profile':
+        return 'Profile';
+      case '/settings':
+        return 'Settings';
       default:
         return fallback;
     }
