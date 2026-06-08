@@ -2,132 +2,128 @@ import 'package:flutter/material.dart';
 import '../theme/industrial_theme.dart';
 import '../widgets/industrial_card.dart';
 
-
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 700;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           IndustrialCard(
+            padding: EdgeInsets.all(isMobile ? 16 : 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildSection(
+                  context,
                   title: '1. Information We Collect',
                   content: '''
-DhinaDTS collects the following information to provide and improve our attendance management services:
+DhinaDTS collects information required to provide attendance management services.
 
-• Personal Information: Name, email address, employee ID, department, position
-• Attendance Data: Check-in/out times, location data, session duration
-• Device Information: IP address, device type, browser type, operating system
-• Usage Data: How you interact with our platform, features used, time spent
-• Biometric Data: (if enabled) Fingerprint or facial recognition for secure check-in
+- Personal information: name, email address, employee ID, department, position
+- Attendance data: check-in/out times, location data, session duration
+- Device information: IP address, device type, browser type, operating system
+- Usage data: features used and service interaction
+- Biometric data: facial recognition data when enabled for secure check-in
 ''',
                 ),
-                const SizedBox(height: 24),
+                _sectionGap,
                 _buildSection(
-                  title: '2. How We Use Your Information',
+                  context,
+                  title: '2. How We Use Information',
                   content: '''
 We use your information for:
-• Processing and tracking employee attendance
-• Generating attendance reports and analytics
-• Ensuring compliance with labor laws and company policies
-• Improving our services and user experience
-• Security and fraud prevention
-• Communication regarding attendance issues or updates
+
+- Processing and tracking employee attendance
+- Generating attendance reports and analytics
+- Ensuring compliance with company policies
+- Improving services and user experience
+- Security and fraud prevention
+- Communication about attendance issues or updates
 ''',
                 ),
-                const SizedBox(height: 24),
+                _sectionGap,
                 _buildSection(
+                  context,
                   title: '3. Data Storage and Security',
                   content: '''
-• Your data is stored on secure cloud servers with 256-bit encryption
-• We implement industry-standard security measures including firewalls, encryption, and access controls
-• Regular security audits and penetration testing
-• Data backups are performed daily with 30-day retention
-• Access to personal data is restricted to authorized personnel only
+- Data is stored on secure cloud infrastructure
+- Access controls restrict personal data to authorized personnel
+- Operational reviews are performed to protect service integrity
+- Backups and retention follow business and compliance needs
 ''',
                 ),
-                const SizedBox(height: 24),
+                _sectionGap,
                 _buildSection(
+                  context,
                   title: '4. Data Retention',
                   content: '''
-• Attendance records are retained for 7 years (compliance with labor laws)
-• Personal information is retained while you're an active employee
-• You may request data deletion within 30 days of employment termination
-• Anonymized analytics data may be retained indefinitely
+- Attendance records are retained for compliance and payroll requirements
+- Personal information is retained while you are an active employee
+- Deletion requests are handled subject to legal obligations
+- Anonymized analytics may be retained for service improvement
 ''',
                 ),
-                const SizedBox(height: 24),
+                _sectionGap,
                 _buildSection(
+                  context,
                   title: '5. Your Rights',
                   content: '''
-Under applicable data protection laws, you have the right to:
-• Access your personal data
-• Correct inaccurate data
-• Request deletion of your data (subject to legal obligations)
-• Object to data processing
-• Data portability
-• Withdraw consent at any time
+Where applicable, you may request to:
+
+- Access your personal data
+- Correct inaccurate data
+- Delete eligible records
+- Object to processing
+- Request data portability
+- Withdraw consent where consent applies
 ''',
                 ),
-                const SizedBox(height: 24),
+                _sectionGap,
                 _buildSection(
+                  context,
                   title: '6. Third-Party Services',
                   content: '''
-We use trusted third-party services:
-• Firebase (Google) - Authentication and database
-• Cloud Storage - Secure file storage
-• Analytics - Anonymous usage tracking
-• Email Service - System notifications
-
-These services comply with GDPR and other privacy regulations.
+We use trusted services such as Firebase, cloud storage, analytics, and email delivery to operate the platform. These services are used only for authentication, storage, notifications, analytics, and related attendance workflows.
 ''',
                 ),
-                const SizedBox(height: 24),
+                _sectionGap,
                 _buildSection(
+                  context,
                   title: '7. Cookies and Tracking',
                   content: '''
-We use essential cookies for:
-• Authentication and session management
-• Remembering user preferences
-• Security features
-
-You can disable cookies in your browser, but some features may not function properly.
+Essential cookies may be used for authentication, session management, preferences, and security. Disabling cookies can prevent some features from working correctly.
 ''',
                 ),
-                const SizedBox(height: 24),
+                _sectionGap,
                 _buildSection(
+                  context,
                   title: '8. Updates to This Policy',
                   content: '''
-We may update this privacy policy periodically. Significant changes will be notified via:
-• Email notification
-• In-app notification
-• Website announcement
+We may update this privacy policy periodically. Important changes may be shared by email, in-app notification, or website announcement.
 
 Last updated: December 1, 2024
 ''',
                 ),
-                const SizedBox(height: 24),
+                _sectionGap,
                 _buildSection(
+                  context,
                   title: '9. Contact Information',
                   content: '''
-For privacy-related inquiries:
-• Email: privacy@dhinadts.com
-• Phone: +91 (967) 7096359
-• Address: 74/1 1St Street, Seetharampalayam, Tiruchengode, Tamil Nadu 637209
-• Data Protection Officer: dpo@dhinadts.com
+Email: privacy@dhinadts.com
+Phone: +91 (967) 7096359
+Address: 74/1 1St Street, Seetharampalayam, Tiruchengode, Tamil Nadu 637209
+Data Protection Officer: dpo@dhinadts.com
 ''',
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Center(
             child: TextButton.icon(
               onPressed: () => Navigator.pop(context),
@@ -143,25 +139,29 @@ For privacy-related inquiries:
     );
   }
 
-  Widget _buildSection({required String title, required String content}) {
+  static const _sectionGap = SizedBox(height: 24);
+
+  Widget _buildSection(
+    BuildContext context, {
+    required String title,
+    required String content,
+  }) {
+    final isMobile = MediaQuery.sizeOf(context).width < 700;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 18,
+          style: TextStyle(
+            fontSize: isMobile ? 16 : 18,
             fontWeight: FontWeight.bold,
             color: IndustrialColors.primary,
           ),
         ),
         const SizedBox(height: 12),
         Text(
-          content,
-          style: const TextStyle(
-            fontSize: 14,
-            height: 1.5,
-          ),
+          content.trim(),
+          style: TextStyle(fontSize: isMobile ? 13.5 : 14, height: 1.5),
         ),
       ],
     );

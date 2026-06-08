@@ -36,7 +36,6 @@ import 'package:attendance/screens/privacy_policy_screen.dart';
 import 'package:attendance/screens/terms_conditions_screen.dart';
 import '../features/tasks/presentation/screens/task_board_screen.dart';
 
-
 class AuthRefreshListenable extends ChangeNotifier {
   AuthRefreshListenable() {
     _subscription = FirebaseAuth.instance.authStateChanges().listen((_) {
@@ -65,7 +64,7 @@ final appRouter = GoRouter(
     final path = state.uri.path;
     final isLogin = path == '/login';
     final isStartup = path == '/startup';
-    
+
     // Public routes that everyone can access (no redirect)
     final publicRoutes = {
       '/privacy',
@@ -74,7 +73,7 @@ final appRouter = GoRouter(
       '/login',
       '/startup',
     };
-    
+
     if (publicRoutes.contains(path)) {
       return null; // Allow access to public routes without checks
     }
@@ -161,20 +160,19 @@ final appRouter = GoRouter(
       name: 'adminEmployees',
       builder: (context, state) => const AdminEmployeesScreen(),
     ),
-   GoRoute(
-  path: '/admin-employee-detail',
-  builder: (context, state) {
-    final employeeId = state.uri.queryParameters['employeeId'] ?? '';
-    final initialTab = int.tryParse(
-      state.uri.queryParameters['initialTab'] ?? '0',
-    ) ?? 0;
+    GoRoute(
+      path: '/admin-employee-detail',
+      builder: (context, state) {
+        final employeeId = state.uri.queryParameters['employeeId'] ?? '';
+        final initialTab =
+            int.tryParse(state.uri.queryParameters['initialTab'] ?? '0') ?? 0;
 
-    return AdminEmployeeDetailScreen(
-      employeeId: employeeId,
-      initialTab: initialTab.toString(),
-    );
-  },
-),
+        return AdminEmployeeDetailScreen(
+          employeeId: employeeId,
+          initialTab: initialTab.toString(),
+        );
+      },
+    ),
     GoRoute(
       path: '/admin-leave-approval',
       name: 'adminLeaveApproval',
@@ -318,29 +316,22 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/privacy',
       name: 'privacy',
-      builder: (context, state) => AppShell(
-        title: 'Privacy Policy',
-        forceAdminShell: true,
-        child: const PrivacyPolicyScreen(),
-      ),
+      builder: (context, state) =>
+          AppShell(title: 'Privacy Policy', child: const PrivacyPolicyScreen()),
     ),
     GoRoute(
       path: '/terms',
       name: 'terms',
       builder: (context, state) => AppShell(
         title: 'Terms & Conditions',
-        forceAdminShell: true,
         child: const TermsConditionsScreen(),
       ),
     ),
     GoRoute(
       path: '/support',
       name: 'support',
-      builder: (context, state) => AppShell(
-        title: 'Support',
-        forceAdminShell: true,
-        child: const SupportScreen(),
-      ),
+      builder: (context, state) =>
+          AppShell(title: 'Support', child: const SupportScreen()),
     ),
   ],
 );

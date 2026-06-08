@@ -10,7 +10,6 @@ import '../widgets/primary_action_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/attendance_session_service.dart';
 
-
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -39,6 +38,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
     final isAdmin = path.startsWith('/admin');
+    final width = MediaQuery.sizeOf(context).width;
+    final isMobile = width < 700;
 
     return AppShell(
       title: 'Settings',
@@ -47,27 +48,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ? const AdminBottomNav(currentIndex: 4)
           : null,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // SaaS Subscription Status
-            _buildSaaSStatusCard(),
-            const SizedBox(height: 24),
-            
-            // Settings Grid - Responsive layout for web
+            _buildSaaSStatusCard(isMobile: isMobile),
+            SizedBox(height: isMobile ? 16 : 24),
             LayoutBuilder(
               builder: (context, constraints) {
-                // Responsive grid: 1 column on mobile, 2-3 columns on web
-                int crossAxisCount = 1;
-                if (constraints.maxWidth >= 1200) {
-                  crossAxisCount = 3;
-                } else if (constraints.maxWidth >= 800) {
-                  crossAxisCount = 3;
+                if (constraints.maxWidth < 700) {
+                  return Column(
+                    children: [
+                      _buildSettingCard(
+                        title: 'Appearance',
+                        subtitle: 'Toggle light / dark mode',
+                        icon: Icons.dark_mode,
+                        onPressed: _toggleTheme,
+                        buttonLabel: 'CHANGE THEME',
+                        compact: true,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSettingCard(
+                        title: 'Local Storage',
+                        subtitle: 'Clear local profile/session cache',
+                        icon: Icons.cleaning_services,
+                        onPressed: _clearCache,
+                        buttonLabel: 'CLEAR CACHE',
+                        compact: true,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildSettingCard(
+                        title: 'Session',
+                        subtitle: 'Logout from this device',
+                        icon: Icons.logout,
+                        onPressed: _logout,
+                        buttonLabel: 'LOGOUT',
+                        buttonStyle: ActionButtonStyle.tertiary,
+                        compact: true,
+                      ),
+                    ],
+                  );
                 }
-                
-                final desiredSettingHeight = MediaQuery.of(context).size.height * 0.35;
-                final itemWidth = (constraints.maxWidth - (crossAxisCount - 1) * 20) / crossAxisCount;
+
+                final crossAxisCount = constraints.maxWidth >= 800 ? 3 : 1;
+                final desiredSettingHeight =
+                    MediaQuery.of(context).size.height * 0.35;
+                final itemWidth =
+                    (constraints.maxWidth - (crossAxisCount - 1) * 20) /
+                    crossAxisCount;
                 final childAspect = itemWidth / desiredSettingHeight;
                 return GridView.count(
                   shrinkWrap: true,
@@ -77,41 +105,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   mainAxisSpacing: 20,
                   childAspectRatio: childAspect,
                   children: [
-                    SizedBox(height: desiredSettingHeight, child: _buildSettingCard(
-                      title: 'Appearance',
-                      subtitle: 'Toggle light / dark mode',
-                      icon: Icons.dark_mode,
-                      onPressed: () {
-                        themeModeNotifier.value =
-                            themeModeNotifier.value == ThemeMode.dark
-                            ? ThemeMode.light
-                            : ThemeMode.dark;
-                      },
-                      buttonLabel: 'CHANGE THEME',
-                    )),
-                    SizedBox(height: desiredSettingHeight, child: _buildSettingCard(
-                      title: 'Local Storage',
-                      subtitle: 'Clear local profile/session cache',
-                      icon: Icons.cleaning_services,
-                      onPressed: _clearCache,
-                      buttonLabel: 'CLEAR CACHE',
-                    )),
-                    SizedBox(height: desiredSettingHeight, child: _buildSettingCard(
-                      title: 'Session',
-                      subtitle: 'Logout from this device',
-                      icon: Icons.logout,
-                      onPressed: _logout,
-                      buttonLabel: 'LOGOUT',
-                      buttonStyle: ActionButtonStyle.tertiary,
-                    )),
+                    SizedBox(
+                      height: desiredSettingHeight,
+                      child: _buildSettingCard(
+                        title: 'Appearance',
+                        subtitle: 'Toggle light / dark mode',
+                        icon: Icons.dark_mode,
+                        onPressed: _toggleTheme,
+                        buttonLabel: 'CHANGE THEME',
+                      ),
+                    ),
+                    SizedBox(
+                      height: desiredSettingHeight,
+                      child: _buildSettingCard(
+                        title: 'Local Storage',
+                        subtitle: 'Clear local profile/session cache',
+                        icon: Icons.cleaning_services,
+                        onPressed: _clearCache,
+                        buttonLabel: 'CLEAR CACHE',
+                      ),
+                    ),
+                    SizedBox(
+                      height: desiredSettingHeight,
+                      child: _buildSettingCard(
+                        title: 'Session',
+                        subtitle: 'Logout from this device',
+                        icon: Icons.logout,
+                        onPressed: _logout,
+                        buttonLabel: 'LOGOUT',
+                        buttonStyle: ActionButtonStyle.tertiary,
+                      ),
+                    ),
                   ],
                 );
               },
             ),
-            
-            const SizedBox(height: 32),
-            
-            // SaaS Company Info Section
+            SizedBox(height: isMobile ? 20 : 32),
             _buildSaaSFooter(),
           ],
         ),
@@ -119,9 +148,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSaaSStatusCard() {
+  void _toggleTheme() {
+    themeModeNotifier.value = themeModeNotifier.value == ThemeMode.dark
+        ? ThemeMode.light
+        : ThemeMode.dark;
+  }
+
+  Widget _buildSaaSStatusCard({required bool isMobile}) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -136,48 +171,85 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: IndustrialColors.primary.withValues(alpha: 0.3),
         ),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: IndustrialColors.primary.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.cloud_queue,
-              color: IndustrialColors.primary,
-              size: 32,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'SaaS Plan: Enterprise',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    _statusIcon(),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'SaaS Plan: Enterprise',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const StatusChip(
+                      label: 'Active',
+                      type: StatusChipType.success,
+                      icon: Icons.check_circle,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 10),
                 Text(
-                  'Active subscription · DhinaDTS Cloud Platform',
+                  'Active subscription - DhinaDTS Cloud Platform',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: IndustrialColors.onSurfaceVariant,
                   ),
                 ),
               ],
+            )
+          : Row(
+              children: [
+                _statusIcon(),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'SaaS Plan: Enterprise',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Active subscription - DhinaDTS Cloud Platform',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: IndustrialColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const StatusChip(
+                  label: 'Active',
+                  type: StatusChipType.success,
+                  icon: Icons.check_circle,
+                ),
+              ],
             ),
-          ),
-          const StatusChip(
-            label: 'Active',
-            type: StatusChipType.success,
-            icon: Icons.check_circle,
-          ),
-        ],
+    );
+  }
+
+  Widget _statusIcon() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: IndustrialColors.primary.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(
+        Icons.cloud_queue,
+        color: IndustrialColors.primary,
+        size: 32,
       ),
     );
   }
@@ -189,7 +261,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required VoidCallback onPressed,
     required String buttonLabel,
     ActionButtonStyle buttonStyle = ActionButtonStyle.outline,
+    bool compact = false,
   }) {
+    if (compact) {
+      return IndustrialCard(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: IndustrialColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 24, color: IndustrialColors.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: IndustrialColors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            PrimaryActionButton(
+              label: buttonLabel,
+              icon: icon,
+              style: buttonStyle,
+              onPressed: onPressed,
+            ),
+          ],
+        ),
+      );
+    }
+
     return IndustrialCard(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -232,31 +357,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const Text(
             'DhinaDTS Cloud Platform',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Text(
-            'Secure enterprise attendance management · GDPR Compliant · 99.9% Uptime SLA',
+            'Secure enterprise attendance management - GDPR Compliant - 99.9% Uptime SLA',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: IndustrialColors.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 24,
+            runSpacing: 10,
             children: [
               _buildFooterLink('Privacy Policy'),
-              const SizedBox(width: 24),
               _buildFooterLink('Terms of Service'),
-              const SizedBox(width: 24),
               _buildFooterLink('Support'),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            '© 2024 DhinaDTS. All rights reserved. Version 2.0.0',
+            '(c) 2024 DhinaDTS. All rights reserved. Version 2.0.0',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: IndustrialColors.onSurfaceVariant,
               fontSize: 11,
@@ -270,19 +392,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildFooterLink(String text) {
     return GestureDetector(
       onTap: () {
-        if(text == 'Privacy Policy'){
+        if (text == 'Privacy Policy') {
           context.go('/privacy');
-        }
-        else if(text == 'Terms of Service'){
+        } else if (text == 'Terms of Service') {
           context.go('/terms');
-        }
-        else if(text == 'Support'){
+        } else if (text == 'Support') {
           context.go('/support');
-        }
-        else{
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$text - Coming soon')),
-          );
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('$text - Coming soon')));
         }
       },
       child: Text(

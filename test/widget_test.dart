@@ -1,3 +1,6 @@
+import 'package:attendance/screens/privacy_policy_screen.dart';
+import 'package:attendance/screens/support_screen.dart';
+import 'package:attendance/screens/terms_conditions_screen.dart';
 import 'package:attendance/widgets/primary_action_button.dart';
 import 'package:attendance/widgets/status_chip.dart';
 import 'package:flutter/material.dart';
@@ -41,4 +44,40 @@ void main() {
     expect(find.text('LOGIN REQUIRED'), findsOneWidget);
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
   });
+
+  testWidgets('mobile support and legal screens render without overflow', (
+    tester,
+  ) async {
+    await _setMobileViewport(tester);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpMobileScreen(tester, const SupportScreen());
+    _expectNoFlutterOverflow(tester);
+
+    await _pumpMobileScreen(tester, const PrivacyPolicyScreen());
+    _expectNoFlutterOverflow(tester);
+
+    await _pumpMobileScreen(tester, const TermsConditionsScreen());
+    _expectNoFlutterOverflow(tester);
+  });
+}
+
+Future<void> _setMobileViewport(WidgetTester tester) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(390, 844);
+}
+
+Future<void> _pumpMobileScreen(WidgetTester tester, Widget child) async {
+  await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
+  await tester.pump();
+}
+
+void _expectNoFlutterOverflow(WidgetTester tester) {
+  final exception = tester.takeException();
+  if (exception == null) return;
+  final text = exception.toString();
+  expect(text, isNot(contains('RenderFlex overflowed')));
+  expect(text, isNot(contains('overflowed by')));
+  throw exception;
 }
