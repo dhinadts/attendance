@@ -108,9 +108,39 @@ class _AttendanceGpsTrackingScreenState
       final session = await _attendanceService.loadActiveSession();
       if (!mounted) return;
       setState(() => _activeSession = session);
+      if (session != null) {
+        await _reconcileCurrentLocation(session);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _activeSession = null);
+    }
+  }
+
+  Future<void> _reconcileCurrentLocation(AttendanceSession session) async {
+    try {
+      final position = await _currentPosition();
+      final distance = _attendanceService.distanceFromZone(position, session);
+      await _attendanceService.reconcileOfficePresence(
+        session: session,
+        position: position,
+        source: 'gps_tracking_screen_open',
+      );
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = distance <= session.allowedRadiusMeters
+            ? 'Inside office zone'
+            : 'Outside office zone - break time is tracked';
+        _statusType = distance <= session.allowedRadiusMeters
+            ? StatusChipType.success
+            : StatusChipType.alert;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = 'Location resume check skipped: $error';
+        _statusType = StatusChipType.alert;
+      });
     }
   }
 

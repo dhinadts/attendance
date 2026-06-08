@@ -67,6 +67,46 @@ service cloud.firestore {
       return signedIn() && teamId() == teamIdValue;
     }
 
+    function attendanceEmployeeUpdateKeys() {
+      return [
+        'attendanceStatus',
+        'dayStatus',
+        'sessionStatus',
+        'logoutReason',
+        'logoutAt',
+        'logoutAtIst',
+        'totalMinutes',
+        'officeMinutes',
+        'breakMinutes',
+        'segments',
+        'logoutLocation',
+        'lastOfficeExitAtIst',
+        'lastOfficeDistanceMeters',
+        'currentBreakStartedAtIst',
+        'currentBreakDistanceMeters',
+        'lastOfficeEntryAtIst',
+        'lastOfficeDistanceMeters',
+        'lastBreakMinutes',
+        'breakConsiderationRequired',
+        'breakConsiderationStatus',
+        'breakConsiderationReason',
+        'breakConsiderationRequestedAt',
+        'breakConsiderationRequestedAtIst',
+        'lastPresenceCheckAt',
+        'lastPresenceCheckAtIst',
+        'lastPresenceCheckSource',
+        'lastPresenceDistanceMeters',
+        'lastPresenceInsideOffice',
+        'faceImageBase64',
+        'faceImageContentType',
+        'faceImagePurgedAt',
+        'faceImagePurgedAtIst',
+        'updatedAt',
+        'updatedAtIst',
+        'logs'
+      ];
+    }
+
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if isFullAdmin()
@@ -127,8 +167,19 @@ service cloud.firestore {
         && request.resource.data.employeeId == employeeId();
       allow update: if isAdmin()
         || (signedIn() && resource.data.employeeId == employeeId()
-          && request.resource.data.employeeId == resource.data.employeeId);
+          && request.resource.data.employeeId == resource.data.employeeId
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(attendanceEmployeeUpdateKeys()));
       allow delete: if isAdmin();
+    }
+
+    match /attendance_consideration_requests/{requestId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.employeeId == employeeId());
+      allow create: if signedIn()
+        && request.resource.data.employeeId == employeeId()
+        && request.resource.data.status == 'requested';
+      allow update, delete: if isAdmin();
     }
 
     match /attendance_records/{attendanceId} {
@@ -404,8 +455,19 @@ service cloud.firestore {
         allow update: if appCanApproveLeave(appId)
           || (signedIn()
             && resource.data.employeeId == appEmployeeId(appId)
-            && request.resource.data.employeeId == resource.data.employeeId);
+            && request.resource.data.employeeId == resource.data.employeeId
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(attendanceEmployeeUpdateKeys()));
         allow delete: if appCanApproveLeave(appId);
+      }
+
+      match /attendance_consideration_requests/{requestId} {
+        allow read: if appIsAdmin(appId)
+          || (signedIn() && resource.data.employeeId == appEmployeeId(appId));
+        allow create: if signedIn()
+          && request.resource.data.employeeId == appEmployeeId(appId)
+          && request.resource.data.status == 'requested';
+        allow update, delete: if appIsAdmin(appId);
       }
 
       match /attendance_records/{attendanceId} {

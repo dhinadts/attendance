@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_firestore.dart';
+import 'audit_log_service.dart';
+import 'attendance_finalize_api_service.dart';
 
 class EmployeeProfile {
   const EmployeeProfile({
@@ -171,14 +173,22 @@ class AttendanceSessionService {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
   final DeviceInfoPlugin _deviceInfo;
+  final AuditLogService _audit;
+  final AttendanceFinalizeApiService _finalizeApi;
 
   AttendanceSessionService({
     FirebaseFirestore? firestore,
     FirebaseAuth? auth,
     DeviceInfoPlugin? deviceInfo,
+    AttendanceFinalizeApiService? finalizeApi,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _auth = auth ?? FirebaseAuth.instance,
-       _deviceInfo = deviceInfo ?? DeviceInfoPlugin();
+       _deviceInfo = deviceInfo ?? DeviceInfoPlugin(),
+       _audit = AuditLogService(
+         firestore: firestore ?? FirebaseFirestore.instance,
+         auth: auth ?? FirebaseAuth.instance,
+       ),
+       _finalizeApi = finalizeApi ?? AttendanceFinalizeApiService();
 
   DateTime get nowIst =>
       DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
@@ -191,6 +201,14 @@ class AttendanceSessionService {
 
   String leaveRequestDocumentId(String employeeId, String dateKey) {
     return '${_safeId(employeeId)}_$dateKey';
+  }
+
+  String considerationRequestDocumentId(
+    String employeeId,
+    String dateKey,
+    DateTime requestedAt,
+  ) {
+    return '${attendanceDocumentId(employeeId, dateKey)}_${requestedAt.millisecondsSinceEpoch}';
   }
 
   String salaryRecordDocumentId(String employeeId, int year, int month) {
@@ -609,6 +627,19 @@ class AttendanceSessionService {
     );
 
     await _saveSession(session);
+    await _audit.writeBestEffort(
+      action: outsideOffice
+          ? 'attendance.login_outside_office'
+          : 'attendance.login',
+      entityType: 'attendance',
+      entityId: docId,
+      metadata: {
+        'employeeId': employee.employeeId,
+        'date': loginDate,
+        'distanceMeters': officeDistanceMeters,
+        'outsideOffice': outsideOffice,
+      },
+    );
     await purgeOldDailyFaceImages(employee.employeeId, keepDateKey: loginDate);
     return session;
   }
@@ -727,7 +758,54 @@ class AttendanceSessionService {
       ]),
     });
 
+    await _finalizeWithBackendIfConfigured(
+      attendanceId: session.documentId,
+      logoutAtIst: logoutAt.toIso8601String(),
+      reason: reason,
+    );
+
+    await _audit.writeBestEffort(
+      action: 'attendance.close_session',
+      entityType: 'attendance',
+      entityId: session.documentId,
+      metadata: {
+        'employeeId': session.employeeId,
+        'date': session.loginDateIst,
+        'reason': reason,
+        'officeMinutes': officeMinutes,
+        'totalMinutes': totalMinutes,
+        'attendanceStatus': attendanceStatus,
+        'distanceMeters': distanceMeters,
+      },
+    );
     await clearActiveSession();
+  }
+
+  Future<void> _finalizeWithBackendIfConfigured({
+    required String attendanceId,
+    required String logoutAtIst,
+    required String reason,
+  }) async {
+    if (!_finalizeApi.isConfigured) return;
+    try {
+      await _finalizeApi.finalizeSession(
+        attendanceId: attendanceId,
+        logoutAtIst: logoutAtIst,
+        reason: reason,
+      );
+    } catch (error) {
+      await _audit.writeBestEffort(
+        action: 'attendance.backend_finalize_failed',
+        entityType: 'attendance',
+        entityId: attendanceId,
+        result: 'failure',
+        metadata: {
+          'error': error.toString(),
+          'logoutAtIst': logoutAtIst,
+          'reason': reason,
+        },
+      );
+    }
   }
 
   Future<void> recordOfficeExit({
@@ -782,6 +860,17 @@ class AttendanceSessionService {
         ]),
       }, SetOptions(merge: true));
     });
+
+    await _audit.writeBestEffort(
+      action: 'attendance.office_exit',
+      entityType: 'attendance',
+      entityId: session.documentId,
+      metadata: {
+        'employeeId': session.employeeId,
+        'date': session.loginDateIst,
+        'distanceMeters': distanceMeters,
+      },
+    );
   }
 
   Future<void> recordOfficeEntry({
@@ -867,6 +956,56 @@ class AttendanceSessionService {
         ]),
       }, SetOptions(merge: true));
     });
+
+    await _audit.writeBestEffort(
+      action: 'attendance.office_entry',
+      entityType: 'attendance',
+      entityId: session.documentId,
+      metadata: {
+        'employeeId': session.employeeId,
+        'date': session.loginDateIst,
+        'distanceMeters': distanceMeters,
+      },
+    );
+  }
+
+  Future<void> reconcileOfficePresence({
+    required AttendanceSession session,
+    required Position position,
+    required String source,
+  }) async {
+    final distanceMeters = distanceFromZone(position, session);
+    final insideOffice = distanceMeters <= session.allowedRadiusMeters;
+    final doc = await _firestore
+        .appCollection('attendance')
+        .doc(session.documentId)
+        .get();
+    final data = doc.data();
+    if (data == null || data['sessionStatus'] != 'active') return;
+    final segments = _readSegments(data);
+    final hasOpenOfficeSegment =
+        segments.isNotEmpty && segments.last['outAtIst'] == null;
+    if (insideOffice && !hasOpenOfficeSegment) {
+      await recordOfficeEntry(
+        session: session,
+        position: position,
+        distanceMeters: distanceMeters,
+      );
+    } else if (!insideOffice && hasOpenOfficeSegment) {
+      await recordOfficeExit(
+        session: session,
+        position: position,
+        distanceMeters: distanceMeters,
+      );
+    } else {
+      await _firestore.appCollection('attendance').doc(session.documentId).set({
+        'lastPresenceCheckAt': FieldValue.serverTimestamp(),
+        'lastPresenceCheckAtIst': nowIst.toIso8601String(),
+        'lastPresenceCheckSource': source,
+        'lastPresenceDistanceMeters': distanceMeters,
+        'lastPresenceInsideOffice': insideOffice,
+      }, SetOptions(merge: true));
+    }
   }
 
   Future<void> submitBreakConsiderationRequest({
@@ -879,7 +1018,40 @@ class AttendanceSessionService {
       throw ArgumentError('Reason must be at least 10 characters');
     }
     final at = nowIst;
-    await _firestore.appCollection('attendance').doc(attendanceDocumentId).set({
+    final attendanceRef = _firestore
+        .appCollection('attendance')
+        .doc(attendanceDocumentId);
+    final attendanceSnapshot = await attendanceRef.get();
+    final attendanceData = attendanceSnapshot.data() ?? {};
+    final employeeId = (attendanceData['employeeId'] as String?) ?? '';
+    final dateKey = (attendanceData['loginDateIst'] as String?) ?? todayIst;
+    final employeeName =
+        (attendanceData['employeeName'] as String?) ??
+        (attendanceData['employee'] as Map?)?['employeeName'] as String? ??
+        'Employee';
+    final requestId = considerationRequestDocumentId(
+      employeeId.isEmpty ? attendanceDocumentId : employeeId,
+      dateKey,
+      at,
+    );
+    final request = {
+      'requestId': requestId,
+      'requestType': 'delayed_break_consideration',
+      'attendanceDocumentId': attendanceDocumentId,
+      'employeeId': employeeId,
+      'employeeName': employeeName,
+      'date': dateKey,
+      'loginDateIst': dateKey,
+      'reason': trimmedReason,
+      'status': 'requested',
+      'lastBreakMinutes': attendanceData['lastBreakMinutes'],
+      'officeMinutes': attendanceData['officeMinutes'],
+      'requestedAt': FieldValue.serverTimestamp(),
+      'requestedAtIst': at.toIso8601String(),
+    };
+
+    final batch = _firestore.batch();
+    batch.set(attendanceRef, {
       'breakConsiderationRequired': false,
       'breakConsiderationStatus': 'requested',
       'breakConsiderationReason': trimmedReason,
@@ -894,6 +1066,26 @@ class AttendanceSessionService {
         },
       ]),
     }, SetOptions(merge: true));
+    batch.set(
+      _firestore
+          .appCollection('attendance_consideration_requests')
+          .doc(requestId),
+      request,
+      SetOptions(merge: true),
+    );
+    await batch.commit();
+
+    await _audit.writeBestEffort(
+      action: 'attendance.break_consideration_requested',
+      entityType: 'attendance_consideration_request',
+      entityId: requestId,
+      metadata: {
+        'attendanceDocumentId': attendanceDocumentId,
+        'employeeId': employeeId,
+        'date': dateKey,
+        'lastBreakMinutes': attendanceData['lastBreakMinutes'],
+      },
+    );
   }
 
   Future<void> recordLeave({
@@ -931,6 +1123,18 @@ class AttendanceSessionService {
               'distanceMeters': distanceMeters,
             },
     }, SetOptions(merge: true));
+
+    await _audit.writeBestEffort(
+      action: 'attendance.record_leave',
+      entityType: 'attendance',
+      entityId: docId,
+      metadata: {
+        'employeeId': employee.employeeId,
+        'date': dateKey,
+        'reason': reason,
+        'distanceMeters': distanceMeters,
+      },
+    );
   }
 
   Future<void> requestLeave({

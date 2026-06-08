@@ -13,8 +13,6 @@ import '../services/face_recognition_service.dart';
 import '../services/attendance_session_service.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
-
-
 class FaceAuthLoginScreen extends StatefulWidget {
   const FaceAuthLoginScreen({super.key});
 
@@ -221,6 +219,7 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
           'templateCount': recognition.templateCount,
           'model': 'mlkit_landmark_v1',
           'dailyImageRetention': 'today_only',
+          'liveness': _livenessSignals(face),
         },
       );
       _activeSession = session;
@@ -353,6 +352,29 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
     return base64Encode(bytes);
   }
 
+  Map<String, dynamic> _livenessSignals(Face face) {
+    return {
+      'singleFace': true,
+      'headEulerAngleX': face.headEulerAngleX,
+      'headEulerAngleY': face.headEulerAngleY,
+      'headEulerAngleZ': face.headEulerAngleZ,
+      'leftEyeOpenProbability': face.leftEyeOpenProbability,
+      'rightEyeOpenProbability': face.rightEyeOpenProbability,
+      'smilingProbability': face.smilingProbability,
+      'hasEyeSignal':
+          face.leftEyeOpenProbability != null ||
+          face.rightEyeOpenProbability != null,
+      'hasHeadPoseSignal':
+          face.headEulerAngleX != null ||
+          face.headEulerAngleY != null ||
+          face.headEulerAngleZ != null,
+      'capturedAtIst': DateTime.now()
+          .toUtc()
+          .add(const Duration(hours: 5, minutes: 30))
+          .toIso8601String(),
+    };
+  }
+
   Future<Position> _getCurrentPosition() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -393,6 +415,7 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
     }
 
     _startLocationMonitoring(session);
+    await _reconcileCurrentLocation(session, source: 'face_screen_restore');
     _setStatus('Active attendance session', StatusChipType.success);
   }
 
@@ -461,6 +484,30 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
             );
           },
         );
+  }
+
+  Future<void> _reconcileCurrentLocation(
+    AttendanceSession session, {
+    required String source,
+  }) async {
+    try {
+      final position = await _getCurrentPosition();
+      final distance = _attendanceService.distanceFromZone(position, session);
+      final insideOffice = distance <= session.allowedRadiusMeters;
+      await _attendanceService.reconcileOfficePresence(
+        session: session,
+        position: position,
+        source: source,
+      );
+      if (!mounted) return;
+      setState(() {
+        _lastPosition = position;
+        _lastDistanceMeters = distance;
+        _wasInsideOffice = insideOffice;
+      });
+    } catch (error) {
+      _setStatus('Location resume check skipped: $error', StatusChipType.alert);
+    }
   }
 
   Future<void> _closeActiveSession({

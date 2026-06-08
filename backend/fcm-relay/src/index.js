@@ -347,6 +347,51 @@ function workMinutesBetween(checkInAt, checkOutAt) {
   return Math.max(0, Math.round((checkOut - checkIn) / 60000));
 }
 
+function officeMinutesFromSegments(segments, fallbackOutAt) {
+  const fallback = Date.parse(fallbackOutAt || nowIstIso());
+  if (!Array.isArray(segments)) return 0;
+  return segments.reduce((total, segment) => {
+    const inAt = Date.parse(segment?.inAtIst || "");
+    const outAt = Date.parse(segment?.outAtIst || "") || fallback;
+    if (!Number.isFinite(inAt) || !Number.isFinite(outAt) || outAt < inAt) {
+      return total;
+    }
+    return total + Math.max(0, Math.round((outAt - inAt) / 60000));
+  }, 0);
+}
+
+function finalizeSegmentAttendance(record, requestedLogoutAt) {
+  const loginAt = Date.parse(record.loginAtIst || "");
+  const logoutAt = requestedLogoutAt || nowIstIso();
+  const maxOfficeMinutes = Number(record.maxOfficeMinutes || 540);
+  const eligibleMinutes = Number(record.eligibleMinutes || 420);
+  const totalMinutes = Number.isFinite(loginAt)
+    ? Math.min(
+        Math.max(0, Math.round((Date.parse(logoutAt) - loginAt) / 60000)),
+        maxOfficeMinutes,
+      )
+    : 0;
+  const officeMinutes = Math.min(
+    officeMinutesFromSegments(record.segments || [], logoutAt),
+    maxOfficeMinutes,
+  );
+  const breakMinutes = Math.max(0, totalMinutes - officeMinutes);
+  const eligible = officeMinutes >= eligibleMinutes;
+  return {
+    logoutAtIst: logoutAt,
+    totalMinutes,
+    officeMinutes,
+    breakMinutes,
+    attendanceStatus: eligible
+      ? "attendance_considered"
+      : "not_considered_attendance",
+    dayStatus: eligible ? "pending" : "not_considered",
+    finalizedBy: "backend_fcm_relay",
+    finalizedAt: admin.firestore.FieldValue.serverTimestamp(),
+    finalizedAtIst: nowIstIso(),
+  };
+}
+
 async function summarizeAttendance(firestore, employeeId, monthKey) {
   const snapshot = await appCollection(firestore, "attendance_records")
     .where("employeeId", "==", employeeId)
@@ -791,6 +836,51 @@ function startHttpServer() {
     );
     await summarizeAttendance(firestore, employee.employeeId, date.slice(0, 7));
     response.json({ ok: true, attendanceId: recordId, workMinutes });
+  }));
+
+  app.post("/api/attendance/finalize-session", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    requireFields(request.body || {}, ["attendanceId"]);
+    const attendanceId = String(request.body.attendanceId);
+    const ref = appCollection(firestore, "attendance").doc(attendanceId);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) {
+      response.status(404).json({ ok: false, error: "Attendance session not found" });
+      return;
+    }
+    const record = snapshot.data() || {};
+    const logoutAtIst = String(request.body.logoutAtIst || nowIstIso());
+    const finalized = finalizeSegmentAttendance(record, logoutAtIst);
+    await ref.set(
+      {
+        ...finalized,
+        sessionStatus: "closed",
+        logoutReason: String(request.body.reason || "backend_finalize"),
+        logs: admin.firestore.FieldValue.arrayUnion({
+          event: "backend_finalize_session",
+          atIst: finalized.finalizedAtIst,
+          reason: String(request.body.reason || "backend_finalize"),
+          officeMinutes: finalized.officeMinutes,
+          attendanceStatus: finalized.attendanceStatus,
+        }),
+      },
+      { merge: true },
+    );
+    await appCollection(firestore, "audit_logs").add({
+      action: "attendance.backend_finalize_session",
+      entityType: "attendance",
+      entityId: attendanceId,
+      actorUid: "backend_fcm_relay",
+      metadata: {
+        employeeId: record.employeeId || "",
+        date: record.loginDateIst || "",
+        officeMinutes: finalized.officeMinutes,
+        attendanceStatus: finalized.attendanceStatus,
+      },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAtIst: nowIstIso(),
+    });
+    response.json({ ok: true, attendanceId, finalized });
   }));
 
   app.get("/api/attendance", asyncRoute(async (request, response) => {
