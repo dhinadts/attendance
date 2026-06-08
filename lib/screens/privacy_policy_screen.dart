@@ -127,8 +127,8 @@ Data Protection Officer: dpo@dhinadts.com
           Center(
             child: TextButton.icon(
               onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Back to Settings'),
+              icon: const Icon(Icons.settings_outlined),
+              label: const Text('Settings'),
               style: TextButton.styleFrom(
                 foregroundColor: IndustrialColors.primary,
               ),

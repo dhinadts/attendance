@@ -151,8 +151,8 @@ Address: 74/1 1St Street, Seetharampalayam, Tiruchengode, Tamil Nadu 637209
           Center(
             child: TextButton.icon(
               onPressed: () => context.go('/settings'),
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Back to Settings'),
+              icon: const Icon(Icons.settings_outlined),
+              label: const Text('Settings'),
               style: TextButton.styleFrom(
                 foregroundColor: IndustrialColors.primary,
               ),

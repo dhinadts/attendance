@@ -46,37 +46,6 @@ class _AppShellState extends State<AppShell> {
     final fallbackPath = isAdminPath ? '/admin-dashboard' : '/dashboard';
     _rememberRoute(currentPath);
 
-    final rootPaths = {
-      '/admin-dashboard',
-      '/admin-employees',
-      '/admin-attendance',
-      '/admin-mark-attendance',
-      '/admin-leave-requests',
-      '/admin-export-reports',
-      '/admin-exit-requests',
-      '/admin-salary',
-      '/admin-tasks',
-      '/admin-settings',
-      '/admin-profile',
-      '/admin-create-user',
-      '/dashboard',
-      '/attendance-details',
-      '/attendance-log',
-      '/tasks',
-      '/salary',
-      '/exit-company',
-      '/profile',
-      '/login',
-      '/startup',
-      '/privacy',
-      '/terms',
-      '/support',
-    };
-
-    final isRootPath = rootPaths.contains(currentPath);
-    final showBackButton =
-        widget.showBackButton || (!isRootPath || GoRouter.of(context).canPop());
-
     final useWebShell =
         widget.showAppBar &&
         (widget.forceAdminShell ||
@@ -122,30 +91,13 @@ class _AppShellState extends State<AppShell> {
                               fontWeight: FontWeight.w700,
                             ),
                       ),
-                      leading: showBackButton
-                          ? IconButton(
-                              tooltip: 'Back',
-                              icon: const Icon(Icons.arrow_back),
-                              color: IndustrialColors.primary,
-                              onPressed: () {
-                                if (GoRouter.of(context).canPop()) {
-                                  context.pop();
-                                } else {
-                                  context.go(
-                                    isAdminPath
-                                        ? '/admin-dashboard'
-                                        : '/dashboard',
-                                  );
-                                }
-                              },
-                            )
-                          : IconButton(
-                              tooltip: 'Menu',
-                              icon: const Icon(Icons.menu),
-                              color: IndustrialColors.primary,
-                              onPressed: () =>
-                                  _scaffoldKey.currentState?.openDrawer(),
-                            ),
+                      leading: IconButton(
+                        tooltip: 'Menu',
+                        icon: const Icon(Icons.menu),
+                        color: IndustrialColors.primary,
+                        onPressed: () =>
+                            _scaffoldKey.currentState?.openDrawer(),
+                      ),
                       actions: [
                         if (widget.appBarActions != null)
                           ...widget.appBarActions!,
@@ -334,7 +286,11 @@ class _AdminSideMenu extends StatelessWidget {
       const mainItems = [
         _DrawerItem('Dashboard', Icons.home, '/dashboard'),
         _DrawerItem('Face Attendance', Icons.face, '/face-attendance'),
-        _DrawerItem('Attendance Details', Icons.calendar_month, '/attendance-details'),
+        _DrawerItem(
+          'Attendance Details',
+          Icons.calendar_month,
+          '/attendance-details',
+        ),
       ];
       const workItems = [
         _DrawerItem('Tasks', Icons.task_alt, '/tasks'),
@@ -358,7 +314,12 @@ class _AdminSideMenu extends StatelessWidget {
           child: collapsed
               ? _buildCompact(context, uid, allItems, const [], const [])
               : _buildEmployeeExpanded(
-                  context, mainItems, workItems, commItems, accItems),
+                  context,
+                  mainItems,
+                  workItems,
+                  commItems,
+                  accItems,
+                ),
         ),
       );
     }
@@ -367,8 +328,16 @@ class _AdminSideMenu extends StatelessWidget {
       _DrawerItem('Dashboard', Icons.dashboard, '/admin-dashboard'),
       _DrawerItem('Employees', Icons.groups, '/admin-employees'),
       _DrawerItem('Attendance', Icons.fact_check, '/admin-attendance'),
-      _DrawerItem('Mark Attendance', Icons.how_to_reg, '/admin-mark-attendance'),
-      _DrawerItem('Leave Requests', Icons.event_available, '/admin-leave-requests'),
+      _DrawerItem(
+        'Mark Attendance',
+        Icons.how_to_reg,
+        '/admin-mark-attendance',
+      ),
+      _DrawerItem(
+        'Leave Requests',
+        Icons.event_available,
+        '/admin-leave-requests',
+      ),
       _DrawerItem('Payroll', Icons.payments, '/admin-salary'),
       _DrawerItem('Export Reports', Icons.table_view, '/admin-export-reports'),
       _DrawerItem('Exit Requests', Icons.exit_to_app, '/admin-exit-requests'),
@@ -381,15 +350,32 @@ class _AdminSideMenu extends StatelessWidget {
       _DrawerItem('Profile', Icons.person, '/admin-profile'),
       _DrawerItem('Settings', Icons.settings, '/admin-settings'),
     ];
-    const createUserItem = _DrawerItem('Create User', Icons.person_add, '/admin-create-user');
+    const createUserItem = _DrawerItem(
+      'Create User',
+      Icons.person_add,
+      '/admin-create-user',
+    );
 
     return Container(
       width: menuWidth,
       decoration: decoration,
       child: SafeArea(
         child: collapsed
-            ? _buildCompact(context, uid, operationsItems, communicationItems, accountItems)
-            : _buildExpanded(context, uid, operationsItems, communicationItems, accountItems, createUserItem),
+            ? _buildCompact(
+                context,
+                uid,
+                operationsItems,
+                communicationItems,
+                accountItems,
+              )
+            : _buildExpanded(
+                context,
+                uid,
+                operationsItems,
+                communicationItems,
+                accountItems,
+                createUserItem,
+              ),
       ),
     );
   }
@@ -569,94 +555,118 @@ class _AdminSideMenu extends StatelessWidget {
         final nickName = (profileData['nickName'] as String?)?.trim() ?? '';
         final firstName = (profileData['firstName'] as String?)?.trim() ?? '';
         final lastName = (profileData['lastName'] as String?)?.trim() ?? '';
-        final employeeName = (profileData['employeeName'] as String?)?.trim() ?? '';
+        final employeeName =
+            (profileData['employeeName'] as String?)?.trim() ?? '';
         final displayName = nickName.isNotEmpty
             ? nickName
             : (firstName.isNotEmpty || lastName.isNotEmpty)
-                ? '$firstName $lastName'.trim()
-                : employeeName.isNotEmpty
-                    ? employeeName
-                    : (FirebaseAuth.instance.currentUser?.email ?? 'Employee');
+            ? '$firstName $lastName'.trim()
+            : employeeName.isNotEmpty
+            ? employeeName
+            : (FirebaseAuth.instance.currentUser?.email ?? 'Employee');
 
         return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 22, 24, 18),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: IndustrialColors.primary,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF34D399), width: 1.5),
-                ),
-                child: const Icon(Icons.person_outline, color: Color(0xFF34D399), size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName,
-                      softWrap: true,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: IndustrialColors.onSurface,
-                        fontWeight: FontWeight.w800,
+          padding: EdgeInsets.zero,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 22, 24, 18),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: IndustrialColors.primary,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF34D399),
+                        width: 1.5,
                       ),
                     ),
-                    Text(
-                      'Employee portal',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: IndustrialColors.onSurfaceVariant,
-                      ),
+                    child: const Icon(
+                      Icons.person_outline,
+                      color: Color(0xFF34D399),
+                      size: 20,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          displayName,
+                          softWrap: true,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: IndustrialColors.onSurface,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        Text(
+                          'Employee portal',
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: IndustrialColors.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Divider(color: IndustrialColors.outlineVariant),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const _MenuSectionLabel('Main'),
-              for (final item in main)
-                _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
-              const SizedBox(height: 12),
-              const _MenuSectionLabel('Work'),
-              for (final item in work)
-                _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
-              const SizedBox(height: 12),
-              const _MenuSectionLabel('Communication'),
-              for (final item in comm)
-                _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
-              const SizedBox(height: 12),
-              const _MenuSectionLabel('Account'),
-              for (final item in acc)
-                _AdminSideMenuItem(item: item, selected: _isSelected(item.route)),
-            ],
-          ),
-        ),
-      ],
-        );       // ListView
-      },         // builder
-    );           // StreamBuilder
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Divider(color: IndustrialColors.outlineVariant),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _MenuSectionLabel('Main'),
+                  for (final item in main)
+                    _AdminSideMenuItem(
+                      item: item,
+                      selected: _isSelected(item.route),
+                    ),
+                  const SizedBox(height: 12),
+                  const _MenuSectionLabel('Work'),
+                  for (final item in work)
+                    _AdminSideMenuItem(
+                      item: item,
+                      selected: _isSelected(item.route),
+                    ),
+                  const SizedBox(height: 12),
+                  const _MenuSectionLabel('Communication'),
+                  for (final item in comm)
+                    _AdminSideMenuItem(
+                      item: item,
+                      selected: _isSelected(item.route),
+                    ),
+                  const SizedBox(height: 12),
+                  const _MenuSectionLabel('Account'),
+                  for (final item in acc)
+                    _AdminSideMenuItem(
+                      item: item,
+                      selected: _isSelected(item.route),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ); // ListView
+      }, // builder
+    ); // StreamBuilder
   }
 
   bool _isSelected(String route) {
     if (currentPath == route) return true;
-    if (route == '/admin-dashboard' || route == '/dashboard') return currentPath == route;
+    if (route == '/admin-dashboard' || route == '/dashboard') {
+      return currentPath == route;
+    }
     return currentPath.startsWith(route);
   }
 }
@@ -859,17 +869,15 @@ class _AdminTopBar extends StatelessWidget {
                 IconButton(
                   tooltip: 'Messages',
                   icon: const Icon(Icons.chat_bubble_outline),
-                  onPressed: () => context.go(
-                    isAdminPath ? '/admin-messages' : '/messages',
-                  ),
+                  onPressed: () =>
+                      context.go(isAdminPath ? '/admin-messages' : '/messages'),
                   color: IndustrialColors.primary,
                 ),
                 IconButton(
                   tooltip: 'Profile',
                   icon: const Icon(Icons.account_circle),
-                  onPressed: () => context.go(
-                    isAdminPath ? '/admin-profile' : '/profile',
-                  ),
+                  onPressed: () =>
+                      context.go(isAdminPath ? '/admin-profile' : '/profile'),
                   color: IndustrialColors.primary,
                 ),
               ],

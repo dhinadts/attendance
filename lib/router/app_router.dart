@@ -136,7 +136,6 @@ final appRouter = GoRouter(
       name: 'adminCreateUser',
       builder: (context, state) => AppShell(
         title: 'Create User',
-        showBackButton: true,
         child: const AuthScreen(initialSignup: true, adminCreateMode: true),
       ),
     ),
