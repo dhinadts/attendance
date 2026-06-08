@@ -8,7 +8,6 @@ import '../widgets/employee_bottom_nav.dart';
 import '../services/attendance_session_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
 enum _LogRange { today, week, month, year }
 
 class AttendanceLogScreen extends StatefulWidget {
@@ -22,6 +21,7 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
   final _service = AttendanceSessionService();
   EmployeeProfile? _profile;
   bool _outsideOfficeSession = false;
+  bool _isSubmittingReason = false;
   _LogRange _selectedRange = _LogRange.today;
 
   @override
@@ -73,11 +73,13 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Office entry, out-of-office breaks, re-entry, and logout timings.',
+              'Office circle time, breaks, delay requests, and logout timings.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: IndustrialColors.onSurfaceVariant,
               ),
             ),
+            const SizedBox(height: 14),
+            _policyCard(),
             const SizedBox(height: 14),
             _buildRangeSelector(),
             const SizedBox(height: 14),
@@ -118,7 +120,7 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: 12),
                     itemBuilder: (context, index) {
-                      return _dayLogCard(docs[index].data());
+                      return _dayLogCard(docs[index]);
                     },
                   );
                 },
@@ -146,12 +148,64 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
     );
   }
 
-  Widget _dayLogCard(Map<String, dynamic> data) {
+  Widget _policyCard() {
+    return IndustrialCard(
+      backgroundColor: IndustrialColors.surfaceContainerLow,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          StatusChip(
+            label:
+                'OFFICE ${AttendanceSessionService.defaultOfficeLatitude.toStringAsFixed(7)}, ${AttendanceSessionService.defaultOfficeLongitude.toStringAsFixed(7)}',
+            type: StatusChipType.neutral,
+            icon: Icons.location_on,
+          ),
+          StatusChip(
+            label:
+                '${AttendanceSessionService.defaultRadiusMeters.toInt()}M RANGE',
+            type: StatusChipType.success,
+            icon: Icons.radio_button_checked,
+          ),
+          StatusChip(
+            label:
+                '${AttendanceSessionService.officeArrivalGrace.inMinutes}M BREAK GRACE',
+            type: StatusChipType.pending,
+            icon: Icons.timer,
+          ),
+          StatusChip(
+            label:
+                '${AttendanceSessionService.eligibleMinutes ~/ 60}H OFFICE TIME REQUIRED',
+            type: StatusChipType.success,
+            icon: Icons.verified,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dayLogCard(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
     final date = data['loginDateIst'] as String? ?? '-';
     final status = data['attendanceStatus'] as String? ?? '-';
     final officeMinutes = (data['officeMinutes'] as num?)?.toInt();
     final breakMinutes = (data['breakMinutes'] as num?)?.toInt();
     final segments = _segmentsFrom(data);
+    final logs = _logsFrom(data);
+    final outsideAttempts = logs
+        .where((log) => log['event'] == 'out_of_office_login_attempt')
+        .length;
+    final breakCount = _breakCount(segments, data);
+    final needsReason =
+        data['breakConsiderationRequired'] == true ||
+        data['breakConsiderationStatus'] == 'reason_required';
+    final requestStatus =
+        (data['breakConsiderationStatus'] as String?) ?? 'not_required';
+    final currentOfficeMinutes = officeMinutes ?? _liveOfficeMinutes(segments);
+    final progress =
+        (currentOfficeMinutes / AttendanceSessionService.eligibleMinutes)
+            .clamp(0.0, 1.0)
+            .toDouble();
     final chipType = status == 'attendance_considered'
         ? StatusChipType.success
         : status == 'outside_office_break'
@@ -182,8 +236,7 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
             runSpacing: 8,
             children: [
               StatusChip(
-                label:
-                    'OFFICE ${officeMinutes == null ? _liveOfficeMinutesLabel(segments) : _minutesLabel(officeMinutes)}',
+                label: 'OFFICE ${_minutesLabel(currentOfficeMinutes)}',
                 type: StatusChipType.success,
                 icon: Icons.work,
               ),
@@ -193,16 +246,207 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
                 type: StatusChipType.neutral,
                 icon: Icons.free_breakfast,
               ),
+              StatusChip(
+                label: 'BREAKS $breakCount',
+                type: breakCount == 0
+                    ? StatusChipType.neutral
+                    : StatusChipType.pending,
+                icon: Icons.directions_walk,
+              ),
+              if (outsideAttempts > 0)
+                StatusChip(
+                  label: 'OUTSIDE LOGIN $outsideAttempts',
+                  type: StatusChipType.alert,
+                  icon: Icons.location_off,
+                ),
+              if (requestStatus != 'not_required')
+                StatusChip(
+                  label: requestStatus.replaceAll('_', ' '),
+                  type: requestStatus == 'requested'
+                      ? StatusChipType.pending
+                      : StatusChipType.alert,
+                  icon: Icons.assignment_late,
+                ),
             ],
           ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              color: IndustrialColors.secondary,
+              backgroundColor: IndustrialColors.outlineVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${_minutesLabel(currentOfficeMinutes)} of ${_minutesLabel(AttendanceSessionService.eligibleMinutes)} office time counted for attendance.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: IndustrialColors.onSurfaceVariant,
+            ),
+          ),
+          if (needsReason) ...[
+            const SizedBox(height: 12),
+            _reasonRequiredPanel(doc.id, data),
+          ],
           const SizedBox(height: 14),
           if (segments.isEmpty)
-            const Text('No in/out segment captured for this day.')
+            _emptySegmentMessage(data)
           else
             ..._timelineRows(segments, data),
+          if (logs.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ..._eventRows(logs),
+          ],
         ],
       ),
     );
+  }
+
+  Widget _reasonRequiredPanel(String docId, Map<String, dynamic> data) {
+    final lastBreakMinutes = (data['lastBreakMinutes'] as num?)?.toInt();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: IndustrialColors.error.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: IndustrialColors.error.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            lastBreakMinutes == null
+                ? 'Break delay reason required'
+                : 'Break was ${_minutesLabel(lastBreakMinutes)}. Reason required.',
+            style: TextStyle(
+              color: IndustrialColors.error,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Submit the reason to ask admin to consider this attendance day.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: IndustrialColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              onPressed: _isSubmittingReason
+                  ? null
+                  : () => _showReasonSheet(docId),
+              icon: const Icon(Icons.edit_note),
+              label: const Text('Request consideration'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptySegmentMessage(Map<String, dynamic> data) {
+    final outsideLogin = data['outsideLoginAttempt'] == true;
+    return Text(
+      outsideLogin
+          ? 'Login attempt was outside the office circle. Office time will start when the employee enters the 50m range.'
+          : 'No in/out segment captured for this day.',
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: outsideLogin
+            ? IndustrialColors.error
+            : IndustrialColors.onSurfaceVariant,
+      ),
+    );
+  }
+
+  Future<void> _showReasonSheet(String docId) async {
+    final controller = TextEditingController();
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Delay reason',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                maxLines: 4,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Reason for delayed return',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () =>
+                          Navigator.pop(context, controller.text.trim()),
+                      icon: const Icon(Icons.send),
+                      label: const Text('Submit'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    controller.dispose();
+    if (reason == null || reason.isEmpty) return;
+    await _submitReason(docId, reason);
+  }
+
+  Future<void> _submitReason(String docId, String reason) async {
+    setState(() => _isSubmittingReason = true);
+    try {
+      await _service.submitBreakConsiderationRequest(
+        attendanceDocumentId: docId,
+        reason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Consideration request submitted')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _isSubmittingReason = false);
+    }
   }
 
   List<Widget> _timelineRows(
@@ -264,6 +508,36 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
     }
 
     return rows;
+  }
+
+  List<Widget> _eventRows(List<Map<String, dynamic>> logs) {
+    final visibleLogs = logs
+        .where(
+          (log) =>
+              log['event'] == 'out_of_office_login_attempt' ||
+              log['event'] == 'break_delay_reason_required' ||
+              log['event'] == 'break_consideration_requested',
+        )
+        .toList();
+    if (visibleLogs.isEmpty) return const [];
+    return visibleLogs.map((log) {
+      final event = (log['event'] as String? ?? '').replaceAll('_', ' ');
+      final distance = (log['distanceMeters'] as num?)?.toDouble();
+      final message = log['message'] as String? ?? event;
+      return _timelineRow(
+        icon: log['event'] == 'break_consideration_requested'
+            ? Icons.assignment_turned_in
+            : Icons.warning_amber,
+        title: message,
+        value: [
+          _formatTime(log['atIst'] as String?),
+          if (distance != null) '${distance.toStringAsFixed(1)}m from office',
+        ].join('  '),
+        type: log['event'] == 'break_consideration_requested'
+            ? StatusChipType.pending
+            : StatusChipType.alert,
+      );
+    }).toList();
   }
 
   Widget _timelineRow({
@@ -359,6 +633,29 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
         .toList();
   }
 
+  List<Map<String, dynamic>> _logsFrom(Map<String, dynamic> data) {
+    final rawLogs = data['logs'];
+    if (rawLogs is! List) return <Map<String, dynamic>>[];
+    return rawLogs
+        .whereType<Map>()
+        .map((log) => Map<String, dynamic>.from(log))
+        .toList();
+  }
+
+  int _breakCount(
+    List<Map<String, dynamic>> segments,
+    Map<String, dynamic> data,
+  ) {
+    var count = 0;
+    for (final segment in segments) {
+      if (segment['outReason'] == 'left_geofence_break') count++;
+    }
+    if (data['outsideLoginAttempt'] == true && segments.isNotEmpty) {
+      count++;
+    }
+    return count;
+  }
+
   String _formatTime(String? ist) {
     if (ist == null || ist.isEmpty) return '-';
     final parsed = DateTime.tryParse(ist);
@@ -373,7 +670,7 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
     return _minutesLabel(end.difference(start).inMinutes);
   }
 
-  String _liveOfficeMinutesLabel(List<Map<String, dynamic>> segments) {
+  int _liveOfficeMinutes(List<Map<String, dynamic>> segments) {
     var minutes = 0;
     final now = DateTime.now();
     for (final segment in segments) {
@@ -383,7 +680,7 @@ class _AttendanceLogScreenState extends State<AttendanceLogScreen> {
       if (inAt == null || outAt.isBefore(inAt)) continue;
       minutes += outAt.difference(inAt).inMinutes;
     }
-    return _minutesLabel(minutes);
+    return minutes;
   }
 
   String _liveBreakMinutesLabel(List<Map<String, dynamic>> segments) {

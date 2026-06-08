@@ -145,8 +145,8 @@ class AttendanceSession {
 }
 
 class AttendanceSessionService {
-  static const double defaultOfficeLatitude = 11.3968207;
-  static const double defaultOfficeLongitude = 77.8881173;
+  static const double defaultOfficeLatitude = 11.3966658;
+  static const double defaultOfficeLongitude = 77.8880424;
   static const double defaultRadiusMeters = 50;
   static const Duration officeArrivalGrace = Duration(minutes: 30);
   static const int finalLogoutHourIst = 18;
@@ -529,6 +529,9 @@ class AttendanceSessionService {
         'outAtIst': null,
         'outReason': null,
       };
+      final initialSegments = outsideOffice
+          ? <Map<String, dynamic>>[]
+          : [segment];
 
       transaction.set(docRef, {
         'employeeId': employee.employeeId,
@@ -559,20 +562,37 @@ class AttendanceSessionService {
         },
         'officeDistanceMeters': officeDistanceMeters,
         'officeArrivalGraceMinutes': officeArrivalGrace.inMinutes,
+        'breakGraceMinutes': officeArrivalGrace.inMinutes,
+        'breakConsiderationRequired': false,
+        'breakConsiderationStatus': outsideOffice
+            ? 'outside_login_logged'
+            : 'not_required',
+        'outsideLoginAttempt': outsideOffice,
+        if (outsideOffice) 'currentBreakStartedAtIst': loginAtIso,
+        if (outsideOffice) 'currentBreakDistanceMeters': officeDistanceMeters,
         'loginLocation': {
           'latitude': loginPosition.latitude,
           'longitude': loginPosition.longitude,
           'accuracy': loginPosition.accuracy,
         },
-        'segments': [segment],
+        'segments': initialSegments,
         'logs': [
           {
             'event': 'login',
             'atIst': loginAtIso,
+            'distanceMeters': officeDistanceMeters,
             'message': outsideOffice
-                ? 'Logged in outside office circle; 30 mins to reach office'
+                ? 'Tried login outside office circle; office time starts after entry'
                 : 'Logged in inside office circle',
           },
+          if (outsideOffice)
+            {
+              'event': 'out_of_office_login_attempt',
+              'atIst': loginAtIso,
+              'distanceMeters': officeDistanceMeters,
+              'message':
+                  'Employee attempted check-in outside the 50m office circle',
+            },
         ],
       });
     });
@@ -747,6 +767,8 @@ class AttendanceSessionService {
         'attendanceStatus': 'outside_office_break',
         'lastOfficeExitAtIst': at.toIso8601String(),
         'lastOfficeDistanceMeters': distanceMeters,
+        'currentBreakStartedAtIst': at.toIso8601String(),
+        'currentBreakDistanceMeters': distanceMeters,
         'segments': segments,
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedAtIst': at.toIso8601String(),
@@ -778,10 +800,22 @@ class AttendanceSessionService {
       if (data == null || data['sessionStatus'] != 'active') return;
 
       final segments = _readSegments(data);
+      DateTime? lastExitAt;
       if (segments.isNotEmpty) {
         final lastSegment = segments.last;
         if (lastSegment['outAtIst'] == null) return;
+        lastExitAt = DateTime.tryParse(
+          lastSegment['outAtIst'] as String? ?? '',
+        );
       }
+      lastExitAt ??= DateTime.tryParse(
+        data['currentBreakStartedAtIst'] as String? ?? '',
+      );
+      final breakMinutes = lastExitAt == null
+          ? null
+          : at.difference(lastExitAt).inMinutes.clamp(0, 24 * 60);
+      final delayedBreak =
+          breakMinutes != null && breakMinutes > officeArrivalGrace.inMinutes;
 
       segments.add({
         'inAtIst': at.toIso8601String(),
@@ -800,6 +834,13 @@ class AttendanceSessionService {
         'attendanceStatus': 'pending',
         'lastOfficeEntryAtIst': at.toIso8601String(),
         'lastOfficeDistanceMeters': distanceMeters,
+        'lastBreakMinutes': breakMinutes,
+        'breakConsiderationRequired': delayedBreak,
+        'breakConsiderationStatus': delayedBreak
+            ? 'reason_required'
+            : 'not_required',
+        'currentBreakStartedAtIst': FieldValue.delete(),
+        'currentBreakDistanceMeters': FieldValue.delete(),
         'segments': segments,
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedAtIst': at.toIso8601String(),
@@ -808,10 +849,51 @@ class AttendanceSessionService {
             'event': 'office_entry',
             'atIst': at.toIso8601String(),
             'distanceMeters': distanceMeters,
+            'breakMinutes': breakMinutes,
+            'delayedBreak': delayedBreak,
+            'message': delayedBreak
+                ? 'Returned after 30 minute break grace; reason required'
+                : 'Returned within break grace',
           },
+          if (delayedBreak)
+            {
+              'event': 'break_delay_reason_required',
+              'atIst': at.toIso8601String(),
+              'breakMinutes': breakMinutes,
+              'graceMinutes': officeArrivalGrace.inMinutes,
+              'message':
+                  'Break exceeded 30 minutes; employee must request consideration',
+            },
         ]),
       }, SetOptions(merge: true));
     });
+  }
+
+  Future<void> submitBreakConsiderationRequest({
+    required String attendanceDocumentId,
+    required String reason,
+  }) async {
+    await ensureSignedIn();
+    final trimmedReason = reason.trim();
+    if (trimmedReason.length < 10) {
+      throw ArgumentError('Reason must be at least 10 characters');
+    }
+    final at = nowIst;
+    await _firestore.appCollection('attendance').doc(attendanceDocumentId).set({
+      'breakConsiderationRequired': false,
+      'breakConsiderationStatus': 'requested',
+      'breakConsiderationReason': trimmedReason,
+      'breakConsiderationRequestedAt': FieldValue.serverTimestamp(),
+      'breakConsiderationRequestedAtIst': at.toIso8601String(),
+      'logs': FieldValue.arrayUnion([
+        {
+          'event': 'break_consideration_requested',
+          'atIst': at.toIso8601String(),
+          'reason': trimmedReason,
+          'message': 'Employee requested attendance consideration',
+        },
+      ]),
+    }, SetOptions(merge: true));
   }
 
   Future<void> recordLeave({
