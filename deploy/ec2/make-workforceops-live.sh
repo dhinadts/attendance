@@ -47,7 +47,7 @@ git -C /opt/flutter fetch --depth 1 origin "$FLUTTER_VERSION"
 git -C /opt/flutter checkout "$FLUTTER_VERSION"
 export PATH="/opt/flutter/bin:$PATH"
 flutter config --enable-web
-flutter doctor
+flutter doctor || true
 
 mkdir -p "$(dirname "$APP_DIR")" "$WEB_ROOT" "$(dirname "$ENV_FILE")"
 if [ ! -d "$APP_DIR/.git" ]; then
