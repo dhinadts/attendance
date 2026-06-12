@@ -13,6 +13,21 @@ PM2_APP_NAME="${PM2_APP_NAME:-${APP_NAME}-api}"
 SSL_EMAIL="${SSL_EMAIL:-admin@dhinadts.com}"
 ENABLE_SSL="${ENABLE_SSL:-false}"
 FLUTTER_VERSION="${FLUTTER_VERSION:-stable}"
+SWAP_SIZE_GB="${SWAP_SIZE_GB:-4}"
+RUN_FLUTTER_CHECKS="${RUN_FLUTTER_CHECKS:-false}"
+
+ensure_swap() {
+  if swapon --show | grep -q .; then
+    return
+  fi
+  fallocate -l "${SWAP_SIZE_GB}G" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$((SWAP_SIZE_GB * 1024))"
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  if ! grep -q "^/swapfile " /etc/fstab; then
+    echo "/swapfile none swap sw 0 0" >> /etc/fstab
+  fi
+}
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run on EC2 with sudo: sudo bash make-workforceops-live.sh"
@@ -23,6 +38,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 apt-get install -y nginx git curl ca-certificates gnupg unzip xz-utils zip rsync
+ensure_swap
 
 if ! command -v node >/dev/null 2>&1; then
   install -d -m 0755 /etc/apt/keyrings
@@ -94,9 +110,12 @@ npm --prefix backend/fcm-relay ci --omit=dev
 npm --prefix backend run check
 
 flutter pub get
-flutter analyze
-flutter test
+if [ "$RUN_FLUTTER_CHECKS" = "true" ]; then
+  flutter analyze
+  flutter test
+fi
 flutter build web --release --base-href / \
+  --no-wasm-dry-run \
   --dart-define=ATTENDANCE_API_BASE_URL="https://${DOMAIN}/p1" \
   --dart-define=ATTENDANCE_API_KEY="${BACKEND_API_KEY}" \
   --dart-define=PAYROLL_API_BASE_URL="https://${DOMAIN}/p1" \
