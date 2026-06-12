@@ -12,7 +12,7 @@ class WorkSyncApp extends StatelessWidget {
       valueListenable: themeModeNotifier,
       builder: (context, themeMode, child) {
         return MaterialApp.router(
-          title: 'attendance',
+          title: 'DhinaDTS WorkforceOps',
           debugShowCheckedModeBanner: false,
           theme: IndustrialTheme.lightTheme(),
           darkTheme: IndustrialTheme.lightTheme().copyWith(

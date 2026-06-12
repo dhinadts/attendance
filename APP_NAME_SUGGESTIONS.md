@@ -4,18 +4,27 @@ This app covers attendance, payroll, leave approvals, push notifications, and ag
 
 ## Recommended Names
 
-### 1. WorkSync Pro
+### 1. DhinaDTS WorkforceOps
 
-Best current choice.
+Best production choice.
+
+Why it fits:
+
+- Keeps the DhinaDTS brand visible.
+- Covers attendance, tasks, payroll, leave approvals, notifications, and workforce tracking.
+- Sounds suitable for a SaaS product on a professional subdomain.
+- Works well at `https://workforce.dhinadts.com`.
+
+### 2. WorkSync Pro
 
 Why it fits:
 
 - Matches attendance, tasks, payroll, and team communication.
 - Sounds modern and professional.
 - Works for both mobile app and web admin portal.
-- Already used in the UI.
+- Already used in parts of the UI.
 
-### 2. TeamPulse
+### 3. TeamPulse
 
 Why it fits:
 
@@ -23,21 +32,21 @@ Why it fits:
 - Easy to remember.
 - Friendly for employees.
 
-### 3. StaffFlow
+### 4. StaffFlow
 
 Why it fits:
 
 - Good for HR workflows, leave approvals, salary records, and employee operations.
 - Simple and business-friendly.
 
-### 4. Attendly
+### 5. Attendly
 
 Why it fits:
 
 - Short and attendance-focused.
 - Good if the product remains mainly an attendance app.
 
-### 5. WorkLedger
+### 6. WorkLedger
 
 Why it fits:
 
@@ -46,6 +55,7 @@ Why it fits:
 
 ## Enterprise Style Names
 
+- DhinaDTS WorkforceOps
 - WorkSync Pro
 - WorkLedger
 - StaffFlow
@@ -98,23 +108,23 @@ Why it fits:
 
 ## Best Shortlist
 
-1. WorkSync Pro
-2. TeamPulse
-3. StaffFlow
-4. WorkLedger
-5. AttendFlow
+1. DhinaDTS WorkforceOps
+2. WorkSync Pro
+3. TeamPulse
+4. StaffFlow
+5. WorkLedger
 
 ## Final Recommendation
 
 Use:
 
 ```text
-WorkSync Pro
+DhinaDTS WorkforceOps
 ```
 
 Reason:
 
-The app is no longer only attendance. It now includes leave approvals, salary records, FCM communication, task assignment, daily scrum reporting, timesheets, feedback, achievements, and performance tracking. `WorkSync Pro` is broad enough for the full product without sounding too generic.
+The app is no longer only attendance. It now includes leave approvals, salary records, FCM communication, task assignment, daily scrum reporting, timesheets, feedback, achievements, and performance tracking. `DhinaDTS WorkforceOps` is broad enough for the full product, clearly branded, and professional for EC2 hosting under `https://workforce.dhinadts.com`.
 
 ## Suggested Taglines
 

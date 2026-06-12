@@ -62,8 +62,17 @@ PowerShell example:
 ```powershell
 $env:FIREBASE_PROJECT_ID="your-project-id"
 $env:FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account","project_id":"your-project-id", ... }'
+$env:BACKEND_API_KEY="local-dev-api-key"
 npm start
 ```
+
+For temporary local-only API testing without a key, set:
+
+```powershell
+$env:ALLOW_UNAUTHENTICATED_BACKEND_API="true"
+```
+
+Do not enable `ALLOW_UNAUTHENTICATED_BACKEND_API` in production.
 
 ## Render Setup
 
@@ -86,7 +95,10 @@ Environment variables. The base64 option is recommended on Render because it avo
 ```text
 FIREBASE_PROJECT_ID=your-project-id
 FIREBASE_SERVICE_ACCOUNT_BASE64=base64-encoded-full-service-account-json
+BACKEND_API_KEY=long-random-private-api-key
+ALLOW_UNAUTHENTICATED_BACKEND_API=false
 FCM_RELAY_DRY_RUN=false
+FCM_METRICS_ENABLED=true
 ```
 
 PowerShell command to create the base64 value from a downloaded key file:
@@ -149,16 +161,34 @@ The relay updates `fcm_outbox/{messageId}`:
 
 If sending fails, the document becomes `retry` and the listener will attempt it again.
 
-## Retry & Metrics (new)
+## Production Health, Retry, and Metrics
 
-The relay supports configurable retry/backoff and optional simple metrics. New environment variables:
+The relay supports configurable retry/backoff and optional simple metrics. Environment variables:
 
-- `FCM_MAX_RETRY_ATTEMPTS` (default `5`) — maximum retry attempts before marking a job `failed`.
-- `FCM_BACKOFF_BASE_SECONDS` (default `30`) — base backoff in seconds; retries use exponential backoff (`base * 2^(retryCount-1)`).
-- `FCM_BACKOFF_MAX_SECONDS` (default `86400`) — maximum backoff in seconds (defaults to 24 hours).
-- `FCM_METRICS_ENABLED` (default `false`) — when `true`, the relay will write simple counters to Firestore under `fcm_metrics/summary` (`messagesAttempted`, `messagesSent`).
+- `FCM_MAX_RETRY_ATTEMPTS` (default `5`) - maximum retry attempts before marking a job `failed`.
+- `FCM_BACKOFF_BASE_SECONDS` (default `30`) - base backoff in seconds; retries use exponential backoff (`base * 2^(retryCount-1)`).
+- `FCM_BACKOFF_MAX_SECONDS` (default `86400`) - maximum backoff in seconds (defaults to 24 hours).
+- `FCM_METRICS_ENABLED` (default `false`) - when `true`, the relay writes simple counters to Firestore under `fcm_metrics/summary`.
 
-These are optional — if not set, the relay uses sensible defaults and continues working as before.
+These are optional. If not set, the relay uses defaults and continues working as before.
+
+Health and operations endpoints:
+
+```http
+GET /health
+GET /p1/relay/status
+GET /p1/fcm-outbox?status=retry&limit=50
+POST /p1/fcm-outbox/{messageId}/retry
+```
+
+`/health` is public for hosting-provider health checks. The other endpoints require `x-api-key` or `Authorization: Bearer <key>`. The backend fails closed when `BACKEND_API_KEY` is missing unless `ALLOW_UNAUTHENTICATED_BACKEND_API=true` is set for local development.
+
+Recommended production monitoring:
+
+- Configure Render/Railway health check path as `/health`.
+- Alert if `/health` is not HTTP 200.
+- Check `/p1/relay/status` daily for `failed` or growing `retry` counts.
+- Use `POST /p1/fcm-outbox/{messageId}/retry` after correcting token/topic or service-account issues.
 
 ## Attendance App APIs
 
@@ -171,9 +201,9 @@ x-api-key: your-private-api-key
 ### Teams
 
 ```http
-GET /api/teams
-POST /api/teams
-GET /api/teams/:teamId/employees
+GET /p1/teams
+POST /p1/teams
+GET /p1/teams/:teamId/employees
 ```
 
 ### One-time migration from root collections
@@ -181,7 +211,7 @@ GET /api/teams/:teamId/employees
 Your older app data may exist at root collections such as `employee_profiles`, `attendance`, `leave_requests`, and `salary_records`. Run this once to copy those documents into `Attendance/main/{collectionName}`:
 
 ```http
-POST /api/admin/migrate-root-to-attendance
+POST /p1/admin/migrate-root-to-attendance
 ```
 
 Optional body to migrate only selected collections:
@@ -209,8 +239,8 @@ Create/update team:
 ### Employees
 
 ```http
-GET /api/employees/:employeeId
-POST /api/employees
+GET /p1/employees/:employeeId
+POST /p1/employees
 ```
 
 Create/update employee profile:
@@ -232,11 +262,12 @@ Create/update employee profile:
 ### Attendance
 
 ```http
-POST /api/attendance/check-in
-POST /api/attendance/check-out
-GET /api/attendance?employeeId=EMP001&monthKey=2026-06
-GET /api/attendance?teamId=TECH&date=2026-06-02
-POST /api/attendance/close-day
+POST /p1/attendance/check-in
+POST /p1/attendance/check-out
+POST /p1/attendance/finalize-session
+GET /p1/attendance?employeeId=EMP001&monthKey=2026-06
+GET /p1/attendance?teamId=TECH&date=2026-06-02
+POST /p1/attendance/close-day
 ```
 
 Check in:
@@ -267,13 +298,30 @@ Close missing attendance for a day:
 }
 ```
 
+Finalize an attendance session using server-side office segment calculation:
+
+```json
+{
+  "attendanceId": "EMP001_2026-06-08",
+  "logoutAtIst": "2026-06-08T18:15:00.000+05:30",
+  "reason": "employee_logout"
+}
+```
+
+Flutter web/mobile can call this endpoint when built with:
+
+```text
+--dart-define=ATTENDANCE_API_BASE_URL=https://your-relay.example.com
+--dart-define=ATTENDANCE_API_KEY=the-same-backend-api-key
+```
+
 ### Salary
 
 ```http
-POST /api/salary-structures
-POST /api/salary/generate-month
-POST /api/payroll/upload
-GET /api/payroll/:employeeId/:monthKey
+POST /p1/salary-structures
+POST /p1/salary/generate-month
+POST /p1/payroll/upload
+GET /p1/payroll/:employeeId/:monthKey
 ```
 
 Salary structure:
@@ -304,8 +352,8 @@ Generate monthly salary records:
 ### Notifications and FCM
 
 ```http
-POST /api/notifications/send
-POST /api/fcm/send
+POST /p1/notifications/send
+POST /p1/fcm/send
 ```
 
 Send to teams:
@@ -369,21 +417,21 @@ Attendance/main/tasks/{taskId}
 Endpoints:
 
 ```http
-GET /api/tasks
-GET /api/tasks/:taskId
-POST /api/tasks
-POST /api/tasks/import
-PATCH /api/tasks/:taskId/scrum
-PATCH /api/tasks/:taskId/feedback
-PATCH /api/tasks/:taskId/status
+GET /p1/tasks
+GET /p1/tasks/:taskId
+POST /p1/tasks
+POST /p1/tasks/import
+PATCH /p1/tasks/:taskId/scrum
+PATCH /p1/tasks/:taskId/feedback
+PATCH /p1/tasks/:taskId/status
 ```
 
 List tasks:
 
 ```http
-GET /api/tasks?employeeId=DTS0003
-GET /api/tasks?teamId=TECH
-GET /api/tasks?status=in_progress
+GET /p1/tasks?employeeId=DTS0003
+GET /p1/tasks?teamId=TECH
+GET /p1/tasks?status=in_progress
 ```
 
 Create one task:
@@ -480,7 +528,7 @@ urgent
 Admin web payroll upload can call:
 
 ```http
-POST /api/payroll/upload
+POST /p1/payroll/upload
 ```
 
 JSON body:

@@ -8,7 +8,7 @@ class PayrollApiService {
           (baseUrl ??
                   const String.fromEnvironment(
                     'PAYROLL_API_BASE_URL',
-                    defaultValue: 'https://attendance-gk31.onrender.com',
+                    defaultValue: 'https://workforce.dhinadts.com/p1',
                   ))
               .replaceAll(RegExp(r'/$'), ''),
       apiKey =
@@ -22,7 +22,7 @@ class PayrollApiService {
 
   Future<void> uploadSalaryRecord(Map<String, dynamic> record) async {
     final response = await _client.post(
-      Uri.parse('$baseUrl/api/payroll/upload'),
+      Uri.parse('$baseUrl/payroll/upload'),
       headers: {
         'content-type': 'application/json',
         if (apiKey.isNotEmpty) 'x-api-key': apiKey,

@@ -8,7 +8,7 @@ Workspace: `D:\myproducts\attendance`
 
 The application is a Flutter web/mobile/tablet attendance system backed by Firebase Auth, Firestore, Firebase Messaging, and a standalone Node.js FCM relay backend. The current build is healthy: Flutter analysis, Flutter tests, backend syntax checks, and release web build all pass.
 
-The product has strong coverage for attendance, employee/admin role routing, profile management, reports, notifications, messaging, leave handling, salary records, tasks, settings, legal pages, and GitHub Pages web deployment. Recent fixes improved mobile legal/settings/support layouts and made the app bar use the hamburger menu consistently.
+The product has strong coverage for attendance, employee/admin role routing, profile management, reports, notifications, messaging, leave handling, salary records, tasks, settings, legal pages, and EC2/Nginx web deployment. Recent fixes improved mobile legal/settings/support layouts and made the app bar use the hamburger menu consistently.
 
 Main production risks are not compile errors. They are business-rule enforcement, audit immutability, backend deployment hardening, and end-to-end test depth.
 
@@ -17,12 +17,13 @@ Main production risks are not compile errors. They are business-rule enforcement
 The attendance logic recommendations have been implemented in the repository after this audit:
 
 - Added immutable best-effort audit writes for login, out-of-office login attempts, office exit/entry, session close, leave marking, manual attendance decisions, break consideration requests, and backend finalization failures.
-- Added a backend finalization endpoint at `/api/attendance/finalize-session` that recalculates attendance from stored office-presence segments instead of trusting client totals.
+- Added a backend finalization endpoint published through `/p1/attendance/finalize-session` that recalculates attendance from stored office-presence segments instead of trusting client totals.
 - Added an optional Flutter API client for backend finalization using `ATTENDANCE_API_BASE_URL` and `ATTENDANCE_API_KEY`.
 - Added a dedicated `attendance_consideration_requests` workflow for delayed break consideration, with admin approve/reject processing.
 - Added GPS reconciliation on restored/resumed active attendance sessions so missed foreground events can be repaired from the current office-circle state.
 - Added ML Kit face metadata capture for liveness review signals.
 - Tightened Firestore attendance update rules so employees can only update attendance-flow fields and cannot reassign ownership.
+- Hardened backend deployment and operations: removed invalid Firebase Functions config, required backend API key by default, added relay health/status/outbox retry endpoints, and documented EC2 deployment monitoring.
 
 Production note: backend finalization becomes authoritative only after the relay backend is deployed and Flutter is built with a valid `ATTENDANCE_API_KEY`. Firestore rules are updated in source and should be deployed to Firebase before treating the restrictions as active in production.
 
@@ -63,7 +64,7 @@ Production note: backend finalization becomes authoritative only after the relay
 - Firestore namespace: `Attendance/main/{collection}`
 - Firestore rules: `firestore.rules`
 - Storage rules: `storage.rules`
-- Web hosting deployment through GitHub Pages workflow
+- Web hosting deployment through EC2/Nginx at `https://workforce.dhinadts.com/`
 
 ## Backend Audit
 
@@ -77,9 +78,9 @@ Production note: backend finalization becomes authoritative only after the relay
 | FCM relay backend | Implemented | Node.js backend can process notification delivery outside Firebase Spark client limits |
 | Notification outbox | Implemented | App writes to `fcm_outbox`; backend relay can process queued messages |
 | Task backend | Implemented | Backend task model/service/controller/routes exist |
-| Salary backend endpoint | Partial | Flutter has `PayrollApiService`; backend has salary route logic in relay but needs production deployment validation |
-| Audit log collection | Partial | Rules define `audit_logs`, but app business actions are not consistently writing immutable audit records |
-| Cloud Functions config | Inconsistent | `firebase.json` points functions source to `functions`, but repo backend is under `backend/fcm-relay` |
+| Salary backend endpoint | Implemented | Flutter has `PayrollApiService`; relay has salary upload/read/generation endpoints guarded by API key |
+| Audit log collection | Implemented | Central audit writer and critical attendance/admin action logs have been added |
+| Cloud Functions config | Fixed | `firebase.json` no longer points to a non-existent `functions` folder; relay deployment is documented separately |
 
 ### Backend Strengths
 
@@ -93,12 +94,12 @@ Production note: backend finalization becomes authoritative only after the relay
 
 | Severity | Finding | Impact | Recommended Action |
 | --- | --- | --- | --- |
-| High | `firebase.json` functions source points to `functions`, but backend lives in `backend/fcm-relay` | Firebase deploy may not deploy the actual relay backend | Align deployment config or document relay hosting separately |
-| High | Attendance updates can be made by employees for their own attendance docs under broad update rule | Client-side business logic can be bypassed if a user writes directly to Firestore | Restrict employee-updatable attendance fields in rules |
-| High | Audit logs exist in rules but are not consistently written by services | Admin decisions, attendance consideration, exports, and profile edits lack full immutable trail | Add centralized audit writer service and call it for critical actions |
-| Medium | Backend `.env` exists locally under backend folder | Risk of secrets being committed or copied | Ensure `.env` is ignored and rotate exposed secrets if any were shared |
-| Medium | FCM relay production status depends on external deployment | Notifications may queue but not deliver if relay is offline | Add health check monitoring and retry dashboard |
-| Medium | Firestore has both root collection rules and `Attendance/main` namespace rules | Duplicate rules increase maintenance risk | Keep canonical namespace and remove/deprecate legacy paths after migration |
+| Fixed | `firebase.json` functions source pointed to `functions`, but backend lives in `backend/fcm-relay` | Firebase deploy could target the wrong backend path | Removed invalid Functions config and documented standalone relay hosting |
+| Fixed | Attendance updates could be made by employees for their own attendance docs under broad update rule | Client-side business logic could be bypassed if a user wrote directly to Firestore | Restricted employee-updatable attendance fields in rules |
+| Fixed | Audit logs existed in rules but were not consistently written by services | Admin decisions and attendance consideration lacked full immutable trail | Added centralized audit writer service and critical attendance/admin action logs |
+| Controlled | Backend `.env` exists locally under backend folder | Risk of secrets being committed or copied | `.env` is ignored, `.env.example` is safe, and production docs require hosting-provider env vars |
+| Fixed | FCM relay production status depended on external deployment with limited visibility | Notifications could queue but not deliver if relay is offline | Added JSON `/health`, API-key-protected `/p1/relay/status`, outbox listing, retry endpoint, and EC2 deployment script |
+| Controlled | Firestore has both root collection rules and `Attendance/main` namespace rules | Duplicate rules increase maintenance risk | Canonical namespace remains `Attendance/main`; root rules are retained only for migration/backward compatibility |
 
 ## Frontend Audit
 
@@ -130,7 +131,7 @@ Status: Good
 - Side menu supports expanded/collapsed layout.
 - Admin screens have dense SaaS-style layout.
 - Export/report workflows are available.
-- GitHub Pages build passes with `/attendance/` base href.
+- EC2/Nginx deployment script builds the app with root base href for `https://workforce.dhinadts.com/`.
 
 Risks:
 
@@ -209,14 +210,14 @@ Remaining mobile risks:
 
 Risks:
 
-- Production reliability depends on the external relay being hosted and monitored.
-- No visible admin dashboard for relay failures/retries.
+- Production reliability depends on the external relay being hosted with required environment variables.
+- Frontend admin dashboard for relay failures/retries is still pending, but backend status/retry APIs now exist.
 - Firebase pay-as-you-go is still required for some production-grade Firebase backend features depending on final deployment choice.
 
 Recommended:
 
-- Add `/health` check monitoring for relay.
-- Add admin notification delivery status screen using `fcm_outbox`.
+- Configure `/health` monitoring for relay in the hosting provider.
+- Add admin notification delivery status screen using `/p1/relay/status`, `/p1/fcm-outbox`, and `fcm_outbox`.
 - Keep bulk sends backend-only.
 
 ## Export and Reporting Logic Audit
@@ -285,9 +286,9 @@ Recommended:
 ### Needs Improvement
 
 - Computed attendance fields should not be writable by employees.
-- Salary and payroll APIs need auth token validation if exposed over HTTP.
-- Backend relay should verify caller identity and role for all privileged endpoints.
-- Secrets handling should be reviewed.
+- Salary and payroll APIs are guarded by backend API key; production should rotate and store the key only in the EC2 env file or a managed secret store.
+- Backend relay verifies privileged endpoint callers with `BACKEND_API_KEY` and fails closed unless local unauthenticated mode is explicitly enabled.
+- Secrets handling should be reviewed before production deployment.
 - Export actions should be audited.
 
 ## Data Model Audit
@@ -341,6 +342,14 @@ Recommended test plan:
 4. Backend relay tests for validation and delivery queue handling.
 5. Responsive widget tests for settings, profile, attendance log, export report, and admin dashboard.
 
+Required manual device QA:
+
+- Camera/face attendance requires device-level testing with camera permission allow/deny, lighting variation, multiple-face rejection, and failed/spoof attempts.
+- Geolocation behavior requires real device testing for inside/outside 50 meter office circle, multiple daily breaks, 30 minute return grace, and app background/resume reconciliation.
+- App drawer behavior should be manually checked after navigation to Privacy Policy, Terms of Service, Support, and other public pages.
+- Long employee names, team names, role labels, and employee codes should be tested with real data on mobile, tablet, and desktop widths.
+- Detailed manual steps are documented in `PRODUCTION_QA_CHECKLIST_2026-06-08.md`.
+
 ## Production Readiness Score
 
 | Area | Score | Notes |
@@ -349,28 +358,28 @@ Recommended test plan:
 | Web UI | 8/10 | Strong, but needs visual regression tests |
 | Tablet UI | 7/10 | Responsive, but not fully tablet-specific |
 | Mobile UI | 8/10 | Recent fixes improved key pages |
-| Backend relay | 7/10 | Exists and syntax-valid; deployment/monitoring must be confirmed |
-| Firestore rules | 7/10 | Good baseline, but employee attendance update scope is broad |
-| Attendance business logic | 8/10 | Strong client logic; needs backend enforcement for production |
-| Auditability | 5/10 | Audit collection exists, but action logging is incomplete |
+| Backend relay | 8/10 | Syntax-valid, API-key guarded, health/status/retry endpoints added; production host still must be configured |
+| Firestore rules | 8/10 | Employee attendance update scope is restricted in source; rules still need Firebase deployment |
+| Attendance business logic | 8.5/10 | Backend finalization hook and segment calculation added; real device GPS validation still required |
+| Auditability | 7/10 | Critical attendance/admin action logging added; exports/profile/salary can be expanded further |
 | Automated tests | 4/10 | Basic tests only |
 
-Overall readiness: 7/10 for controlled pilot, 5.5/10 for strict production compliance.
+Overall readiness: 8/10 for controlled pilot, 6.5/10 for strict production compliance pending Firebase rules deployment, relay environment setup, and real-device QA evidence.
 
 ## Priority Action Plan
 
 ### P0 - Before Production
 
-1. Lock employee attendance Firestore updates to safe fields only.
-2. Add backend/server-side final attendance calculation or Cloud Function validation.
-3. Confirm production deployment path for `backend/fcm-relay`.
-4. Add audit writes for attendance changes, admin approvals, salary generation, exports, profile edits, and bulk notifications.
-5. Remove or rotate any secrets that may exist in local `.env` files.
+1. Deploy updated Firestore rules from this repository.
+2. Deploy `backend/fcm-relay` with `BACKEND_API_KEY`, Firebase service account env vars, and `/health` monitoring.
+3. Run `deploy/ec2/make-workforceops-live.sh` with backend env values before relying on server-side attendance finalization.
+4. Execute `PRODUCTION_QA_CHECKLIST_2026-06-08.md` on real mobile/tablet devices.
+5. Rotate any secrets that may have been shared outside hosting-provider environment settings.
 
 ### P1 - Next Sprint
 
-1. Add admin queue for delayed break consideration requests.
-2. Add FCM relay delivery status dashboard.
+1. Add Firestore rules tests.
+2. Add a frontend admin relay delivery dashboard backed by `/p1/relay/status` and `/p1/fcm-outbox`.
 3. Add `.xlsx` formatted export as primary report output.
 4. Add Firestore rules tests.
 5. Add attendance logic unit tests.
@@ -379,10 +388,10 @@ Overall readiness: 7/10 for controlled pilot, 5.5/10 for strict production compl
 
 1. Add visual regression tests for mobile/tablet/web.
 2. Add tablet-specific layout pass for admin report/profile screens.
-3. Add liveness checks for face attendance.
-4. Add background GPS resilience checks.
+3. Expand liveness checks for face attendance after real-device QA.
+4. Expand background GPS resilience checks after real-device QA.
 5. Add analytics-free privacy review for production policies.
 
 ## Conclusion
 
-The app is structurally sound and currently builds successfully for web. The frontend now has better mobile behavior, and the backend foundation exists for notifications and task operations. The most important remaining work is hardening business logic at the backend/rules layer and making audit trails complete. For a real production rollout, attendance eligibility and sensitive computed fields should be enforced outside the client, and every admin/business decision should write an immutable audit record.
+The app is structurally sound and currently builds successfully for web. The frontend now has better mobile behavior, and the backend foundation exists for notifications, task operations, salary APIs, attendance finalization, relay monitoring, and API-key guarded operations. The most important remaining work is production deployment and evidence: deploy Firestore rules, configure the relay environment, build the app with attendance backend secrets, and complete real-device QA for camera, GPS, navigation, and long real data.

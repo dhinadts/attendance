@@ -11,7 +11,7 @@ class AttendanceFinalizeApiService {
            (baseUrl ??
                    const String.fromEnvironment(
                      'ATTENDANCE_API_BASE_URL',
-                     defaultValue: 'https://attendance-gk31.onrender.com',
+                     defaultValue: 'https://workforce.dhinadts.com/p1',
                    ))
                .replaceAll(RegExp(r'/$'), ''),
        apiKey =
@@ -32,7 +32,7 @@ class AttendanceFinalizeApiService {
   }) async {
     if (!isConfigured) return;
     final response = await _client.post(
-      Uri.parse('$baseUrl/api/attendance/finalize-session'),
+      Uri.parse('$baseUrl/attendance/finalize-session'),
       headers: {'content-type': 'application/json', 'x-api-key': apiKey},
       body: jsonEncode({
         'attendanceId': attendanceId,

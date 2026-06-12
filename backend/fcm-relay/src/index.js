@@ -16,6 +16,7 @@ const MAX_BACKOFF_SECONDS = Number(process.env.FCM_MAX_BACKOFF_SECONDS || 86400)
 const METRICS_ENABLED = process.env.FCM_METRICS_ENABLED === "true";
 const APP_ROOT_COLLECTION = process.env.FIRESTORE_APP_ROOT_COLLECTION || "Attendance";
 const APP_ROOT_DOCUMENT = process.env.FIRESTORE_APP_ROOT_DOCUMENT || "main";
+const OUTBOX_STATUSES = ["pending", "processing", "retry", "sent", "failed"];
 
 function parseServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
@@ -99,6 +100,44 @@ function calculateNextRetrySeconds(retryCount) {
   } catch (e) {
     return BACKOFF_BASE_SECONDS;
   }
+}
+
+function serializeFirestoreValue(value) {
+  if (!value) return value;
+  if (typeof value.toDate === "function") return value.toDate().toISOString();
+  if (Array.isArray(value)) return value.map(serializeFirestoreValue);
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, serializeFirestoreValue(item)]),
+    );
+  }
+  return value;
+}
+
+async function countQuery(query) {
+  const aggregate = await query.count().get();
+  return aggregate.data().count || 0;
+}
+
+async function outboxStatusCounts(firestore) {
+  const collection = appCollection(firestore, "fcm_outbox");
+  const entries = await Promise.all(
+    OUTBOX_STATUSES.map(async (status) => [
+      status,
+      await countQuery(collection.where("status", "==", status)),
+    ]),
+  );
+  return Object.fromEntries(entries);
+}
+
+async function fcmMetricsSnapshot(firestore) {
+  const snapshot = await appCollection(firestore, "fcm_metrics").doc("summary").get();
+  return snapshot.exists ? serializeFirestoreValue(snapshot.data()) : {};
+}
+
+function normalizeOutboxStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  return OUTBOX_STATUSES.includes(status) ? status : "";
 }
 
 function asyncRoute(handler) {
@@ -706,11 +745,81 @@ function startHttpServer() {
       ok: true,
       service: "attendance-fcm-relay",
       dryRun: DRY_RUN,
+      root: `${APP_ROOT_COLLECTION}/${APP_ROOT_DOCUMENT}`,
+      outboxLimit: OUTBOX_LIMIT,
+      maxRetryAttempts: MAX_RETRY_ATTEMPTS,
     });
   });
-  app.get("/health", (_request, response) => {
-    response.status(200).send("ok");
-  });
+  app.get("/health", asyncRoute(async (_request, response) => {
+    response.status(200).json({
+      ok: true,
+      service: "attendance-fcm-relay",
+      dryRun: DRY_RUN,
+      root: `${APP_ROOT_COLLECTION}/${APP_ROOT_DOCUMENT}`,
+      uptimeSeconds: Math.round(process.uptime()),
+      checkedAtIst: nowIstIso(),
+      outbox: await outboxStatusCounts(firestore),
+      metrics: await fcmMetricsSnapshot(firestore),
+    });
+  }));
+  app.get("/api/relay/status", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    response.json({
+      ok: true,
+      service: "attendance-fcm-relay",
+      dryRun: DRY_RUN,
+      root: `${APP_ROOT_COLLECTION}/${APP_ROOT_DOCUMENT}`,
+      outboxLimit: OUTBOX_LIMIT,
+      maxRetryAttempts: MAX_RETRY_ATTEMPTS,
+      backoffBaseSeconds: BACKOFF_BASE_SECONDS,
+      maxBackoffSeconds: MAX_BACKOFF_SECONDS,
+      metricsEnabled: METRICS_ENABLED,
+      uptimeSeconds: Math.round(process.uptime()),
+      checkedAtIst: nowIstIso(),
+      outbox: await outboxStatusCounts(firestore),
+      metrics: await fcmMetricsSnapshot(firestore),
+    });
+  }));
+  app.get("/api/fcm-outbox", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    const status = normalizeOutboxStatus(request.query.status);
+    const limit = Math.min(Math.max(Number(request.query.limit || 50), 1), 100);
+    let query = appCollection(firestore, "fcm_outbox");
+    if (status) query = query.where("status", "==", status);
+    const snapshot = await query.limit(limit).get();
+    response.json({
+      ok: true,
+      status: status || "all",
+      limit,
+      messages: snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...serializeFirestoreValue(doc.data()),
+      })),
+    });
+  }));
+  app.post("/api/fcm-outbox/:messageId/retry", asyncRoute(async (request, response) => {
+    requireApiKey(request);
+    const messageId = String(request.params.messageId || "").trim();
+    if (!messageId) throw new Error("messageId is required");
+    const ref = appCollection(firestore, "fcm_outbox").doc(messageId);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) {
+      response.status(404).json({ ok: false, error: "FCM outbox message not found" });
+      return;
+    }
+    await ref.set(
+      {
+        status: "pending",
+        retryAt: admin.firestore.FieldValue.delete(),
+        retryRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+        retryRequestedAtIst: nowIstIso(),
+        retryRequestedBy: "backend_api",
+        error: admin.firestore.FieldValue.delete(),
+      },
+      { merge: true },
+    );
+    response.json({ ok: true, messageId, status: "pending" });
+  }));
   app.get("/api/teams", asyncRoute(async (request, response) => {
     requireApiKey(request);
     const snapshot = await appCollection(firestore, "teams").orderBy("name").get();
@@ -1143,8 +1252,19 @@ function buildFcmOutboxMessage(body) {
 
 function requireApiKey(request) {
   const expected = process.env.BACKEND_API_KEY;
-  if (!expected) return;
-  const actual = request.header("x-api-key");
+  if (!expected) {
+    if (process.env.ALLOW_UNAUTHENTICATED_BACKEND_API === "true") return;
+    const error = new Error(
+      "BACKEND_API_KEY is required. Set ALLOW_UNAUTHENTICATED_BACKEND_API=true only for local development.",
+    );
+    error.statusCode = 503;
+    throw error;
+  }
+  const authorization = String(request.header("authorization") || "");
+  const bearer = authorization.toLowerCase().startsWith("bearer ")
+    ? authorization.slice(7).trim()
+    : "";
+  const actual = request.header("x-api-key") || bearer;
   if (actual !== expected) {
     const error = new Error("Invalid API key");
     error.statusCode = 401;

@@ -1,11 +1,11 @@
 {
-    "name": "DhinaDTS Attendance",
-    "short_name": "DhinaDTS",
+    "name": "DhinaDTS WorkforceOps",
+    "short_name": "WorkforceOps",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F8F9FF",
     "theme_color": "#00288E",
-    "description": "DhinaDTS Attendance Management System - Face check-in, geo zone, and payroll.",
+    "description": "Attendance, task tracking, payroll, leave approvals, and workforce operations.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
