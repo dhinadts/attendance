@@ -85,6 +85,8 @@ class SentryTelemetrySink implements AppTelemetrySink {
 class AppTelemetryService {
   AppTelemetryService({AppTelemetrySink? sink}) : _sink = sink ?? SentryTelemetrySink();
 
+  static final AppTelemetryService instance = AppTelemetryService();
+
   final AppTelemetrySink _sink;
   bool _initialized = false;
 
