@@ -10,6 +10,7 @@ import 'package:attendance/theme/industrial_theme.dart';
 import 'package:attendance/widgets/industrial_card.dart';
 import 'package:attendance/widgets/admin_bottom_nav.dart';
 import 'package:attendance/services/auth_role_service.dart';
+import 'package:attendance/services/app_resilience_service.dart';
 import 'package:attendance/widgets/employee_bottom_nav.dart';
 import 'package:attendance/widgets/primary_action_button.dart';
 import 'package:attendance/services/attendance_session_service.dart';
@@ -381,8 +382,18 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
               return _CreateTaskDialog(
                 employees: employees,
                 onCreate: (payload) async {
-                  await _createTask(payload);
+                  final messenger = ScaffoldMessenger.maybeOf(context);
+                  final outcome = await _createTask(payload);
                   if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+                  if (outcome.queued && mounted && messenger != null) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Task saved locally and will sync when you are back online.',
+                        ),
+                      ),
+                    );
+                  }
                 },
               );
             },
@@ -390,7 +401,7 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
     );
   }
 
-  Future<void> _createTask(_TaskPayload payload) async {
+  Future<OfflineQueueOutcome> _createTask(_TaskPayload payload) async {
     final nowIst = DateTime.now()
         .toUtc()
         .add(const Duration(hours: 5, minutes: 30))
@@ -426,21 +437,38 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
     };
     final recipientUid = await _uidForEmployeeId(payload.employeeId);
     final batch = _firestore.batch();
-    batch.set(docRef, record);
-    _queueTaskAssignmentPush(
-      batch,
-      taskId: docRef.id,
-      ticketKey: ticketKey,
-      title: payload.title,
-      employeeId: payload.employeeId,
-      employeeName: payload.employeeName,
-      team: payload.team,
-      recipientUid: recipientUid,
-      assignedByName: assigner,
-      assignedByRole: _profile?.role ?? _access?.role.label ?? 'ADMIN',
-      createdAtIst: nowIst,
+    final queuePayload = {
+      'uid': user?.uid ?? payload.employeeId,
+      'operation': 'task_create',
+      'taskId': docRef.id,
+      'ticketKey': ticketKey,
+      'title': payload.title.trim(),
+      'employeeId': payload.employeeId.trim(),
+      'assignedByName': assigner,
+      'team': payload.team.trim(),
+    };
+
+    return AppResilienceService.instance.executeWithOfflineQueue(
+      operation: 'task_create',
+      payload: queuePayload,
+      action: () async {
+        batch.set(docRef, record);
+        _queueTaskAssignmentPush(
+          batch,
+          taskId: docRef.id,
+          ticketKey: ticketKey,
+          title: payload.title,
+          employeeId: payload.employeeId,
+          employeeName: payload.employeeName,
+          team: payload.team,
+          recipientUid: recipientUid,
+          assignedByName: assigner,
+          assignedByRole: _profile?.role ?? _access?.role.label ?? 'ADMIN',
+          createdAtIst: nowIst,
+        );
+        await batch.commit();
+      },
     );
-    await batch.commit();
   }
 
   Future<String?> _uidForEmployeeId(String employeeId) async {
@@ -783,7 +811,8 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
           ),
           FilledButton(
             onPressed: () async {
-              await _saveScrumUpdate(
+              final messenger = ScaffoldMessenger.maybeOf(context);
+              final outcome = await _saveScrumUpdate(
                 taskId: taskId,
                 status: status,
                 summary: summary.text,
@@ -791,6 +820,15 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
                 hours: hours.text,
               );
               if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+              if (outcome.queued && mounted && messenger != null) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Scrum update saved locally and will sync when online.',
+                    ),
+                  ),
+                );
+              }
             },
             child: const Text('SAVE'),
           ),
@@ -799,7 +837,7 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
     );
   }
 
-  Future<void> _saveScrumUpdate({
+  Future<OfflineQueueOutcome> _saveScrumUpdate({
     required String taskId,
     required String status,
     required String summary,
@@ -813,25 +851,41 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
     final reporter = _profile?.displayName.trim().isNotEmpty == true
         ? _profile!.displayName
         : (_auth.currentUser?.email ?? 'Employee');
-    await _firestore.appCollection('tasks').doc(taskId).set({
+    final payload = {
+      'uid': _auth.currentUser?.uid ?? taskId,
+      'operation': 'task_scrum_update',
+      'taskId': taskId,
       'status': status,
-      'latestScrumSummary': summary.trim(),
-      'latestBlocker': blocker.trim(),
-      'latestHours': hours.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedAtIst': nowIst,
-      'scrumReports': FieldValue.arrayUnion([
-        {
-          'summary': summary.trim(),
-          'blocker': blocker.trim(),
-          'hours': hours.trim(),
+      'summary': summary.trim(),
+      'blocker': blocker.trim(),
+      'hours': hours.trim(),
+    };
+
+    return AppResilienceService.instance.executeWithOfflineQueue(
+      operation: 'task_scrum_update',
+      payload: payload,
+      action: () async {
+        await _firestore.appCollection('tasks').doc(taskId).set({
           'status': status,
-          'reporterUid': _auth.currentUser?.uid,
-          'reporterName': reporter,
-          'reportedAtIst': nowIst,
-        },
-      ]),
-    }, SetOptions(merge: true));
+          'latestScrumSummary': summary.trim(),
+          'latestBlocker': blocker.trim(),
+          'latestHours': hours.trim(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAtIst': nowIst,
+          'scrumReports': FieldValue.arrayUnion([
+            {
+              'summary': summary.trim(),
+              'blocker': blocker.trim(),
+              'hours': hours.trim(),
+              'status': status,
+              'reporterUid': _auth.currentUser?.uid,
+              'reporterName': reporter,
+              'reportedAtIst': nowIst,
+            },
+          ]),
+        }, SetOptions(merge: true));
+      },
+    );
   }
 
   Future<void> _showFeedbackDialog(String taskId) async {
@@ -873,13 +927,23 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
           ),
           FilledButton(
             onPressed: () async {
-              await _saveFeedback(
+              final messenger = ScaffoldMessenger.maybeOf(context);
+              final outcome = await _saveFeedback(
                 taskId: taskId,
                 feedback: feedback.text,
                 achievement: achievement.text,
                 improvement: improvement.text,
               );
               if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+              if (outcome.queued && mounted && messenger != null) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Feedback saved locally and will sync when online.',
+                    ),
+                  ),
+                );
+              }
             },
             child: const Text('SAVE'),
           ),
@@ -888,7 +952,7 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
     );
   }
 
-  Future<void> _saveFeedback({
+  Future<OfflineQueueOutcome> _saveFeedback({
     required String taskId,
     required String feedback,
     required String achievement,
@@ -901,17 +965,32 @@ class _TaskBoardScreenState extends State<TaskBoardScreen> {
     final reviewer = _profile?.displayName.trim().isNotEmpty == true
         ? _profile!.displayName
         : (_auth.currentUser?.email ?? 'Manager');
-    await _firestore.appCollection('tasks').doc(taskId).set({
-      'latestFeedback': feedback.trim(),
-      'latestAchievement': achievement.trim(),
-      'latestImprovement': improvement.trim(),
-      'feedbackByUid': _auth.currentUser?.uid,
-      'feedbackByName': reviewer,
-      'feedbackAt': FieldValue.serverTimestamp(),
-      'feedbackAtIst': nowIst,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'updatedAtIst': nowIst,
-    }, SetOptions(merge: true));
+    final payload = {
+      'uid': _auth.currentUser?.uid ?? taskId,
+      'operation': 'task_feedback',
+      'taskId': taskId,
+      'feedback': feedback.trim(),
+      'achievement': achievement.trim(),
+      'improvement': improvement.trim(),
+    };
+
+    return AppResilienceService.instance.executeWithOfflineQueue(
+      operation: 'task_feedback',
+      payload: payload,
+      action: () async {
+        await _firestore.appCollection('tasks').doc(taskId).set({
+          'latestFeedback': feedback.trim(),
+          'latestAchievement': achievement.trim(),
+          'latestImprovement': improvement.trim(),
+          'feedbackByUid': _auth.currentUser?.uid,
+          'feedbackByName': reviewer,
+          'feedbackAt': FieldValue.serverTimestamp(),
+          'feedbackAtIst': nowIst,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAtIst': nowIst,
+        }, SetOptions(merge: true));
+      },
+    );
   }
 }
 

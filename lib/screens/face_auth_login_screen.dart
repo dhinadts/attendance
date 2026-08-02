@@ -11,6 +11,7 @@ import 'package:geolocator/geolocator.dart';
 import '../widgets/primary_action_button.dart';
 import '../services/face_recognition_service.dart';
 import '../services/attendance_session_service.dart';
+import '../services/app_resilience_service.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 class FaceAuthLoginScreen extends StatefulWidget {
@@ -327,11 +328,19 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
     double? distanceMeters,
   }) async {
     try {
-      await _attendanceService.recordLeave(
+      final outcome = await _attendanceService.recordLeave(
         reason: reason,
         position: position,
         distanceMeters: distanceMeters,
       );
+      if (mounted) {
+        _setStatus(
+          outcome.queued
+              ? 'Attendance marked leave locally: $reason'
+              : 'Attendance marked leave: $reason',
+          outcome.queued ? StatusChipType.pending : StatusChipType.alert,
+        );
+      }
     } catch (_) {
       // Keep the UI focused on the original failure reason.
     }
@@ -344,6 +353,7 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
       }
     }
 
+    if (!mounted) return;
     _setStatus('Attendance marked leave: $reason', StatusChipType.alert);
   }
 
@@ -394,8 +404,13 @@ class _FaceAuthLoginScreenState extends State<FaceAuthLoginScreen>
       throw Exception('Location permission permanently denied');
     }
 
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best),
+    return AppResilienceService.instance.executeWithRetry<Position>(
+      action: () => Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+        ),
+      ),
+      attempts: 3,
     );
   }
 

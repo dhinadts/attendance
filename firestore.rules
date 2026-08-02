@@ -97,7 +97,7 @@ service cloud.firestore {
         'lastPresenceCheckSource',
         'lastPresenceDistanceMeters',
         'lastPresenceInsideOffice',
-        'faceImageBase64',
+        'faceImageStoragePath',
         'faceImageContentType',
         'faceImagePurgedAt',
         'faceImagePurgedAtIst',
@@ -178,7 +178,8 @@ service cloud.firestore {
         || (signedIn() && resource.data.employeeId == employeeId());
       allow create: if signedIn()
         && request.resource.data.employeeId == employeeId()
-        && request.resource.data.status == 'requested';
+        && request.resource.data.status == 'requested'
+        && forbidClientControlledFields();
       allow update, delete: if isAdmin();
     }
 
@@ -209,7 +210,8 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (signedIn() && resource.data.employeeId == employeeId());
       allow create: if signedIn()
-        && request.resource.data.employeeId == employeeId();
+        && request.resource.data.employeeId == employeeId()
+        && forbidClientControlledFields();
       allow update: if canApproveLeave()
         || (signedIn() && resource.data.employeeId == employeeId()
           && request.resource.data.employeeId == resource.data.employeeId
@@ -268,7 +270,8 @@ service cloud.firestore {
     match /team_messages/{messageId} {
       allow read: if signedIn();
       allow create: if signedIn()
-        && request.resource.data.senderUid == request.auth.uid;
+        && request.resource.data.senderUid == request.auth.uid
+        && forbidClientControlledFields();
       allow update, delete: if isAdmin();
     }
 
@@ -276,7 +279,8 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (signedIn() && resource.data.senderUid == request.auth.uid);
       allow create: if signedIn()
-        && request.resource.data.senderUid == request.auth.uid;
+        && request.resource.data.senderUid == request.auth.uid
+        && forbidClientControlledFields();
       allow update, delete: if isAdmin();
     }
 
@@ -292,13 +296,15 @@ service cloud.firestore {
       allow read, update, delete: if signedIn()
         && resource.data.uid == request.auth.uid;
       allow create: if signedIn()
-        && request.resource.data.uid == request.auth.uid;
+        && request.resource.data.uid == request.auth.uid
+        && forbidClientControlledFields();
     }
 
     match /notification_reads/{readId} {
       allow read: if signedIn() && resource.data.uid == request.auth.uid;
       allow create, update: if signedIn()
-        && request.resource.data.uid == request.auth.uid;
+        && request.resource.data.uid == request.auth.uid
+        && forbidClientControlledFields();
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
@@ -330,13 +336,16 @@ service cloud.firestore {
 
     match /audit_logs/{logId} {
       allow read: if isAdmin();
-      allow create: if signedIn();
+      // Allow creation but prevent clients setting server timestamps/ids
+      allow create: if signedIn() && forbidClientControlledFields();
       allow update, delete: if false;
     }
 
     match /fcm_background_events/{eventId} {
       allow read: if isAdmin();
-      allow create: if signedIn();
+      // Background events may be written by clients (best-effort) but must not
+      // override server-controlled fields.
+      allow create: if signedIn() && forbidClientControlledFields();
       allow update, delete: if false;
     }
 
@@ -398,6 +407,26 @@ service cloud.firestore {
 
     function appOwnsEmployee(appId, employeeIdValue) {
       return signedIn() && appEmployeeId(appId) == employeeIdValue;
+    }
+
+    // Prevent clients from writing server-controlled fields
+    function forbidClientControlledFields() {
+      // Admin users may set these fields; regular users must not.
+      return isAdmin() || !request.resource.data.keys().hasAny([
+        'createdAt',
+        'createdAtIst',
+        'processedAt',
+        'processedAtIst',
+        'processor',
+        'status',
+        'retryAt',
+        'retryCount',
+        'messageId',
+        'notificationId',
+        'notificationId',
+        'updatedAt',
+        'uploadedAt'
+      ]);
     }
 
     match /Attendance/{appId} {

@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import 'auth_role_service.dart';
 import 'app_firestore.dart';
+import 'app_resilience_service.dart';
 
 class FcmNotificationService {
   FcmNotificationService._();
@@ -42,6 +43,7 @@ class FcmNotificationService {
   );
 
   Future<void> initialize() async {
+    await AppResilienceService.instance.initialize();
     await _messaging.requestPermission(alert: true, badge: true, sound: true);
     if (!kIsWeb) {
       await _localNotifications.initialize(
@@ -134,19 +136,109 @@ class FcmNotificationService {
       'department': normalizedDepartment,
       'updatedAt': FieldValue.serverTimestamp(),
     };
-    final userRef = _firestore.appCollection('users').doc(user.uid);
-    final userDoc = await userRef.get();
-    if (userDoc.exists) {
-      await userRef.set({
-        'fcmToken': token,
-        'fcmUpdatedAt': FieldValue.serverTimestamp(),
-        if (normalizedDepartment != null) 'department': normalizedDepartment,
-      }, SetOptions(merge: true));
+    try {
+      final userRef = _firestore.appCollection('users').doc(user.uid);
+      final userDoc = await userRef.get();
+      if (userDoc.exists) {
+        await userRef.set({
+          'fcmToken': token,
+          'fcmUpdatedAt': FieldValue.serverTimestamp(),
+          if (normalizedDepartment != null) 'department': normalizedDepartment,
+        }, SetOptions(merge: true));
+      }
+      await _firestore
+          .appCollection('fcm_tokens')
+          .doc('${user.uid}_${kIsWeb ? 'web' : 'android'}')
+          .set(data, SetOptions(merge: true));
+      await _drainPendingRegistrations(user.uid);
+    } catch (error, stackTrace) {
+      await AppResilienceService.instance.recordError(
+        error.toString(),
+        context: 'fcm_registration',
+        details: {
+          'uid': user.uid,
+          'token': token,
+          'stackTrace': stackTrace.toString(),
+        },
+      );
+      await AppResilienceService.instance
+          .enqueuePendingWrite('fcm_registration', {
+            'uid': user.uid,
+            'token': token,
+            'department': normalizedDepartment,
+            'platform': kIsWeb ? 'web' : 'android',
+            'email': user.email,
+          });
     }
-    await _firestore
-        .appCollection('fcm_tokens')
-        .doc('${user.uid}_${kIsWeb ? 'web' : 'android'}')
-        .set(data, SetOptions(merge: true));
+  }
+
+  Future<void> _drainPendingRegistrations(String uid) async {
+    final pendingOperations = await AppResilienceService.instance
+        .dequeuePendingWrites();
+    for (final operation in pendingOperations) {
+      if (operation['operation'] != 'fcm_registration') {
+        await AppResilienceService.instance.enqueuePendingWrite(
+          operation['operation']?.toString() ?? 'unknown',
+          Map<String, dynamic>.from(operation),
+        );
+        continue;
+      }
+      if (operation['uid'] != uid) {
+        await AppResilienceService.instance.enqueuePendingWrite(
+          'fcm_registration',
+          Map<String, dynamic>.from(operation),
+        );
+        continue;
+      }
+
+      try {
+        final user = _auth.currentUser;
+        if (user == null) {
+          await AppResilienceService.instance.enqueuePendingWrite(
+            'fcm_registration',
+            Map<String, dynamic>.from(operation),
+          );
+          continue;
+        }
+        final token = operation['token']?.toString();
+        if (token == null || token.isEmpty) {
+          continue;
+        }
+        final normalizedDepartment = operation['department']?.toString();
+        final data = {
+          'uid': user.uid,
+          'email': operation['email'],
+          'token': token,
+          'platform': operation['platform'] ?? (kIsWeb ? 'web' : 'android'),
+          'department': normalizedDepartment,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        final userRef = _firestore.appCollection('users').doc(user.uid);
+        final userDoc = await userRef.get();
+        if (userDoc.exists) {
+          await userRef.set({
+            'fcmToken': token,
+            'fcmUpdatedAt': FieldValue.serverTimestamp(),
+            if (normalizedDepartment != null && normalizedDepartment.isNotEmpty)
+              'department': normalizedDepartment,
+          }, SetOptions(merge: true));
+        }
+        await _firestore
+            .appCollection('fcm_tokens')
+            .doc('${user.uid}_${kIsWeb ? 'web' : 'android'}')
+            .set(data, SetOptions(merge: true));
+      } catch (error) {
+        await AppResilienceService.instance.enqueuePendingWrite(
+          'fcm_registration',
+          Map<String, dynamic>.from(operation),
+        );
+        await AppResilienceService.instance.recordError(
+          error.toString(),
+          context: 'fcm_registration_retry',
+          details: {'operation': operation},
+        );
+      }
+    }
   }
 
   Future<void> _handleLocalNotificationTap(String? payload) async {

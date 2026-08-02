@@ -1,5 +1,6 @@
 const express = require("express");
 const admin = require("firebase-admin");
+const { randomUUID } = require("node:crypto");
 const { registerTaskRoutes } = require("./routes/taskRoutes");
 
 const PORT = Number(process.env.PORT || 8080);
@@ -8,8 +9,8 @@ const OUTBOX_LIMIT = Number(process.env.FCM_OUTBOX_LIMIT || 25);
 const ANDROID_NOTIFICATION_CHANNEL_ID = "team_messages_heads_up";
 const MAX_RETRY_ATTEMPTS = Number(
   process.env.FCM_MAX_RETRY_ATTEMPTS ||
-    process.env.FCM_MAX_RETRY_ATTEPTS ||
-    2,
+  process.env.FCM_MAX_RETRY_ATTEPTS ||
+  2,
 );
 const BACKOFF_BASE_SECONDS = Number(process.env.FCM_BACKOFF_BASE_SECONDS || 30);
 const MAX_BACKOFF_SECONDS = Number(process.env.FCM_MAX_BACKOFF_SECONDS || 86400);
@@ -17,13 +18,21 @@ const METRICS_ENABLED = process.env.FCM_METRICS_ENABLED === "true";
 const APP_ROOT_COLLECTION = process.env.FIRESTORE_APP_ROOT_COLLECTION || "Attendance";
 const APP_ROOT_DOCUMENT = process.env.FIRESTORE_APP_ROOT_DOCUMENT || "main";
 const OUTBOX_STATUSES = ["pending", "processing", "retry", "sent", "failed"];
+const METRICS_STORE = {
+  notificationsAttempted: 0,
+  notificationsSent: 0,
+  notificationsFailed: 0,
+  notificationsRetried: 0,
+  notificationsDelivered: 0,
+};
+let firestore = null;
 
 function parseServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
     ? Buffer.from(
-        process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
-        "base64",
-      ).toString("utf8")
+      process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
+      "base64",
+    ).toString("utf8")
     : process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 
   if (!raw) return null;
@@ -41,7 +50,7 @@ function parseServiceAccount() {
   if (missing.length > 0) {
     throw new Error(
       `Firebase service account is missing: ${missing.join(", ")}. ` +
-        "Use the full JSON downloaded from Firebase Console > Project settings > Service accounts > Generate new private key.",
+      "Use the full JSON downloaded from Firebase Console > Project settings > Service accounts > Generate new private key.",
     );
   }
 
@@ -49,24 +58,34 @@ function parseServiceAccount() {
 }
 
 function initializeFirebase() {
-  if (admin.apps.length > 0) return;
-
-  const serviceAccount = parseServiceAccount();
-  const projectId =
-    process.env.FIREBASE_PROJECT_ID || serviceAccount?.project_id;
-
-  if (serviceAccount) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      projectId,
-    });
-    return;
+  if (admin.apps.length > 0) {
+    return admin.firestore();
   }
 
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-    projectId,
-  });
+  try {
+    const serviceAccount = parseServiceAccount();
+    const projectId =
+      process.env.FIREBASE_PROJECT_ID || serviceAccount?.project_id;
+
+    if (serviceAccount) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId,
+      });
+      return admin.firestore();
+    }
+
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      projectId,
+    });
+    return admin.firestore();
+  } catch (error) {
+    logError("Firebase initialization failed; continuing without Firestore", {
+      error: error.message || String(error),
+    });
+    return null;
+  }
 }
 
 function appRoot(firestore) {
@@ -85,12 +104,63 @@ function chunk(array, size) {
   return chunks;
 }
 
-function logInfo(message, meta) {
-  console.info(new Date().toISOString(), message, meta || "");
+function logInfo(message, meta = {}) {
+  console.info(JSON.stringify({ timestamp: new Date().toISOString(), level: "info", message, ...meta }));
 }
 
-function logError(message, meta) {
-  console.error(new Date().toISOString(), message, meta || "");
+function logError(message, meta = {}) {
+  console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: "error", message, ...meta }));
+}
+
+function incrementMetric(name, amount = 1) {
+  if (!METRICS_STORE[name]) {
+    METRICS_STORE[name] = 0;
+  }
+  METRICS_STORE[name] += amount;
+}
+
+function buildStatusSnapshot(activeFirestore) {
+  return {
+    ok: true,
+    service: "attendance-fcm-relay",
+    dryRun: DRY_RUN,
+    root: `${APP_ROOT_COLLECTION}/${APP_ROOT_DOCUMENT}`,
+    outboxLimit: OUTBOX_LIMIT,
+    maxRetryAttempts: MAX_RETRY_ATTEMPTS,
+    backoffBaseSeconds: BACKOFF_BASE_SECONDS,
+    maxBackoffSeconds: MAX_BACKOFF_SECONDS,
+    metricsEnabled: METRICS_ENABLED,
+    uptimeSeconds: Math.round(process.uptime()),
+    checkedAtIst: nowIstIso(),
+    firebaseAvailable: Boolean(activeFirestore),
+    metrics: {
+      ...METRICS_STORE,
+      pending: 0,
+    },
+  };
+}
+
+function requestIdMiddleware(request, response, next) {
+  const incomingRequestId = String(request.get("x-request-id") || "").trim();
+  const requestId = incomingRequestId || randomUUID();
+  request.requestId = requestId;
+  response.set("x-request-id", requestId);
+  const startedAt = Date.now();
+  logInfo("request_started", {
+    method: request.method,
+    path: request.originalUrl || request.url,
+    requestId,
+  });
+  response.on("finish", () => {
+    logInfo("request_finished", {
+      method: request.method,
+      path: request.originalUrl || request.url,
+      requestId,
+      statusCode: response.statusCode,
+      durationMs: Date.now() - startedAt,
+    });
+  });
+  next();
 }
 
 function calculateNextRetrySeconds(retryCount) {
@@ -120,6 +190,9 @@ async function countQuery(query) {
 }
 
 async function outboxStatusCounts(firestore) {
+  if (!firestore) {
+    return Object.fromEntries(OUTBOX_STATUSES.map((status) => [status, 0]));
+  }
   const collection = appCollection(firestore, "fcm_outbox");
   const entries = await Promise.all(
     OUTBOX_STATUSES.map(async (status) => [
@@ -131,6 +204,9 @@ async function outboxStatusCounts(firestore) {
 }
 
 async function fcmMetricsSnapshot(firestore) {
+  if (!firestore) {
+    return {};
+  }
   const snapshot = await appCollection(firestore, "fcm_metrics").doc("summary").get();
   return snapshot.exists ? serializeFirestoreValue(snapshot.data()) : {};
 }
@@ -304,31 +380,31 @@ async function migrateRootCollectionsToAttendance(firestore, collectionNames) {
   const collections = collectionNames && collectionNames.length > 0
     ? collectionNames
     : [
-        "users",
-        "teams",
-        "employee_profiles",
-        "attendance",
-        "attendance_records",
-        "attendance_summaries",
-        "team_attendance_summaries",
-        "leave_requests",
-        "attendance_mark_requests",
-        "salary_records",
-        "salary_structures",
-        "tasks",
-        "exit_requests",
-        "team_messages",
-        "fcm_outbox",
-        "fcm_tokens",
-        "notification_inbox",
-        "notification_reads",
-        "notifications",
-        "announcements",
-        "company_documents",
-        "holidays",
-        "audit_logs",
-        "fcm_background_events",
-      ];
+      "users",
+      "teams",
+      "employee_profiles",
+      "attendance",
+      "attendance_records",
+      "attendance_summaries",
+      "team_attendance_summaries",
+      "leave_requests",
+      "attendance_mark_requests",
+      "salary_records",
+      "salary_structures",
+      "tasks",
+      "exit_requests",
+      "team_messages",
+      "fcm_outbox",
+      "fcm_tokens",
+      "notification_inbox",
+      "notification_reads",
+      "notifications",
+      "announcements",
+      "company_documents",
+      "holidays",
+      "audit_logs",
+      "fcm_background_events",
+    ];
   const result = {};
   for (const collectionName of collections) {
     const sourceSnapshot = await firestore.collection(collectionName).get();
@@ -406,9 +482,9 @@ function finalizeSegmentAttendance(record, requestedLogoutAt) {
   const eligibleMinutes = Number(record.eligibleMinutes || 420);
   const totalMinutes = Number.isFinite(loginAt)
     ? Math.min(
-        Math.max(0, Math.round((Date.parse(logoutAt) - loginAt) / 60000)),
-        maxOfficeMinutes,
-      )
+      Math.max(0, Math.round((Date.parse(logoutAt) - loginAt) / 60000)),
+      maxOfficeMinutes,
+    )
     : 0;
   const officeMinutes = Math.min(
     officeMinutesFromSegments(record.segments || [], logoutAt),
@@ -623,6 +699,7 @@ async function processOutboxDocument(firestore, docRef) {
   const payload = messageDataFor(data, docRef.id);
 
   if (uniqueTopics.length === 0 && tokens.length === 0) {
+    incrementMetric("notificationsFailed");
     await docRef.set(
       {
         status: "failed",
@@ -636,7 +713,7 @@ async function processOutboxDocument(firestore, docRef) {
 
   const responses = [];
   try {
-    // increment attempted metric
+    incrementMetric("notificationsAttempted");
     if (METRICS_ENABLED) {
       await appCollection(firestore, "fcm_metrics")
         .doc("summary")
@@ -653,15 +730,17 @@ async function processOutboxDocument(firestore, docRef) {
       logInfo("sending multicast", { tokenCount: tokenChunk.length, messageId: docRef.id });
       const response = DRY_RUN
         ? {
-            successCount: tokenChunk.length,
-            failureCount: 0,
-            dryRun: true,
-          }
+          successCount: tokenChunk.length,
+          failureCount: 0,
+          dryRun: true,
+        }
         : await messaging.sendEachForMulticast({ ...payload, tokens: tokenChunk });
       responses.push({ tokenCount: tokenChunk.length, successCount: response.successCount, failureCount: response.failureCount });
     }
 
-    // success
+    const totalSuccess = responses.reduce((sum, response) => sum + (response.successCount || 0), 0);
+    incrementMetric("notificationsDelivered", responses.length);
+    incrementMetric("notificationsSent", totalSuccess);
     await docRef.set(
       {
         status: "sent",
@@ -672,14 +751,13 @@ async function processOutboxDocument(firestore, docRef) {
       { merge: true },
     );
 
-    // metrics: increment sent count
     if (METRICS_ENABLED) {
-      const totalSuccess = responses.reduce((sum, r) => sum + (r.successCount || 0), 0);
       await appCollection(firestore, "fcm_metrics")
         .doc("summary")
         .set({ messagesSent: admin.firestore.FieldValue.increment(totalSuccess) }, { merge: true });
     }
   } catch (error) {
+    incrementMetric("notificationsFailed");
     logError("Failed to process outbox document", { id: docRef.id, error: error.message || String(error) });
 
     // schedule retry with exponential backoff
@@ -687,6 +765,9 @@ async function processOutboxDocument(firestore, docRef) {
     const nextDelaySecs = calculateNextRetrySeconds(currentRetryCount);
     const nextRetryAt = admin.firestore.Timestamp.fromDate(new Date(Date.now() + nextDelaySecs * 1000));
     const willRetry = currentRetryCount <= MAX_RETRY_ATTEMPTS;
+    if (willRetry) {
+      incrementMetric("notificationsRetried");
+    }
 
     await docRef.set(
       {
@@ -737,9 +818,12 @@ function startOutboxListener(firestore) {
   );
 }
 
-function startHttpServer() {
+function startHttpServer(firestoreInstance = firestore) {
+  const activeFirestore = firestoreInstance;
+  const firestore = activeFirestore;
   const app = express();
   app.use(express.json({ limit: "1mb" }));
+  app.use(requestIdMiddleware);
   app.get("/", (_request, response) => {
     response.json({
       ok: true,
@@ -750,35 +834,52 @@ function startHttpServer() {
       maxRetryAttempts: MAX_RETRY_ATTEMPTS,
     });
   });
-  app.get("/health", asyncRoute(async (_request, response) => {
-    response.status(200).json({
-      ok: true,
-      service: "attendance-fcm-relay",
-      dryRun: DRY_RUN,
-      root: `${APP_ROOT_COLLECTION}/${APP_ROOT_DOCUMENT}`,
-      uptimeSeconds: Math.round(process.uptime()),
-      checkedAtIst: nowIstIso(),
+  app.get("/health", asyncRoute(async (request, response) => {
+    const payload = {
+      ...(await buildStatusSnapshot(firestore)),
+      requestId: request.requestId,
       outbox: await outboxStatusCounts(firestore),
-      metrics: await fcmMetricsSnapshot(firestore),
-    });
+      metrics: {
+        ...(await fcmMetricsSnapshot(firestore)),
+        ...METRICS_STORE,
+      },
+    };
+    response.status(200).json(payload);
+  }));
+  app.get("/ready", asyncRoute(async (request, response) => {
+    const payload = {
+      ok: true,
+      ready: true,
+      requestId: request.requestId,
+      firebaseAvailable: Boolean(firestore),
+      service: "attendance-fcm-relay",
+    };
+    response.status(200).json(payload);
+  }));
+  app.get("/status", asyncRoute(async (request, response) => {
+    const payload = {
+      ...(await buildStatusSnapshot(firestore)),
+      requestId: request.requestId,
+      outbox: await outboxStatusCounts(firestore),
+      metrics: {
+        ...(await fcmMetricsSnapshot(firestore)),
+        ...METRICS_STORE,
+      },
+    };
+    response.status(200).json(payload);
   }));
   app.get("/api/relay/status", asyncRoute(async (request, response) => {
     requireApiKey(request);
-    response.json({
-      ok: true,
-      service: "attendance-fcm-relay",
-      dryRun: DRY_RUN,
-      root: `${APP_ROOT_COLLECTION}/${APP_ROOT_DOCUMENT}`,
-      outboxLimit: OUTBOX_LIMIT,
-      maxRetryAttempts: MAX_RETRY_ATTEMPTS,
-      backoffBaseSeconds: BACKOFF_BASE_SECONDS,
-      maxBackoffSeconds: MAX_BACKOFF_SECONDS,
-      metricsEnabled: METRICS_ENABLED,
-      uptimeSeconds: Math.round(process.uptime()),
-      checkedAtIst: nowIstIso(),
+    const payload = {
+      ...(await buildStatusSnapshot(firestore)),
+      requestId: request.requestId,
       outbox: await outboxStatusCounts(firestore),
-      metrics: await fcmMetricsSnapshot(firestore),
-    });
+      metrics: {
+        ...(await fcmMetricsSnapshot(firestore)),
+        ...METRICS_STORE,
+      },
+    };
+    response.status(200).json(payload);
   }));
   app.get("/api/fcm-outbox", asyncRoute(async (request, response) => {
     requireApiKey(request);
@@ -1318,17 +1419,43 @@ function safeId(value) {
   return String(value).trim().replace(/[\/#?\[\]]/g, "_");
 }
 
-initializeFirebase();
-
-const firestore = admin.firestore();
-const unsubscribe = startOutboxListener(firestore);
-const server = startHttpServer();
-
-function shutdown(signal) {
-  console.log(`Received ${signal}; shutting down`);
-  unsubscribe();
-  server.close(() => process.exit(0));
+function createApp({ firestore: firestoreInstance = null, metricsStore = METRICS_STORE } = {}) {
+  if (metricsStore !== METRICS_STORE) {
+    Object.assign(METRICS_STORE, metricsStore);
+  }
+  return startHttpServer(firestoreInstance);
 }
 
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
+function startRelay() {
+  firestore = initializeFirebase();
+  if (firestore) {
+    const unsubscribe = startOutboxListener(firestore);
+    const server = startHttpServer(firestore);
+
+    function shutdown(signal) {
+      console.log(JSON.stringify({ timestamp: new Date().toISOString(), level: "info", message: `Received ${signal}; shutting down` }));
+      unsubscribe();
+      server.close(() => process.exit(0));
+    }
+
+    process.on("SIGINT", () => shutdown("SIGINT"));
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+  } else {
+    startHttpServer(null);
+  }
+}
+
+if (require.main === module) {
+  startRelay();
+}
+
+module.exports = {
+  createApp,
+  startRelay,
+  initializeFirebase,
+  startHttpServer,
+  buildFcmOutboxMessage,
+  buildStatusSnapshot,
+  outboxStatusCounts,
+  fcmMetricsSnapshot,
+};

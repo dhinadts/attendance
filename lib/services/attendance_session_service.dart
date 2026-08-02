@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'app_resilience_service.dart';
 import 'audit_log_service.dart';
 import 'attendance_finalize_api_service.dart';
 
@@ -517,6 +519,20 @@ class AttendanceSessionService {
     final docId = attendanceDocumentId(employee.employeeId, loginDate);
     final docRef = _firestore.appCollection('attendance').doc(docId);
 
+    // Upload face image to Firebase Storage instead of storing base64 in Firestore
+    String? faceImageStoragePath;
+    try {
+      final bytes = base64Decode(faceImageBase64);
+      final storagePath =
+          'attendance_images/${employee.employeeId}/$loginDate/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final ref = FirebaseStorage.instance.ref().child(storagePath);
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      faceImageStoragePath = storagePath;
+    } catch (e) {
+      // Best-effort: if upload fails, proceed without storage path and do not store base64
+      faceImageStoragePath = null;
+    }
+
     final officeDistanceMeters = Geolocator.distanceBetween(
       loginPosition.latitude,
       loginPosition.longitude,
@@ -565,7 +581,8 @@ class AttendanceSessionService {
         'eligibleMinutes': eligibleMinutes,
         'method': 'face_geofence',
         'requiresDailyFaceAuth': true,
-        'faceImageBase64': faceImageBase64,
+        if (faceImageStoragePath != null)
+          'faceImageStoragePath': faceImageStoragePath,
         'faceImageContentType': 'image/jpeg',
         'faceCount': faceCount,
         if (faceRecognition != null) 'faceRecognition': faceRecognition,
@@ -657,9 +674,21 @@ class AttendanceSessionService {
     for (final doc in snapshot.docs) {
       final data = doc.data();
       if (data['loginDateIst'] == keepDateKey) continue;
-      if (!data.containsKey('faceImageBase64')) continue;
+      // Remove stored image references. If storage path exists, attempt deletion.
+      final storagePath = data['faceImageStoragePath'] as String?;
+      if (storagePath != null) {
+        try {
+          await FirebaseStorage.instance.ref().child(storagePath).delete();
+        } catch (_) {
+          // Best-effort: ignore storage deletion failures
+        }
+      }
+      if (!data.containsKey('faceImageStoragePath') &&
+          !data.containsKey('faceImageBase64'))
+        continue;
       batch.set(doc.reference, {
         'faceImageBase64': FieldValue.delete(),
+        'faceImageStoragePath': FieldValue.delete(),
         'faceImageContentType': FieldValue.delete(),
         'faceImagePurgedAt': FieldValue.serverTimestamp(),
         'faceImagePurgedAtIst': nowIst.toIso8601String(),
@@ -1088,7 +1117,7 @@ class AttendanceSessionService {
     );
   }
 
-  Future<void> recordLeave({
+  Future<OfflineQueueOutcome> recordLeave({
     required String reason,
     Position? position,
     double? distanceMeters,
@@ -1099,21 +1128,14 @@ class AttendanceSessionService {
     final at = nowIst;
     final dateKey = _dateKey(at);
     final docId = attendanceDocumentId(employee.employeeId, dateKey);
-
-    await _firestore.appCollection('attendance').doc(docId).set({
+    final payload = {
+      'uid': employee.employeeId,
+      'operation': 'attendance_leave',
+      'docId': docId,
       'employeeId': employee.employeeId,
-      'employeeName': employee.employeeName,
-      'employee': employee.toMap(),
-      'device': device.toMap(),
-      'status': 'leave',
-      'sessionStatus': 'rejected',
-      'attendanceStatus': 'leave',
-      'dayStatus': 'leave',
-      'method': 'face_geofence',
+      'dateKey': dateKey,
       'reason': reason,
-      'capturedAt': FieldValue.serverTimestamp(),
-      'capturedAtIst': at.toIso8601String(),
-      'loginDateIst': dateKey,
+      'distanceMeters': distanceMeters,
       'location': position == null
           ? null
           : {
@@ -1122,22 +1144,52 @@ class AttendanceSessionService {
               'accuracy': position.accuracy,
               'distanceMeters': distanceMeters,
             },
-    }, SetOptions(merge: true));
+    };
 
-    await _audit.writeBestEffort(
-      action: 'attendance.record_leave',
-      entityType: 'attendance',
-      entityId: docId,
-      metadata: {
-        'employeeId': employee.employeeId,
-        'date': dateKey,
-        'reason': reason,
-        'distanceMeters': distanceMeters,
+    return AppResilienceService.instance.executeWithOfflineQueue(
+      operation: 'attendance_leave',
+      payload: payload,
+      action: () async {
+        await _firestore.appCollection('attendance').doc(docId).set({
+          'employeeId': employee.employeeId,
+          'employeeName': employee.employeeName,
+          'employee': employee.toMap(),
+          'device': device.toMap(),
+          'status': 'leave',
+          'sessionStatus': 'rejected',
+          'attendanceStatus': 'leave',
+          'dayStatus': 'leave',
+          'method': 'face_geofence',
+          'reason': reason,
+          'capturedAt': FieldValue.serverTimestamp(),
+          'capturedAtIst': at.toIso8601String(),
+          'loginDateIst': dateKey,
+          'location': position == null
+              ? null
+              : {
+                  'latitude': position.latitude,
+                  'longitude': position.longitude,
+                  'accuracy': position.accuracy,
+                  'distanceMeters': distanceMeters,
+                },
+        }, SetOptions(merge: true));
+
+        await _audit.writeBestEffort(
+          action: 'attendance.record_leave',
+          entityType: 'attendance',
+          entityId: docId,
+          metadata: {
+            'employeeId': employee.employeeId,
+            'date': dateKey,
+            'reason': reason,
+            'distanceMeters': distanceMeters,
+          },
+        );
       },
     );
   }
 
-  Future<void> requestLeave({
+  Future<OfflineQueueOutcome> requestLeave({
     required String dateKey,
     String reason = '',
   }) async {
@@ -1171,44 +1223,61 @@ class AttendanceSessionService {
       throw StateError('Leave request already exists for this date');
     }
 
-    await docRef.set({
+    final payload = {
+      'uid': employee.employeeId,
+      'operation': 'leave_request',
       'employeeId': employee.employeeId,
-      'employeeName': employee.employeeName,
-      'employee': employee.toMap(),
-      'date': dateKey,
-      'status': 'requested_leave',
+      'dateKey': dateKey,
       'reason': reason.trim(),
-      'requestedAt': FieldValue.serverTimestamp(),
       'requestedAtIst': nowIst.toIso8601String(),
-    }, SetOptions(merge: true));
-
-    // Send push notification to Admin
-    final nowIstStr = nowIst.toIso8601String();
-    final message = {
-      'title': 'New Leave Request',
-      'body':
-          '${employee.employeeName} requests leave on $dateKey. Reason: ${reason.trim().isEmpty ? "None" : reason.trim()}',
-      'senderUid': user?.uid,
-      'senderEmail': user?.email,
-      'senderRole': 'employee',
-      'senderName': employee.employeeName,
-      'targetType': 'admin',
-      'topics': ['admin_all'],
-      'type': 'leave_request',
-      'employeeId': employee.employeeId,
-      'date': dateKey,
-      'createdAt': FieldValue.serverTimestamp(),
-      'createdAtIst': nowIstStr,
     };
 
-    final msgRef = await _firestore.appCollection('team_messages').add(message);
-    await _firestore.appCollection('fcm_outbox').doc(msgRef.id).set({
-      ...message,
-      'messageId': msgRef.id,
-      'status': 'pending',
-      'delivery': 'cloud_function',
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    return AppResilienceService.instance.executeWithOfflineQueue(
+      operation: 'leave_request',
+      payload: payload,
+      action: () async {
+        await docRef.set({
+          'employeeId': employee.employeeId,
+          'employeeName': employee.employeeName,
+          'employee': employee.toMap(),
+          'date': dateKey,
+          'status': 'requested_leave',
+          'reason': reason.trim(),
+          'requestedAt': FieldValue.serverTimestamp(),
+          'requestedAtIst': nowIst.toIso8601String(),
+        }, SetOptions(merge: true));
+
+        // Send push notification to Admin
+        final nowIstStr = nowIst.toIso8601String();
+        final message = {
+          'title': 'New Leave Request',
+          'body':
+              '${employee.employeeName} requests leave on $dateKey. Reason: ${reason.trim().isEmpty ? "None" : reason.trim()}',
+          'senderUid': user?.uid,
+          'senderEmail': user?.email,
+          'senderRole': 'employee',
+          'senderName': employee.employeeName,
+          'targetType': 'admin',
+          'topics': ['admin_all'],
+          'type': 'leave_request',
+          'employeeId': employee.employeeId,
+          'date': dateKey,
+          'createdAt': FieldValue.serverTimestamp(),
+          'createdAtIst': nowIstStr,
+        };
+
+        final msgRef = await _firestore
+            .appCollection('team_messages')
+            .add(message);
+        await _firestore.appCollection('fcm_outbox').doc(msgRef.id).set({
+          ...message,
+          'messageId': msgRef.id,
+          'status': 'pending',
+          'delivery': 'cloud_function',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      },
+    );
   }
 
   Future<void> submitExitRequest({

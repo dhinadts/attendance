@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
 import '../widgets/primary_action_button.dart';
 import '../services/attendance_session_service.dart';
+import '../services/app_resilience_service.dart';
 
 class AttendanceGpsTrackingScreen extends StatefulWidget {
   const AttendanceGpsTrackingScreen({super.key});
@@ -211,8 +212,13 @@ class _AttendanceGpsTrackingScreenState
       throw StateError('Location permission denied');
     }
 
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best),
+    return AppResilienceService.instance.executeWithRetry<Position>(
+      action: () => Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+        ),
+      ),
+      attempts: 3,
     );
   }
 

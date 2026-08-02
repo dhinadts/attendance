@@ -435,10 +435,16 @@ class _AttendanceDetailsScreenState extends State<AttendanceDetailsScreen> {
     if (reason == null) return;
 
     try {
-      await _service.requestLeave(dateKey: dateKey, reason: reason);
+      final outcome = await _service.requestLeave(dateKey: dateKey, reason: reason);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Leave request sent for $dateKey')),
+        SnackBar(
+          content: Text(
+            outcome.queued
+                ? 'Leave request queued for $dateKey and will sync when online.'
+                : 'Leave request sent for $dateKey',
+          ),
+        ),
       );
     } catch (error) {
       if (!mounted) return;

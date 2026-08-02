@@ -8,6 +8,8 @@ import 'app.dart';
 import 'firebase_options.dart';
 import 'services/fcm_notification_service.dart';
 import 'services/app_firestore.dart';
+import 'services/app_resilience_service.dart';
+import 'services/app_telemetry_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -31,6 +33,53 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final telemetryDsn = const String.fromEnvironment('SENTRY_DSN', defaultValue: '');
+  final appEnvironment = const String.fromEnvironment(
+    'APP_ENV',
+    defaultValue: kReleaseMode ? 'production' : 'debug',
+  );
+  final appRelease = const String.fromEnvironment(
+    'APP_RELEASE',
+    defaultValue: 'attendance@1.0.0+1',
+  );
+
+  FlutterError.onError = (details) {
+    AppResilienceService.instance.recordError(
+      details.exceptionAsString(),
+      context: 'flutter_error',
+      details: {
+        'library': details.library,
+        'stackTrace': details.stack?.toString(),
+      },
+    );
+    AppTelemetryService.instance.captureException(
+      details.exception,
+      stackTrace: details.stack,
+      context: 'flutter_error',
+      extra: {'library': details.library},
+    );
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppResilienceService.instance.recordError(
+      error.toString(),
+      context: 'platform_dispatcher',
+      details: {'stackTrace': stack.toString()},
+    );
+    AppTelemetryService.instance.captureException(
+      error,
+      stackTrace: stack,
+      context: 'platform_dispatcher',
+    );
+    return true;
+  };
+
+  await AppResilienceService.instance.initialize();
+  await AppTelemetryService.instance.initialize(
+    dsn: telemetryDsn,
+    environment: appEnvironment,
+    release: appRelease,
+  );
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   if (!kIsWeb) {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
