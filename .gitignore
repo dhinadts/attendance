@@ -13,6 +13,8 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
+.fvm/
+.dart_tool/
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
@@ -94,3 +96,6 @@ key.properties
 
 /functions/node_modules/
 /functions/package-lock.json
+
+# FVM Version Cache
+.fvm/
